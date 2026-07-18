@@ -925,7 +925,7 @@ function updateHud() {
             }
         });
     };
-    $('hudCmd').onclick = null;
+    $('hudCmd').onclick = openPointsList;
 
     if (APP.lastPos) {
         const d = getGeoDistance(APP.lastPos, [t.lat, t.lon]);
@@ -965,6 +965,41 @@ function formatDistance(d) {
         return `${v}<span class="dist-unit">км</span>`;
     }
     return `${Math.round(d)}<span class="dist-unit">м</span>`;
+}
+
+function escapeHtml(str) {
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+}
+
+function openPointsList() {
+    const wrap = $('pointsListWrap');
+    if (!wrap || APP.navPoints.length === 0) return;
+    wrap.innerHTML = APP.navPoints.map((p, i) => {
+        const isCurrent = i === APP.navCurrentIndex;
+        const isPrev = i < APP.navCurrentIndex;
+        const dist = isCurrent && APP.lastPos && p.pts && p.pts[0]
+            ? formatDistance(getGeoDistance(APP.lastPos, [p.pts[0][0], p.pts[0][1]]))
+            : '';
+        const cls = `pl-item${isCurrent ? ' pl-active' : ''}${isPrev ? ' pl-prev' : ''}`;
+        const activeStyle = isCurrent ? ` style="border-color:#00FF00;border-width:2px"` : '';
+        return `<div class="${cls}" data-idx="${i}">
+            <div class="pl-item-row"${activeStyle}>
+                <div class="pl-item-row-main">
+                    <div class="pl-item-icon" data-play="${i}"><svg width="40" height="40" viewBox="0 0 20 20"><circle cx="10" cy="10" r="9" fill="${p.hex}" opacity="0.3"/><circle cx="10" cy="10" r="9" fill="none" stroke="${p.hex}" stroke-width="1.5"/><text x="10" y="10.5" font-size="8" font-family="Arial" font-weight="900" text-anchor="middle" dominant-baseline="middle" fill="#fff">${p.id}</text></svg></div>
+                    <div class="pl-item-text">${p.cmd}</div>
+                    ${dist ? `<div class="pl-item-dist">${dist}</div>` : ''}
+                </div>
+                ${p.comm && p.comm.trim() ? `<div class="pl-comment">${escapeHtml(p.comm)}</div>` : ''}
+            </div>
+        </div>`;
+    }).join('');
+    $('pointsListModal').classList.remove('hidden');
+}
+
+function closePointsList() {
+    $('pointsListModal').classList.add('hidden');
 }
 
 function updateHudDist(d, ad) {
@@ -1445,6 +1480,33 @@ ymaps3.ready.then(async () => {
         stopDrive();
     });
 
+    $('pointsListWrap').addEventListener('click', (e) => {
+        const icon = e.target.closest('.pl-item-icon');
+        if (icon) {
+            const idx = +icon.dataset.play;
+            if (!isNaN(idx) && APP.navPoints[idx]) {
+                const p = APP.navPoints[idx];
+                playCommand(p.cmd).then(() => {
+                    if (p.comm && p.comm.trim()) {
+                        APP.navAudio.onended = () => {
+                            APP.navAudio.onended = null;
+                            playComment(p.comm);
+                        };
+                    }
+                });
+            }
+            return;
+        }
+        const item = e.target.closest('.pl-item');
+        if (!item) return;
+        const idx = +item.dataset.idx;
+        if (!isNaN(idx) && idx >= 0 && idx < APP.navPoints.length) {
+            closePointsList();
+            stopDrive();
+            setTarget(idx);
+        }
+    });
+
     MenuModule.init(loadRouteFromJSON);
     $('loading').classList.add('hidden');
     ensureMotionTracking();
@@ -1460,6 +1522,11 @@ ymaps3.ready.then(async () => {
 });
 </script>
 
+<div id="pointsListModal" class="hidden" onclick="if(event.target===this) closePointsList()">
+    <div class="modal-sheet">
+        <div id="pointsListWrap"></div>
+    </div>
+</div>
+
 </body>
 </html>
-
