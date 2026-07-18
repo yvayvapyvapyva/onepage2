@@ -572,9 +572,24 @@ html, body {
     padding: 0;
     transition: background 0.15s;
     touch-action: manipulation;
+    position: relative;
 }
 
-.nav-pill-btn svg {
+.nav-pill-btn .preview-dot {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+#prevBtn .preview-dot {
+    left: 6px;
+}
+
+#nextBtn .preview-dot {
+    right: 6px;
+}
+
+.nav-pill-btn svg:not(.preview-dot) {
     fill: currentColor;
     width: 22px;
     height: 22px;
