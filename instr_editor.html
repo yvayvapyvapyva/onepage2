@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>Инструкция — Редактор маршрутов</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: #0a0b0f;
+            color: #f5f7fa;
+            line-height: 1.6;
+            padding: 20px;
+            padding-bottom: 40px;
+            -webkit-font-smoothing: antialiased;
+        }
+        h1 { font-size: 24px; font-weight: 700; text-align: center; margin: 20px 0 8px; }
+        .subtitle { text-align: center; color: #8b8f99; font-size: 14px; margin-bottom: 24px; }
+        h2 {
+            font-size: 18px; font-weight: 700; margin: 28px 0 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        h3 { font-size: 16px; font-weight: 600; margin: 20px 0 8px; color: #30D158; }
+        p { margin: 8px 0; font-size: 15px; color: rgba(255,255,255,0.85); }
+        ul { margin: 8px 0 8px 20px; }
+        li { margin: 6px 0; font-size: 15px; color: rgba(255,255,255,0.85); }
+        .icon-row {
+            display: flex; align-items: center; gap: 12px;
+            padding: 10px 14px;
+            background: rgba(255,255,255,0.04);
+            border-radius: 12px;
+            margin: 6px 0;
+        }
+        .icon-row .icon { font-size: 22px; width: 36px; text-align: center; flex-shrink: 0; }
+        .icon-row .desc { flex: 1; }
+        .icon-row .label { font-weight: 600; font-size: 15px; }
+        .icon-row .hint { font-size: 13px; color: #8b8f99; margin-top: 2px; }
+        .color-row {
+            display: flex; align-items: center; gap: 10px;
+            padding: 8px 12px;
+            background: rgba(255,255,255,0.04);
+            border-radius: 10px;
+            margin: 4px 0;
+        }
+        .swatch { width: 16px; height: 16px; border-radius: 50%; flex-shrink: 0; }
+
+        hr {
+            border: none;
+            border-top: 1px solid rgba(255,255,255,0.08);
+            margin: 24px 0;
+        }
+        kbd {
+            background: rgba(255,255,255,0.1);
+            border: 0.5px solid rgba(255,255,255,0.15);
+            border-radius: 6px;
+            padding: 2px 8px;
+            font-size: 13px;
+            font-family: inherit;
+        }
+        .tip {
+            background: rgba(48,209,88,0.08);
+            border-left: 3px solid #30D158;
+            padding: 12px 16px;
+            border-radius: 0 10px 10px 0;
+            margin: 12px 0;
+            font-size: 14px;
+        }
+        .tip strong { color: #30D158; }
+    </style>
+</head>
+<body>
+<style>
+.icon-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 14px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 12px;
+    margin: 6px 0;
+}
+.icon-row .icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 52px;
+    flex-shrink: 0;
+}
+.icon-row .desc { flex: 1; min-width: 0; }
+.icon-row .label { font-weight: 600; font-size: 15px; }
+.icon-row .hint { font-size: 13px; color: #8b8f99; margin-top: 2px; }
+
+.icon-row-v {
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    padding: 14px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 12px;
+    margin: 10px 0;
+}
+.icon-row-v .icon { display: flex; align-items: center; justify-content: center; }
+.icon-row-v .desc { width: 100%; text-align: left; }
+.icon-row-v .label { font-weight: 600; font-size: 15px; }
+.subtitle { text-align: center; color: #8b8f99; font-size: 14px; margin-bottom: 24px; }
+.badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+}
+.badge-green { background: rgba(48,209,88,0.2); color: #30D158; }
+.badge-blue { background: rgba(0,122,255,0.2); color: #5AC8FA; }
+.badge-gray { background: rgba(139,143,153,0.2); color: #8b8f99; }
+.color-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 10px;
+    margin: 4px 0;
+}
+.swatch { width: 16px; height: 16px; border-radius: 50%; flex-shrink: 0; }
+.tip {
+    background: rgba(48,209,88,0.08);
+    border-left: 3px solid #30D158;
+    padding: 12px 16px;
+    border-radius: 0 10px 10px 0;
+    margin: 12px 0;
+    font-size: 14px;
+}
+.tip strong { color: #30D158; }
+kbd {
+    background: rgba(255,255,255,0.1);
+    border: 0.5px solid rgba(255,255,255,0.15);
+    border-radius: 6px;
+    padding: 2px 8px;
+    font-size: 13px;
+    font-family: inherit;
+}
+.btn-replica {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: rgba(15, 15, 15, 0.8);
+    border: 0.5px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3), inset 0 0.5px 0 rgba(255, 255, 255, 0.1);
+    flex-shrink: 0;
+    color: #fff;
+    box-sizing: border-box;
+}
+.btn-replica svg {
+    fill: currentColor;
+    width: 22px;
+    height: 22px;
+}
+.btn-replica-text {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+.btn-replica-pill {
+    border-radius: 100px;
+    width: auto;
+    padding: 0 18px;
+    font-size: 15px;
+    font-weight: 700;
+    height: 48px;
+    gap: 8px;
+    white-space: nowrap;
+}
+.btn-replica-arrow {
+    border-radius: 14px;
+    width: 52px;
+    height: 52px;
+}
+.btn-replica-arrow svg {
+    width: 28px;
+    height: 28px;
+}
+.btn-replica-speed {
+    flex-direction: column;
+    gap: 2px;
+    line-height: 1.1;
+    font-size: 8px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+.btn-replica-speed .speed-val {
+    font-size: 16px;
+    font-weight: 800;
+}
+.btn-replica-hud {
+    border-radius: 14px;
+    width: auto;
+    height: 52px;
+    padding: 0;
+    overflow: hidden;
+    display: inline-flex;
+    align-items: stretch;
+    gap: 0;
+    border: 0.5px solid rgba(255,255,255,0.25);
+}
+.btn-replica-hud .hud-idx {
+    background: rgba(255,255,255,0.15);
+    border-right: 0.5px solid rgba(255,255,255,0.2);
+    padding: 0 12px;
+    display: flex;
+    align-items: center;
+    font-size: 14px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.btn-replica-hud .hud-txt {
+    flex: 1;
+    padding: 0 14px;
+    font-size: 15px;
+    font-weight: 600;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.btn-replica-hud .hud-dist {
+    background: rgba(255,255,255,0.15);
+    border-left: 0.5px solid rgba(255,255,255,0.2);
+    padding: 0 12px;
+    display: flex;
+    align-items: center;
+    font-size: 14px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+.btn-replica-action {
+    border-radius: 14px;
+    width: auto;
+    height: auto;
+    padding: 12px 16px;
+    font-size: 15px;
+    font-weight: 700;
+    gap: 8px;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+}
+.btn-replica-action svg {
+    width: 16px;
+    height: 16px;
+}
+.btn-replica-green {
+    background: linear-gradient(180deg, rgba(52,199,89,0.9), rgba(40,160,70,0.85));
+}
+.btn-replica-danger {
+    background: rgba(255,80,80,0.8);
+}
+.btn-replica-select {
+    border-radius: 12px;
+    width: auto;
+    height: 52px;
+    padding: 0 16px;
+    font-size: 15px;
+    font-weight: 600;
+    white-space: nowrap;
+    border: 1px solid rgba(255,255,255,0.25);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2), inset 0 0.5px 0 rgba(255,255,255,0.15);
+}
+.btn-replica-small {
+    width: 32px;
+    height: 32px;
+}
+.btn-replica-small svg {
+    width: 14px;
+    height: 14px;
+}
+</style>
+    <h1>✏️ Редактор маршрутов</h1>
+    <p class="subtitle">Создание и редактирование маршрутов для навигатора</p>
+
+    <h2>Как это работает</h2>
+    <p>Редактор позволяет создавать маршруты из набора точек. Каждая точка — это место на карте с голосовой командой (например, «На перекрестке повернем налево»), путём (линией на карте) и опциональным комментарием. Маршруты сохраняются в облаке и доступны в навигаторе.</p>
+
+    <h2>Начало работы</h2>
+
+    <div class="icon-row icon-row-v">
+        <div class="icon"><span class="btn-replica btn-replica-pill">Маршруты</span></div>
+        <div class="desc">
+            <div class="label">Кнопка «Маршруты» — Откроется список ваших маршрутов. Здесь можно создать новый, загрузить существующий, изменить его настройки или удалить.</div>
+        </div>
+    </div>
+
+    <div class="icon-row icon-row-v">
+        <div class="icon"><span class="btn-replica btn-replica-action btn-replica-green">Создать маршрут</span></div>
+        <div class="desc">
+            <div class="label">Создание маршрута — Введите название. Маршрут будет создан и сразу загружен для редактирования.</div>
+        </div>
+    </div>
+
+    <div class="icon-row icon-row-v">
+        <div class="icon"><span class="btn-replica btn-replica-action" style="background:rgba(0,122,255,0.25);border-color:rgba(0,122,255,0.4);">Создать папку</span></div>
+        <div class="desc">
+            <div class="label">Создание папки — Введите название. Папка появится в списке и в неё можно перетаскивать маршруты.</div>
+        </div>
+    </div>
+
+    <h2>Редактирование точек</h2>
+
+    <div class="icon-row icon-row-v">
+        <div class="icon"><span class="btn-replica btn-replica-pill">Добавить новую точку</span></div>
+        <div class="desc">
+            <div class="label">Добавление точки — Откроется форма новой точки — выберите категорию и введите команду, затем нажмите <kbd>Поставить на карту</kbd> и кликните на карте в нужном месте. Сразу после этого можно рисовать путь точки.</div>
+        </div>
+    </div>
+
+    <div class="icon-row">
+        <div class="icon">✏️</div>
+        <div class="desc">
+            <div class="label">Рисование пути — После завершения рисования пути нажмите <kbd>Завершить рисование пути</kbd>, чтобы закончить. Маршрут будет автоматически сохранён.</div>
+        </div>
+    </div>
+
+    <div class="icon-row">
+        <div class="icon"><span class="btn-replica" style="font-size:16px;">🌍</span></div>
+        <div class="desc">
+            <div class="label">GPS-режим — При активном режиме рисования нажмите, чтобы добавить точку пути по вашему текущему местоположению.</div>
+        </div>
+    </div>
+
+    <div class="icon-row">
+        <div class="icon">📝</div>
+        <div class="desc">
+            <div class="label">Редактирование точки — Кликните на существующую точку на карте или откройте список точек (<kbd>☰</kbd>). В открывшемся окне можно изменить категорию, команду, комментарий или удалить точку.</div>
+        </div>
+    </div>
+
+    <div class="icon-row">
+        <div class="icon"><span class="btn-replica btn-replica-small"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></span></div>
+        <div class="desc">
+            <div class="label">Прослушивание команды — Нажмите, чтобы прослушать, как команда будет звучать в навигаторе (мужской голос). Комментарий озвучивается отдельно женским голосом.</div>
+        </div>
+    </div>
+
+    <div class="icon-row icon-row-v">
+        <div class="icon"><span class="btn-replica btn-replica-action">🖋️ Изменить путь</span></div>
+        <div class="desc">
+            <div class="label">Изменение пути точки — Откроется режим редактирования линии пути. Добавляйте или перемещайте вершины пути на карте.</div>
+        </div>
+    </div>
+
+    <div class="icon-row">
+        <div class="icon">🪧</div>
+        <div class="desc">
+            <div class="label">Добавление дорожных знаков — В блоке «Дополнительная информация» в секции «Знаки» нажмите <kbd>➕ Добавить знак</kbd>, выберите знак и кликните на карте. Нажмите <kbd>Завершить установку знака</kbd> для сохранения.</div>
+        </div>
+    </div>
+    <p>Кликните на знаке на карте, чтобы открыть карточку точки и подсветить его в списке.</p>
+    <div class="tip">
+        💡 В навигаторе знаки отображаются на карте только когда активна точка, к которой они привязаны.
+    </div>
+
+    <h2>Управление маршрутом</h2>
+
+    <div class="icon-row icon-row-v">
+        <div class="icon"><span class="btn-replica btn-replica-action btn-replica-danger">🗑️ Удалить</span></div>
+        <div class="desc">
+            <div class="label">Удаление точки — Точка будет удалена из маршрута, а изменения сохранены.</div>
+        </div>
+    </div>
+
+    <div class="icon-row">
+        <div class="icon"><span class="btn-replica btn-replica-small" style="font-size:14px;cursor:grab;">☰</span></div>
+        <div class="desc">
+            <div class="label">Изменение порядка точек — Перетащите точку за ручку <kbd>☰</kbd> в нужное место списка, чтобы изменить порядок прохождения.</div>
+        </div>
+    </div>
+
+    <div class="icon-row">
+        <div class="icon">📂</div>
+        <div class="desc">
+            <div class="label">Перемещение маршрута в папку — Выполните длительное нажатие на маршруте, затем перетащите его на нужную папку в списке. Папки можно раскрывать, чтобы видеть вложенные маршруты.</div>
+        </div>
+    </div>
+
+    <div class="icon-row">
+        <div class="icon"><span class="btn-replica"><svg viewBox="0 0 24 24"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg></span></div>
+        <div class="desc">
+            <div class="label">Настройки маршрута — Можно изменить название, описание, видимость (публичный/личный), открыть в навигаторе, скопировать ссылку или удалить маршрут.</div>
+        </div>
+    </div>
+
+    <div class="icon-row icon-row-v">
+        <div class="icon"><span class="btn-replica btn-replica-action">🧭 Открыть в навигаторе</span></div>
+        <div class="desc">
+            <div class="label">Открыть в навигаторе — Маршрут откроется в режиме навигации для прохождения.</div>
+        </div>
+    </div>
+
+    <div class="icon-row icon-row-v">
+        <div class="icon"><span class="btn-replica btn-replica-action">🔗 Скопировать ссылку</span></div>
+        <div class="desc">
+            <div class="label">Поделиться маршрутом — Выберите платформу (VK или Telegram) для копирования ссылки. При переходе по ссылке откроется навигатор с этим маршрутом.</div>
+        </div>
+    </div>
+
+    <div class="icon-row">
+        <div class="icon"><span class="btn-replica" style="border-radius:8px;font-size:14px;background:rgba(0,122,255,0.2);border-color:rgba(0,122,255,0.3);">🔗</span></div>
+        <div class="desc">
+            <div class="label">Поделиться всеми маршрутами — При переходе по ссылке пользователь увидит список всех ваших публичных маршрутов.</div>
+        </div>
+    </div>
+
+    <h2>Карта</h2>
+    <div class="icon-row">
+        <div class="icon"><span class="btn-replica"><svg viewBox="0 0 24 24"><path d="M11.99 18.54l-7.37-5.73L3 14.07l9 7 9-7-1.63-1.27-7.38 5.74zM12 16l7.36-5.73L21 9l-9-7-9 7 1.63 1.27L12 16z"/></svg></span></div>
+        <div class="desc">
+            <div class="label">Переключение вида карты — Переключает вид карты Спутник/Схема.</div>
+        </div>
+    </div>
+
+    <div class="icon-row">
+        <div class="icon">💾</div>
+        <div class="desc">
+            <div class="label">Автосохранение — Изменения автоматически сохраняются при завершении рисования пути, удалении точки или нажатии <kbd>Готово</kbd> в списке точек.</div>
+        </div>
+    </div>
+
+    <h2>Категории точек</h2>
+    <p>Категория — это цветовая метка точки, которая помогает визуально группировать манёвры по типу. Команда для точки вводится произвольным текстом в поле ввода.</p>
+    <p>Доступные категории:</p>
+
+    <div class="color-row"><div class="swatch" style="background:#FFD700"></div> <span>Маневры на перекрёстке</span></div>
+    <div class="color-row"><div class="swatch" style="background:#007AFF"></div> <span>Разворот вне перекрёстка</span></div>
+    <div class="color-row"><div class="swatch" style="background:#FF3B30"></div> <span>Разгон до максимальной скорости</span></div>
+    <div class="color-row"><div class="swatch" style="background:#AF52DE"></div> <span>Остановка и начало движения на подъёме</span></div>
+    <div class="color-row"><div class="swatch" style="background:#FF9500"></div> <span>Левые и правые повороты</span></div>
+    <div class="color-row"><div class="swatch" style="background:#5856D6"></div> <span>Параллельная парковка и гараж</span></div>
+    <div class="color-row"><div class="swatch" style="background:#5AC8FA"></div> <span>Разворот в ограниченном пространстве</span></div>
+    <div class="color-row"><div class="swatch" style="background:#A2845E"></div> <span>Остановка</span></div>
+    <div class="color-row"><div class="swatch" style="background:#34C759"></div> <span>Начало движения</span></div>
+
+    <div class="tip">
+        <strong>💡 Совет:</strong> Текст команды можно ввести любой — он будет синтезирован мужским голосом. Комментарий озвучивается женским голосом при нажатии ▶ в карточке точки или автоматически в навигаторе после команды. Не забывайте прослушать команду или комментарий после написания, иногда ударения ставятся не так как вы ожидаете.
+    </div>
+
+    <h2>Советы по использованию</h2>
+    <ul>
+        <li>Ставьте новую точку от конца пути предыдущей, что бы весь маршрут выглядел неприрывным.</li>
+        <li>После создания маршрута откройте его в навигаторе, чтобы проверить прохождение.</li>
+        <li>Если маршрут публичный (галочка «Отображать в публичном списке»), он будет доступен всем пользователям.</li>
+        <li>Личные маршруты отображаются в навигаторе в папке <strong>Личные — видны и доступны только вам</strong>.</li>
+        <li>Перетащите маршрут на папку в списке, чтобы переместить его, или используйте слэш (/) в названии маршрута для создания папок, например «Город/Мещера/Маршрут 1».</li>
+
+    </ul>
+
+    <hr>
+    <p style="text-align:center; color:#8b8f99; font-size:13px;">
+        Приложение работает в браузере, Telegram и VK Mini Apps<br>
+        <a href="https://avtoinstruktor.website.yandexcloud.net/" style="color:#5AC8FA; text-decoration:none;">Веб-версия</a>
+        · <a href="https://t.me/E_ia_bot" style="color:#5AC8FA; text-decoration:none;">Telegram бот</a>
+        · <a href="https://vk.com/app54507759" style="color:#5AC8FA; text-decoration:none;">VK Mini App</a><br>
+        Если у вас возникли вопросы или предложения, обратитесь к администратору в telegram: <a href="https://t.me/Eliseev_I_A" style="color:#5AC8FA; text-decoration:none;">@Eliseev_I_A</a>
+    </p>
+</body>
+</html>
