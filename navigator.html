@@ -914,7 +914,8 @@ function updateHud() {
     $('hudCmdNum').innerHTML = `<svg width="40" height="40" viewBox="0 0 20 20"><circle cx="10" cy="10" r="9" fill="${t.hex}" opacity="0.3"/><circle cx="10" cy="10" r="9" fill="none" stroke="${t.hex}" stroke-width="1.5"/><text x="10" y="10.5" font-size="8" font-family="Arial" font-weight="900" text-anchor="middle" dominant-baseline="middle" fill="#fff">${t.id}</text></svg>`;
     $('hudCmdTextInner').textContent = t.cmd;
     $('hudCmdTextInner').style.opacity = APP._audioCache.has(t.cmd) ? '1' : '0.35';
-    $('hudCmd').onclick = () => {
+    $('hudCmdNum').onclick = (e) => {
+        e.stopPropagation();
         playCommand(t.cmd).then(() => {
             if (t.comm && t.comm.trim()) {
                 APP.navAudio.onended = () => {
@@ -924,6 +925,7 @@ function updateHud() {
             }
         });
     };
+    $('hudCmd').onclick = null;
 
     if (APP.lastPos) {
         const d = getGeoDistance(APP.lastPos, [t.lat, t.lon]);
