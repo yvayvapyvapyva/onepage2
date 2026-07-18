@@ -136,7 +136,6 @@
             <svg viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
         </button>
         <div style="display:flex; gap:8px; flex:1; justify-content:center; align-items:center;">
-            <button id="selectBtn" style="display:none;">Выбрать</button>
         </div>
         <button id="nextBtn" class="nav-arrow-btn" title="Следующая точка">
             <svg viewBox="0 0 24 24"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
@@ -478,7 +477,6 @@ function driveAlongPath(fromIdx) {
                 const np = APP.navPoints[nextIdx];
                 if (np && np.pts && np.pts.length >= 2) {
                     APP.navCurrentIndex = nextIdx;
-                    APP.navPreviewIndex = -1;
                     APP._driveShowFrom = nextIdx;
                     renderRoutePoints();
                     const startSim = () => { if (!APP._driveActive) driveAlongPath(nextIdx); };
@@ -550,7 +548,7 @@ function driveAlongPath(fromIdx) {
             if (z === prevZoom) {
                 if (!stableStart) stableStart = performance.now();
                 if ((performance.now() - stableStart) >= 100) {
-                    const idx = APP._drivePauseData ? APP._drivePauseData.idx : (APP.navPreviewIndex >= 0 ? APP.navPreviewIndex : APP.navCurrentIndex);
+                    const idx = APP._drivePauseData ? APP._drivePauseData.idx : APP.navCurrentIndex;
                     APP._driveRaf = null;
                     if (idx !== undefined) driveAlongPath(idx);
                     return;
@@ -606,8 +604,7 @@ function initGeolocation() {
             }
             $('telSpeed').textContent = Math.round(APP.currentSpeed);
 
-            const pi = APP.navPreviewIndex >= 0 ? APP.navPreviewIndex : APP.navCurrentIndex;
-            if (APP.navCurrentIndex >= 0 && APP.navPreviewIndex < 0) navCheckTriggers();
+            if (APP.navCurrentIndex >= 0) navCheckTriggers();
         }, () => {}, { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 });
     }
 }
@@ -867,7 +864,7 @@ function clearInfoMarkers() {
 function renderInfoMarkers() {
     clearInfoMarkers();
     if (!APP.map) return;
-    const idx = APP.navPreviewIndex >= 0 ? APP.navPreviewIndex : APP.navCurrentIndex;
+    const idx = APP.navCurrentIndex;
     const pt = APP.navPoints[idx];
     if (!pt || !pt.info || !pt.info.length) return;
     pt.info.forEach(inf => {
@@ -888,7 +885,6 @@ function clearRoute() {
     clearInfoMarkers();
     APP.navPoints = [];
     APP.navCurrentIndex = 0;
-    APP.navPreviewIndex = -1;
     $('hud').classList.remove('active');
     $('playBtn').style.display = 'none';
     $('commentToggleBtn').style.display = 'none';
@@ -900,14 +896,12 @@ function renderRoutePoints() {
 
     APP.navPoints = APP.navPoints.map((p, i) => {
         const isCurrent = (i === APP.navCurrentIndex);
-        const isPreview = (i === APP.navPreviewIndex);
         const isPassed = (i < APP.navCurrentIndex);
         const isPrevious = (i === APP.navCurrentIndex - 1);
         const hasComm = p.comm && p.comm.trim() !== '';
 
-        const driveShow = APP._driveShowFrom >= 0;
-        const showPoint = driveShow ? (i >= APP._driveShowFrom) : (APP.navPreviewIndex >= 0 ? isPreview : (!isPassed || isCurrent || isPrevious));
-        const showPath = driveShow ? (i >= APP._driveShowFrom) : (APP.navPreviewIndex >= 0 && isPreview) || !isPassed || isPrevious;
+        const showPoint = APP._driveShowFrom >= 0 ? (i >= APP._driveShowFrom) : (!isPassed || isCurrent || isPrevious);
+        const showPath = APP._driveShowFrom >= 0 ? (i >= APP._driveShowFrom) : (!isPassed || isPrevious);
 
         if (!showPoint) return { ...p, placemark: null, line: null, hidden: true };
 
@@ -920,8 +914,7 @@ function renderRoutePoints() {
         el.addEventListener('click', e => {
             e.stopPropagation();
             const idx = parseInt(el.dataset.idx);
-            if (idx !== APP.navCurrentIndex) showPreview(idx);
-            else closePreview();
+            setTarget(idx);
         });
 
         const swapPts = pts => pts.map(pt => [pt[1], pt[0]]);
@@ -960,8 +953,7 @@ function renderRoutePoints() {
 
 
 function updateHud() {
-    const isPreview = APP.navPreviewIndex >= 0;
-    let idx = isPreview ? APP.navPreviewIndex : APP.navCurrentIndex;
+    let idx = APP.navCurrentIndex;
     if (idx >= APP.navPoints.length) idx = APP.navPoints.length - 1;
     const t = APP.navPoints[idx];
     if (!t) return;
@@ -979,8 +971,6 @@ function updateHud() {
             }
         });
     };
-    $('selectBtn').style.display = isPreview ? 'block' : 'none';
-    if (isPreview) $('selectBtn').onclick = () => setTarget(idx);
 
     if (APP.lastPos) {
         const d = getGeoDistance(APP.lastPos, [t.lat, t.lon]);
@@ -996,8 +986,8 @@ function updateHud() {
     const prevBtn = $('prevBtn'), nextBtn = $('nextBtn');
     prevBtn.disabled = (idx <= 0);
     nextBtn.disabled = (idx >= APP.navPoints.length - 1);
-    prevBtn.onclick = () => { stopDrive(); idx > 0 && showPreview(idx - 1); };
-    nextBtn.onclick = () => { if (idx < APP.navPoints.length - 1) { stopDrive(); showPreview(idx + 1); } };
+    prevBtn.onclick = () => { stopDrive(); idx > 0 && setTarget(idx - 1); };
+    nextBtn.onclick = () => { if (idx < APP.navPoints.length - 1) { stopDrive(); setTarget(idx + 1); } };
 
     const playBtn = $('playBtn');
     if (playBtn) {
@@ -1021,31 +1011,7 @@ function updateHudDist(d, ad) {
     $('hudCmdDist').classList.toggle('in-range', d < 50 && ad <= APP.navConfig.AZ_TOLERANCE);
 }
 
-function showPreview(i) {
-    const p = APP.navPoints[i];
-    if (!p) return;
-    stopDrive();
-    APP.navPreviewIndex = i;
-    updateHud();
-    renderRoutePoints();
 
-    if (APP.map) {
-        if (p.pts && p.pts.length >= 2) {
-            let minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
-            for (const pt of p.pts) {
-                const lat = pt[0], lon = pt[1];
-                if (lat < minLat) minLat = lat;
-                if (lat > maxLat) maxLat = lat;
-                if (lon < minLon) minLon = lon;
-                if (lon > maxLon) maxLon = lon;
-            }
-            const pad = Math.max(Math.abs(maxLat - minLat), Math.abs(maxLon - minLon)) * 0.1;
-            APP.map.update({ location: { bounds: [[minLon - pad, minLat - pad], [maxLon + pad, maxLat + pad]], duration: 1000 } });
-        } else if (p.lat && p.lon) {
-            APP.map.update({ location: { center: [p.lon, p.lat], duration: 1000 } });
-        }
-    }
-}
 
 function updateCurrentPointHud() {
     if (APP.lastPos && APP.navPoints[APP.navCurrentIndex]) {
@@ -1060,20 +1026,10 @@ function updateCurrentPointHud() {
 
 function setTarget(i) {
     APP.navCurrentIndex = i;
-    APP.navPreviewIndex = -1;
     renderRoutePoints();
     updateHud();
     updateCurrentPointHud();
 }
-
-function closePreview() {
-    APP.navPreviewIndex = -1;
-    renderRoutePoints();
-    updateHud();
-    updateCurrentPointHud();
-}
-
-
 
 
 async function playCommand(text) {
@@ -1156,7 +1112,6 @@ function navCheckTriggers() {
             }
         });
         APP.navCurrentIndex++;
-        APP.navPreviewIndex = -1;
         if (APP.navCurrentIndex < APP.navPoints.length) {
             renderRoutePoints();
             updateHud();
@@ -1193,7 +1148,6 @@ async function processRouteData(data) {
     if (APP.navPoints.length === 0) throw new Error('Нет валидных точек в маршруте');
 
     APP.navCurrentIndex = 0;
-    APP.navPreviewIndex = -1;
 
     $('hud').classList.add('active');
     $('playBtn').style.display = 'flex';
@@ -1435,7 +1389,7 @@ ymaps3.ready.then(async () => {
     $('playBtn').addEventListener('click', () => {
         if (APP._driveActive) {
             if (APP._drivePaused) {
-                const idx = APP._drivePauseData ? APP._drivePauseData.idx : (APP.navPreviewIndex >= 0 ? APP.navPreviewIndex : APP.navCurrentIndex);
+                const idx = APP._drivePauseData ? APP._drivePauseData.idx : APP.navCurrentIndex;
                 $('playBtn').classList.add('active');
                 $('playBtn').innerHTML = '<svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>';
                 driveAlongPath(idx);
@@ -1447,7 +1401,7 @@ ymaps3.ready.then(async () => {
             return;
         }
         APP._drivePauseData = null;
-        const idx = APP.navPreviewIndex >= 0 ? APP.navPreviewIndex : APP.navCurrentIndex;
+        const idx = APP.navCurrentIndex;
         const p = APP.navPoints[idx];
         if (!p || !p.pts || p.pts.length < 2) {
             showToast('У текущей точки нет пути для симуляции', 'info');
@@ -1469,7 +1423,6 @@ ymaps3.ready.then(async () => {
             if (APP._isScheme) toggleMapType();
         }
         APP.navCurrentIndex = idx;
-        APP.navPreviewIndex = -1;
         APP._driveShowFrom = idx;
         renderRoutePoints();
         $('playBtn').classList.add('active');
@@ -1508,9 +1461,8 @@ ymaps3.ready.then(async () => {
         }
     });
 
-    document.getElementById('map').addEventListener('click', (e) => {
+    document.getElementById('map').addEventListener('click', () => {
         stopDrive();
-        if (!e.target.closest('[data-idx]')) closePreview();
     });
 
     MenuModule.init(loadRouteFromJSON);
