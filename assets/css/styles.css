@@ -305,16 +305,8 @@ html, body {
     letter-spacing: 0.5px;
 }
 
-#playBtn {
-    display: none;
-    top: calc(204px + env(safe-area-inset-top));
-    left: 12px;
-}
-
 #playBtn.active {
-    background: rgba(255,59,48,0.5);
-    border-color: #FF453A;
-    box-shadow: var(--shadow-soft), 0 0 20px rgba(255,69,58,0.3);
+    background: rgba(255,59,48,0.2);
 }
 
 #playBtn.active svg {
@@ -338,11 +330,6 @@ html, body {
 #commentToggleBtn.muted {
     opacity: 0.5;
     border-color: rgba(255,255,255,0.08);
-}
-
-#playBtn:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
 }
 
 #mapTypeBtn.api-v3 {
@@ -533,7 +520,6 @@ html, body {
 .hud-actions {
     width: 100%;
     display: flex;
-    gap: 10px;
     align-items: center;
     touch-action: manipulation;
 }
@@ -559,64 +545,63 @@ html, body {
 }
 
 /* ============================================
-   Кнопки действий
+   Навигационная пилюля (назад, симуляция, вперёд)
    ============================================ */
-#selectBtn {
-    padding: 0 12px;
-    height: 52px;
-    border-radius: var(--radius-sm);
-    border: 1px solid rgba(255, 255, 255, 0.25);
-    background: var(--glass-bg);
-    color: #fff;
-    font-size: 15px;
-    font-weight: 600;
-    cursor: pointer;
+.nav-pill {
+    display: flex;
+    width: 100%;
+    height: 48px;
+    border-radius: 100px;
+    background: rgba(15, 15, 15, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), inset 0 0.5px 0 rgba(255, 255, 255, 0.1);
+    overflow: hidden;
     flex-shrink: 0;
-    transition: background 0.15s;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2), inset 0 0.5px 0 rgba(255, 255, 255, 0.15);
-    touch-action: manipulation;
 }
 
-#selectBtn:active {
-    background: rgba(80, 80, 80, 0.6);
-}
-
-.nav-arrow-btn {
-    width: 52px;
-    height: 52px;
-    border-radius: var(--radius-sm);
-    background: var(--glass-bg);
-    border: 1px solid rgba(255, 255, 255, 0.25);
+.nav-pill-btn {
+    flex: 1;
     display: flex;
     align-items: center;
     justify-content: center;
+    background: transparent;
+    border: none;
+    color: #ffffff;
     cursor: pointer;
-    flex-shrink: 0;
+    height: 100%;
+    padding: 0;
     transition: background 0.15s;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2), inset 0 0.5px 0 rgba(255, 255, 255, 0.15);
     touch-action: manipulation;
 }
 
-.nav-arrow-btn svg {
-    fill: #fff;
-    width: 28px;
-    height: 28px;
+.nav-pill-btn svg {
+    fill: currentColor;
+    width: 22px;
+    height: 22px;
 }
 
-.nav-arrow-btn:active {
-    background: rgba(80, 80, 80, 0.6);
+.nav-pill-divider {
+    width: 1px;
+    background: rgba(255, 255, 255, 0.4);
+    flex-shrink: 0;
 }
 
-.nav-arrow-btn:disabled {
+.nav-pill-btn:active {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.nav-pill-btn:disabled {
+    opacity: 0.4;
     cursor: not-allowed;
 }
 
-.nav-arrow-btn:disabled svg {
-    opacity: 0.5;
+#playBtn.active svg {
+    fill: #FF453A;
 }
 
-.nav-arrow-btn:disabled:active {
-    transform: none;
+#playBtn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
 }
 
 /* ============================================

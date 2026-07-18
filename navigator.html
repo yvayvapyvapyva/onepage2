@@ -108,9 +108,6 @@
     <svg viewBox="0 0 24 24"><path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3c-.46-4.17-3.77-7.48-7.94-7.94V1h-2v2.06C6.83 3.52 3.52 6.83 3.06 11H1v2h2.06c.46 4.17 3.77 7.48 7.94 7.94V23h2v-2.06c4.17-.46 7.48-3.77 7.94-7.94H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg>
 </button>
 <button id="tiltBtn" class="circle-btn" title="2D / 3D">2D</button>
-<button id="playBtn" class="circle-btn" title="Симуляция проезда">
-    <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-</button>
 
 <div id="telemetryPanel">
     <div class="tel-item"><span class="tel-label">КМ/Ч</span><span class="tel-value" id="telSpeed">0</span></div>
@@ -130,14 +127,19 @@
         <button class="hud-cmd" id="hudCmd"><span id="hudCmdNum">1</span><span id="hudCmdText"><span id="hudCmdTextInner">Маршрут не выбран</span></span><span id="hudCmdDist">---</span></button>
     </div>
     <div class="hud-actions">
-        <button id="prevBtn" class="nav-arrow-btn" title="Предыдущая точка">
-            <svg viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
-        </button>
-        <div style="display:flex; gap:8px; flex:1; justify-content:center; align-items:center;">
+        <div class="nav-pill">
+            <button class="nav-pill-btn" id="prevBtn" title="Предыдущая точка">
+                <svg viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+            </button>
+            <div class="nav-pill-divider"></div>
+            <button class="nav-pill-btn" id="playBtn" title="Симуляция проезда">
+                <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            </button>
+            <div class="nav-pill-divider"></div>
+            <button class="nav-pill-btn" id="nextBtn" title="Следующая точка">
+                <svg viewBox="0 0 24 24"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+            </button>
         </div>
-        <button id="nextBtn" class="nav-arrow-btn" title="Следующая точка">
-            <svg viewBox="0 0 24 24"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
-        </button>
     </div>
 </div>
 
@@ -890,7 +892,6 @@ function clearRoute() {
     APP.navCurrentIndex = 0;
     APP._routeTotalDistance = 0;
     $('hud').classList.remove('active');
-    $('playBtn').style.display = 'none';
     $('commentToggleBtn').style.display = 'none';
     updateRouteNameDisplay();
 }
@@ -1164,7 +1165,6 @@ async function processRouteData(data) {
     APP.navCurrentIndex = 0;
 
     $('hud').classList.add('active');
-    $('playBtn').style.display = 'flex';
     $('jsonModal').classList.add('hidden');
     $('loading').classList.add('hidden');
 
