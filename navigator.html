@@ -39,45 +39,6 @@
     transform: translateX(20px);
 }
 
-#speedSliderWrap {
-    position: fixed; right: 12px; top: 50%; transform: translateY(-50%);
-    background: transparent; border: none;
-    padding: 4px; border-radius: 12px; z-index: 1000;
-    display: none; flex-direction: column; align-items: center; gap: 2px;
-    color: #fff; font-size: 14px; font-weight: 600;
-}
-#speedSliderWrap #speedValue { font-size: 14px; font-weight: 700; -webkit-text-stroke: 0.5px rgba(0,0,0,0.5); text-shadow: 0 1px 6px rgba(0,0,0,0.9), 0 0 12px rgba(0,0,0,0.6), 0 2px 4px rgba(0,0,0,0.5); }
-#speedSliderWrap .speed-unit { font-size: 10px; font-weight: 700; -webkit-text-stroke: 0.5px rgba(0,0,0,0.5); text-shadow: 0 1px 6px rgba(0,0,0,0.9), 0 0 12px rgba(0,0,0,0.6), 0 2px 4px rgba(0,0,0,0.5); }
-#speedSliderWrap input { accent-color: rgba(255,59,48,0.7); }
-#speedSliderWrap input[orient="vertical"] {
-    -webkit-appearance: none;
-    appearance: none;
-    writing-mode: vertical-lr;
-    direction: rtl;
-    width: 28px; height: 200px; margin: 0; padding: 0;
-    background: transparent;
-}
-#speedSliderWrap input[orient="vertical"]::-webkit-slider-runnable-track {
-    background: rgba(255,255,255,0.5);
-    border-radius: 4px; height: 8px;
-}
-#speedSliderWrap input[orient="vertical"]::-webkit-slider-thumb {
-    background: rgba(255,59,48,0.9);
-    border: none;
-    border-radius: 50%;
-    width: 18px; height: 18px;
-    box-shadow: 0 0 4px rgba(255,59,48,0.3);
-}
-#speedSliderWrap input[orient="vertical"]::-moz-range-track {
-    background: rgba(255,255,255,0.5);
-    border-radius: 4px; height: 8px;
-}
-#speedSliderWrap input[orient="vertical"]::-moz-range-thumb {
-    background: rgba(255,59,48,0.7);
-    border: none;
-    border-radius: 50%;
-    width: 16px; height: 16px;
-}
 </style>
 </head>
 <body>
@@ -145,11 +106,6 @@
 </div>
 
 <div id="toast"></div>
-
-<div id="speedSliderWrap" style="display:none;">
-    <span id="speedValue">90</span><span class="speed-unit">км/ч</span>
-    <input type="range" id="speedSlider" min="30" max="150" value="90" step="30" orient="vertical">
-</div>
 
 <div id="triggerSettingsModal" onclick="if(event.target===this) triggerSettingsClose()">
     <div class="modal-sheet modal-sheet-compact">
@@ -374,7 +330,6 @@ function stopDrive() {
     APP._driveActive = false;
     APP._drivePaused = false;
     APP._driveShowFrom = -1;
-    $('speedSliderWrap').style.display = 'none';
     if (APP._driveRaf) { cancelAnimationFrame(APP._driveRaf); APP._driveRaf = null; }
     if (APP._zoomWatcherRaf) { cancelAnimationFrame(APP._zoomWatcherRaf); APP._zoomWatcherRaf = null; }
     if (APP._driveMarker) { APP.map.removeChild(APP._driveMarker); APP._driveMarker = null; }
@@ -403,8 +358,6 @@ function driveAlongPath(fromIdx) {
     APP._driveShowFrom = fromIdx;
 
     APP._driveActive = true;
-    $('speedSliderWrap').style.display = 'flex';
-    $('speedValue').textContent = APP._driveSpeed;
     const resume = APP._drivePauseData;
     APP._drivePauseData = null;
     APP._drivePaused = false;
@@ -959,7 +912,7 @@ function updateHud() {
     const t = APP.navPoints[idx];
     if (!t) return;
 
-    $('hudCmdNum').textContent = `${idx + 1}/${APP.navPoints.length}`;
+    $('hudCmdNum').innerHTML = `<svg width="40" height="40" viewBox="0 0 20 20"><circle cx="10" cy="10" r="9" fill="${t.hex}" opacity="0.3"/><circle cx="10" cy="10" r="9" fill="none" stroke="${t.hex}" stroke-width="1.5"/><text x="10" y="10.5" font-size="8" font-family="Arial" font-weight="900" text-anchor="middle" dominant-baseline="middle" fill="#fff">${t.id}</text></svg>`;
     $('hudCmdTextInner').textContent = t.cmd;
     $('hudCmdTextInner').style.opacity = APP._audioCache.has(t.cmd) ? '1' : '0.35';
     $('hudCmd').onclick = () => {
@@ -977,10 +930,10 @@ function updateHud() {
         const d = getGeoDistance(APP.lastPos, [t.lat, t.lon]);
         let ad = Math.abs(APP.lastAz - t.az) % 360;
         if (ad > 180) ad = 360 - ad;
-        $('hudCmdDist').textContent = formatDistance(d);
+        $('hudCmdDist').innerHTML = formatDistance(d);
         $('hudCmdDist').classList.toggle('in-range', d < 50 && ad <= APP.navConfig.AZ_TOLERANCE);
     } else {
-        $('hudCmdDist').textContent = '---';
+        $('hudCmdDist').innerHTML = '---';
         $('hudCmdDist').classList.remove('in-range');
     }
 
@@ -1012,12 +965,15 @@ function updateHud() {
 }
 
 function formatDistance(d) {
-    if (d >= 1000) return `${(d / 1000).toFixed(1)} км`;
-    return `${Math.round(d)} м`;
+    if (d >= 1000) {
+        const v = (d / 1000).toFixed(1);
+        return `${v}<span class="dist-unit">км</span>`;
+    }
+    return `${Math.round(d)}<span class="dist-unit">м</span>`;
 }
 
 function updateHudDist(d, ad) {
-    $('hudCmdDist').textContent = formatDistance(d);
+    $('hudCmdDist').innerHTML = formatDistance(d);
     $('hudCmdDist').classList.toggle('in-range', d < 50 && ad <= APP.navConfig.AZ_TOLERANCE);
 }
 
@@ -1029,7 +985,7 @@ function updateCurrentPointHud() {
         const d = getGeoDistance(APP.lastPos, [t.lat, t.lon]);
         let ad = Math.abs(APP.lastAz - t.az) % 360;
         if (ad > 180) ad = 360 - ad;
-        $('hudCmdDist').textContent = formatDistance(d);
+        $('hudCmdDist').innerHTML = formatDistance(d);
         $('hudCmdDist').classList.toggle('in-range', d < 50 && ad <= APP.navConfig.AZ_TOLERANCE);
     }
 }
@@ -1418,10 +1374,6 @@ ymaps3.ready.then(async () => {
     });
     $('mapTypeBtn').addEventListener('click', toggleMapType);
     $('tiltBtn').addEventListener('click', toggleTilt);
-    $('speedSlider').addEventListener('input', function() {
-        APP._driveSpeed = +this.value;
-        $('speedValue').textContent = this.value;
-    });
     $('playBtn').addEventListener('click', () => {
         if (APP._driveActive) {
             if (APP._drivePaused) {
