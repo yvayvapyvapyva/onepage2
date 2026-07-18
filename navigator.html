@@ -1034,6 +1034,23 @@ function setTarget(i) {
     renderRoutePoints();
     updateHud();
     updateCurrentPointHud();
+    fitMapToCurrentTarget();
+}
+
+function fitMapToCurrentTarget() {
+    const p = APP.navPoints[APP.navCurrentIndex];
+    if (!p || !p.pts || p.pts.length < 1 || !APP.map) return;
+    let minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
+    for (const pt of p.pts) {
+        const lat = pt[0], lon = pt[1];
+        if (lat < minLat) minLat = lat;
+        if (lat > maxLat) maxLat = lat;
+        if (lon < minLon) minLon = lon;
+        if (lon > maxLon) maxLon = lon;
+    }
+    if (minLat === Infinity) return;
+    const pad = Math.max(Math.abs(maxLat - minLat), Math.abs(maxLon - minLon)) * 0.15 || 0.001;
+    APP.map.update({ location: { bounds: [[minLon - pad, minLat - pad], [maxLon + pad, maxLat + pad]], duration: 400 } });
 }
 
 
