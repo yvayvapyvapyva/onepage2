@@ -1387,11 +1387,16 @@ html, body {
 .sheet-handle {
     width: 60px;
     height: 30px;
-    margin: 0 auto 0;
+    margin: 6px auto 6px;
     flex-shrink: 0;
     cursor: grab;
     touch-action: none;
     opacity: 0.5;
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .sheet-handle svg {
