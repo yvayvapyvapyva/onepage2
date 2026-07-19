@@ -1608,6 +1608,7 @@ function initSheetDrag(sheetId, handleId, onClose) {
     if (!sheet || !handle) return;
 
     const onStart = (e) => {
+        e.preventDefault();
         startY = e.clientY;
         currentY = startY;
         dragging = false;

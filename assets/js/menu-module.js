@@ -740,7 +740,7 @@ const MenuModule = {
             const handle = document.getElementById('jsonModalHandle');
             let startY = 0, currentY = 0, dragging = false;
             if (!sheet || !handle) return;
-            const onStart = (e) => { startY = e.clientY; currentY = startY; dragging = false; };
+            const onStart = (e) => { e.preventDefault(); startY = e.clientY; currentY = startY; dragging = false; };
             const onMove = (e) => {
                 if (startY === 0) return;
                 const dy = e.clientY - startY;
