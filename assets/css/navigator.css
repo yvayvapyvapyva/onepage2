@@ -718,7 +718,7 @@ html, body {
 .routes-list::after {
     content: '';
     display: block;
-    height: 100px;
+    height: 50px;
     pointer-events: none;
     flex-shrink: 0;
 }
@@ -794,21 +794,19 @@ html, body {
     left: 0;
     right: 0;
     bottom: 0;
-    z-index: 10002;
+    z-index: 12000;
 }
 
 .desc-modal-overlay {
-    position: absolute;
-    top: calc(81px + env(safe-area-inset-top));
-    bottom: calc(25px + env(safe-area-inset-bottom));
-    left: 13px;
-    right: 13px;
+    position: fixed;
+    inset: 0;
     background: rgba(0, 0, 0, 0.7);
     display: flex;
     align-items: center;
     justify-content: center;
     opacity: 0;
     transition: opacity 0.2s ease;
+    z-index: 99999;
 }
 
 #routeDescModal.visible .desc-modal-overlay {
@@ -816,8 +814,9 @@ html, body {
 }
 
 .desc-modal-content {
-    width: 100%;
-    max-height: 100%;
+    width: 90%;
+    max-width: 500px;
+    max-height: 80vh;
     background: rgba(15, 15, 15, 0.97);
     border: 0.5px solid rgba(255, 255, 255, 0.12);
     border-radius: 20px;
@@ -967,7 +966,7 @@ html, body {
 .settings-body::after {
     content: '';
     display: block;
-    height: 100px;
+    height: 50px;
     pointer-events: none;
     flex-shrink: 0;
 }
@@ -1175,7 +1174,7 @@ html, body {
 #pointsListWrap::after {
     content: '';
     display: block;
-    height: 100px;
+    height: 50px;
     pointer-events: none;
 }
 
