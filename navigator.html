@@ -1606,11 +1606,11 @@ ymaps3.ready.then(async () => {
 <script>
 document.addEventListener('click', (e) => {
     const sheetModals = [
-        { id: 'navSettingsModal', close: closeSettings, triggers: ['settingsBtn', 'menuBtn'] },
-        { id: 'pointsListModal', close: closePointsList, triggers: ['hudCmd', 'menuBtn'] },
-        { id: 'instructionModal', close: closeInstruction, triggers: ['instructionBtn', 'menuBtn'] },
+        { id: 'navSettingsModal', close: closeSettings, triggers: ['settingsBtn', 'menuBtn'], handle: 'settingsSheetHandle' },
+        { id: 'pointsListModal', close: closePointsList, triggers: ['hudCmd', 'menuBtn'], handle: 'sheetHandle' },
+        { id: 'instructionModal', close: closeInstruction, triggers: ['instructionBtn', 'menuBtn'], handle: 'instructionHandle' },
     ];
-    sheetModals.forEach(({ id, close, triggers }) => {
+    sheetModals.forEach(({ id, close, triggers, handle: handleId }) => {
         const modal = document.getElementById(id);
         if (!modal || modal.classList.contains('hidden')) return;
         const sheet = modal.querySelector('.modal-sheet');
@@ -1618,7 +1618,8 @@ document.addEventListener('click', (e) => {
             const el = document.getElementById(tid);
             return el && (el === e.target || el.contains(e.target));
         });
-        if (sheet && !sheet.contains(e.target) && !isTrigger) close();
+        const isHandle = handleId && document.getElementById(handleId)?.contains(e.target);
+        if (isHandle || (sheet && !sheet.contains(e.target) && !isTrigger)) close();
     });
 });
 </script>
