@@ -1368,6 +1368,8 @@ ymaps3.ready.then(async () => {
         if (APP._driveActive || (!APP.navAudio.paused && APP.navAudio.currentTime > 0) ||
             (!APP._commentAudio.paused && APP._commentAudio.currentTime > 0)) {
             stopDrive();
+            APP._simMode = false;
+            updateTiltState();
             return;
         }
         APP._drivePauseData = null;
