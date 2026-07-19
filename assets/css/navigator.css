@@ -1142,6 +1142,10 @@ html, body {
     transform: translateY(0);
 }
 
+.sheet-modal.hidden .modal-sheet {
+    pointer-events: none;
+}
+
 .sheet-handle {
     width: 60px;
     height: 30px;
