@@ -708,7 +708,7 @@ const MenuModule = {
     // Создание модального окна
     createModal() {
         const html = `
-            <div id="jsonModal" class="sheet-modal" onclick="if(event.target===this) MenuModule.hide()">
+            <div id="jsonModal" class="sheet-modal">
                 <div class="modal-sheet" id="jsonModalSheet">
                     <div class="sheet-handle" id="jsonModalHandle"><svg viewBox="0 0 24 24"><path d="M3 9L12 14.2L21 9" stroke="#fff" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
                     <div id="routesListContainer" class="routes-list">
@@ -732,13 +732,6 @@ const MenuModule = {
         } else {
             document.body.insertAdjacentHTML('afterbegin', html);
         }
-
-        // Закрытие при клике на фон (вне modal-sheet)
-        document.getElementById('jsonModal').addEventListener('click', (e) => {
-            if (e.target === document.getElementById('jsonModal')) {
-                this.hide();
-            }
-        });
 
         // Drag-to-dismiss на ручку
         const self = this;
@@ -1003,6 +996,7 @@ const MenuModule = {
     
     // Показать модальное окно
     show() {
+        if (typeof closeAllSheets === 'function') closeAllSheets();
         const modal = document.getElementById('jsonModal');
         if (modal) modal.classList.remove('hidden');
         this._hideRouteDescription();

@@ -706,7 +706,14 @@ function updateTiltState() {
     setTilt(APP._simMode || APP.autoCenter ? '3d' : '2d');
 }
 
+function closeAllSheets() {
+    closePointsList();
+    closeSettings();
+    if (typeof MenuModule !== 'undefined') MenuModule.hide();
+}
+
 function openSettings() {
+    closeAllSheets();
     $('schemeBtn').classList.toggle('active', APP._isScheme);
     $('satBtn').classList.toggle('active', !APP._isScheme);
     const shockOn = APP.navConfig.SHOCK_THRESHOLD > 0;
@@ -971,6 +978,7 @@ function escapeHtml(str) {
 }
 
 function openPointsList() {
+    closeAllSheets();
     const wrap = $('pointsListWrap');
     if (!wrap || APP.navPoints.length === 0) return;
     wrap.innerHTML = APP.navPoints.map((p, i) => {
@@ -1518,14 +1526,14 @@ ymaps3.ready.then(async () => {
 });
 </script>
 
-<div id="pointsListModal" class="hidden sheet-modal" onclick="if(event.target===this) closePointsList()">
+<div id="pointsListModal" class="hidden sheet-modal">
     <div class="modal-sheet" id="pointsListSheet">
         <div class="sheet-handle" id="sheetHandle"><svg viewBox="0 0 24 24"><path d="M3 9L12 14.2L21 9" stroke="#fff" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
         <div id="pointsListWrap"></div>
     </div>
 </div>
 
-<div id="navSettingsModal" class="hidden sheet-modal" onclick="if(event.target===this) closeSettings()">
+<div id="navSettingsModal" class="hidden sheet-modal">
     <div class="modal-sheet" id="navSettingsSheet">
         <div class="sheet-handle" id="settingsSheetHandle"><svg viewBox="0 0 24 24"><path d="M3 9L12 14.2L21 9" stroke="#fff" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
         <div class="settings-body">
@@ -1639,6 +1647,23 @@ function initSheetDrag(sheetId, handleId, onClose) {
 
 initSheetDrag('pointsListSheet', 'sheetHandle', closePointsList);
 initSheetDrag('navSettingsSheet', 'settingsSheetHandle', closeSettings);
+
+document.addEventListener('click', (e) => {
+    ['navSettingsModal', 'pointsListModal'].forEach(id => {
+        const modal = document.getElementById(id);
+        if (!modal || modal.classList.contains('hidden')) return;
+        const sheet = modal.querySelector('.modal-sheet');
+        const triggers = ['settingsBtn', 'hudCmd', 'menuBtn'];
+        const isTrigger = triggers.some(tid => {
+            const el = document.getElementById(tid);
+            return el && (el === e.target || el.contains(e.target));
+        });
+        if (sheet && !sheet.contains(e.target) && !isTrigger) {
+            if (id === 'navSettingsModal') closeSettings();
+            else closePointsList();
+        }
+    });
+});
 </script>
 </body>
 </html>
