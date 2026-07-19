@@ -62,13 +62,12 @@
 
 <video id="wakeLockVideo" playsinline muted loop></video>
 <div id="map"></div>
-<button id="mapTypeBtn" class="circle-btn" title="Спутник / Схема" style="top: calc(76px + env(safe-area-inset-top)); left: 12px;">
-    <svg viewBox="0 0 24 24"><path d="M11.99 18.54l-7.37-5.73L3 14.07l9 7 9-7-1.63-1.27-7.38 5.74zM12 16l7.36-5.73L21 9l-9-7-9 7 1.63 1.27L12 16z"/></svg>
+<button id="settingsBtn" class="circle-btn" title="Настройки" style="top: calc(76px + env(safe-area-inset-top)); left: 12px;">
+    <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.488.488 0 00-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 00-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
 </button>
 <button id="locateBtn" class="circle-btn">
     <svg viewBox="0 0 24 24"><path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3c-.46-4.17-3.77-7.48-7.94-7.94V1h-2v2.06C6.83 3.52 3.52 6.83 3.06 11H1v2h2.06c.46 4.17 3.77 7.48 7.94 7.94V23h2v-2.06c4.17-.46 7.48-3.77 7.94-7.94H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg>
 </button>
-<button id="tiltBtn" class="circle-btn" title="2D / 3D">2D</button>
 
 <div id="telemetryPanel">
     <div class="tel-item"><span class="tel-label">КМ/Ч</span><span class="tel-value" id="telSpeed">0</span></div>
@@ -103,54 +102,6 @@
 </div>
 
 <div id="toast"></div>
-
-<div id="triggerSettingsModal" onclick="if(event.target===this) triggerSettingsClose()">
-    <div class="modal-sheet modal-sheet-compact">
-        <h3 class="modal-title">Настройки оповещений</h3>
-
-        <div class="ts-section">
-            <div class="trigger-setting-row">
-                <div class="trigger-setting-header">
-                    <label class="toggle-switch">
-                        <input type="checkbox" class="toggle-input" id="triggerShockToggle">
-                        <span class="toggle-slider"></span>
-                    </label>
-                    <span class="label">Детекция ударов</span>
-                    <span class="value" id="triggerShockVal">Выкл</span>
-                </div>
-                <div id="triggerShockControls">
-                    <input type="range" id="triggerShock" min="0.5" max="3" value="1" step="0.25" oninput="updateShockDisplay()">
-                    <div class="trigger-pad">
-                        <input type="text" id="triggerShockPhrase" value="Сильный удар!" class="trigger-input">
-                    </div>
-                </div>
-            </div>
-
-            <div class="trigger-setting-row">
-                <div class="trigger-setting-header">
-                    <label class="toggle-switch">
-                        <input type="checkbox" class="toggle-input" id="triggerSpeedAlertToggle">
-                        <span class="toggle-slider"></span>
-                    </label>
-                    <span class="label">Максимальная скорость</span>
-                </div>
-                <div id="triggerSpeedAlertControls">
-                    <div class="trigger-pad">
-                        <input type="text" inputmode="numeric" pattern="[0-9]*" id="triggerSpeedAlert" value="58" class="trigger-input-num" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
-                    </div>
-                    <div class="trigger-pad">
-                        <input type="text" id="triggerSpeedAlertPhrase" value="Превышена максимальная скорость!" class="trigger-input">
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="ts-actions">
-            <button class="btn-action ts-cancel" onclick="triggerSettingsClose()">Отмена</button>
-            <button class="btn-action ts-save" onclick="triggerSettingsSave()">Сохранить</button>
-        </div>
-    </div>
-</div>
 
 <script src="assets/js/config.js?v=1"></script>
 <script src="https://api-maps.yandex.ru/v3/?apikey=c0e28937-4e16-4d15-9b99-09a30cb8fc13&lang=ru_RU"></script>
@@ -576,20 +527,6 @@ function toggleAutoCenter() {
     showToast(APP.autoCenter ? 'Привязка включена' : 'Привязка отключена');
 }
 
-function triggerSettingsOpen() {
-    const shockOn = APP.navConfig.SHOCK_THRESHOLD > 0;
-    $('triggerShockToggle').checked = shockOn;
-    $('triggerShock').value = shockOn ? APP.navConfig.SHOCK_THRESHOLD : 1;
-    $('triggerShockPhrase').value = APP.navConfig.SHOCK_PHRASE;
-
-    const speedOn = APP.navConfig.SPEED_ALERT_THRESHOLD > 0;
-    $('triggerSpeedAlertToggle').checked = speedOn;
-    $('triggerSpeedAlert').value = speedOn ? APP.navConfig.SPEED_ALERT_THRESHOLD : 58;
-    $('triggerSpeedAlertPhrase').value = APP.navConfig.SPEED_ALERT_PHRASE;
-    $('triggerShockVal').textContent = shockOn ? APP.navConfig.SHOCK_THRESHOLD + 'g' : 'Выкл';
-    $('triggerSettingsModal').style.display = 'flex';
-}
-
 function updateShockDisplay() {
     if (!$('triggerShockToggle').checked) {
         $('triggerShockVal').textContent = 'Выкл';
@@ -599,25 +536,21 @@ function updateShockDisplay() {
     $('triggerShockVal').textContent = val + 'g';
 }
 
-function triggerSettingsClose() {
-    $('triggerSettingsModal').style.display = 'none';
-}
-
-function triggerSettingsSave() {
-    const shockOn = $('triggerShockToggle').checked;
-    const shock = shockOn ? parseFloat($('triggerShock').value) : 0;
+function applyShockConfig() {
+    const on = $('triggerShockToggle').checked;
+    const val = on ? parseFloat($('triggerShock').value) : 0;
     const phrase = $('triggerShockPhrase').value.trim() || 'Сильный удар!';
-    const speedOn = $('triggerSpeedAlertToggle').checked;
-    const speedAlert = speedOn ? parseInt($('triggerSpeedAlert').value) || 58 : 0;
-    const speedAlertPhrase = $('triggerSpeedAlertPhrase').value.trim() || 'Превышена максимальная скорость!';
-    APP.navConfig.SHOCK_THRESHOLD = shock;
+    APP.navConfig.SHOCK_THRESHOLD = val;
     APP.navConfig.SHOCK_PHRASE = phrase;
     updateShockBarVisibility();
-    if (shock > 0) ensureMotionTracking();
-    APP.navConfig.SPEED_ALERT_THRESHOLD = speedAlert;
-    APP.navConfig.SPEED_ALERT_PHRASE = speedAlertPhrase;
-    triggerSettingsClose();
-    showToast('Настройки сохранены', 'success');
+    if (val > 0) ensureMotionTracking();
+}
+function applySpeedConfig() {
+    const on = $('triggerSpeedAlertToggle').checked;
+    const val = on ? parseInt($('triggerSpeedAlert').value) || 58 : 0;
+    const phrase = $('triggerSpeedAlertPhrase').value.trim() || 'Превышена максимальная скорость!';
+    APP.navConfig.SPEED_ALERT_THRESHOLD = val;
+    APP.navConfig.SPEED_ALERT_PHRASE = phrase;
 }
 
 async function requestMotionPermission() {
@@ -730,24 +663,56 @@ function checkSpeedAlert(speed) {
     }
 }
 
-function toggleMapType() {
+function setMapType(type) {
     if (!APP.map) return;
-    if (APP._isScheme) {
+    const isScheme = type === 'scheme';
+    if (isScheme && !APP._isScheme) {
+        if (APP._satLayer) { APP.map.removeChild(APP._satLayer); APP._satLayer = null; }
+        APP.map.addChild(APP._schemeLayer);
+        addBuildingsToMap();
+        showToast('Схема', 'info', 2000);
+    } else if (!isScheme && APP._isScheme) {
         APP.map.removeChild(APP._schemeLayer);
         if (APP._buildings) { APP.map.removeChild(APP._buildings); APP._buildings = null; }
         const { YMapDefaultSatelliteLayer } = ymaps3;
         APP._satLayer = new YMapDefaultSatelliteLayer({});
         APP.map.addChild(APP._satLayer);
-        $('mapTypeBtn').classList.remove('api-v3');
         showToast('Спутник', 'info', 2000);
-    } else {
-        if (APP._satLayer) { APP.map.removeChild(APP._satLayer); APP._satLayer = null; }
-        APP.map.addChild(APP._schemeLayer);
-        addBuildingsToMap();
-        $('mapTypeBtn').classList.add('api-v3');
-        showToast('Схема', 'info', 2000);
     }
-    APP._isScheme = !APP._isScheme;
+    APP._isScheme = isScheme;
+    $('schemeBtn').classList.toggle('active', isScheme);
+    $('satBtn').classList.toggle('active', !isScheme);
+}
+
+function setTilt(mode) {
+    const is3d = mode === '3d';
+    if (is3d === APP._is3D) return;
+    APP._is3D = is3d;
+    APP.lastTilt = is3d ? 60 : 0;
+    APP.map.update({ camera: { tilt: APP.lastTilt, duration: 300 } });
+    $('tilt2dBtn').classList.toggle('active', !is3d);
+    $('tilt3dBtn').classList.toggle('active', is3d);
+}
+
+function openSettings() {
+    $('schemeBtn').classList.toggle('active', APP._isScheme);
+    $('satBtn').classList.toggle('active', !APP._isScheme);
+    $('tilt2dBtn').classList.toggle('active', !APP._is3D);
+    $('tilt3dBtn').classList.toggle('active', APP._is3D);
+    const shockOn = APP.navConfig.SHOCK_THRESHOLD > 0;
+    $('triggerShockToggle').checked = shockOn;
+    $('triggerShock').value = shockOn ? APP.navConfig.SHOCK_THRESHOLD : 1;
+    $('triggerShockPhrase').value = APP.navConfig.SHOCK_PHRASE;
+    const speedOn = APP.navConfig.SPEED_ALERT_THRESHOLD > 0;
+    $('triggerSpeedAlertToggle').checked = speedOn;
+    $('triggerSpeedAlert').value = speedOn ? APP.navConfig.SPEED_ALERT_THRESHOLD : 58;
+    $('triggerSpeedAlertPhrase').value = APP.navConfig.SPEED_ALERT_PHRASE;
+    $('triggerShockVal').textContent = shockOn ? APP.navConfig.SHOCK_THRESHOLD + 'g' : 'Выкл';
+    $('settingsModal').classList.remove('hidden');
+}
+
+function closeSettings() {
+    $('settingsModal').classList.add('hidden');
 }
 
 function addBuildingsToMap() {
@@ -1385,22 +1350,10 @@ ymaps3.ready.then(async () => {
     initGeolocation();
 
     APP._is3D = false;
-    function toggleTilt() {
-        APP._is3D = !APP._is3D;
-        APP.lastTilt = APP._is3D ? 60 : 0;
-        APP.map.update({ camera: { tilt: APP.lastTilt, duration: 300 } });
-        $('tiltBtn').textContent = APP._is3D ? '3D' : '2D';
-    }
 
     $('locateBtn').addEventListener('click', toggleAutoCenter);
-    $('telemetryPanel').addEventListener('click', triggerSettingsOpen);
 
-    $('triggerShockToggle').addEventListener('change', function() {
-        if (!this.checked) $('triggerShockVal').textContent = 'Выкл';
-        else updateShockDisplay();
-    });
-    $('mapTypeBtn').addEventListener('click', toggleMapType);
-    $('tiltBtn').addEventListener('click', toggleTilt);
+    $('settingsBtn').addEventListener('click', openSettings);
     $('playBtn').addEventListener('click', () => {
         if (APP._driveActive) {
             if (APP._drivePaused) {
@@ -1427,7 +1380,6 @@ ymaps3.ready.then(async () => {
             APP._simFirstRun = false;
             APP._is3D = true;
             APP.lastTilt = 60;
-            $('tiltBtn').textContent = '3D';
             const from = p.pts[0], to = p.pts[1];
             const dLon = (to[1] - from[1]) * Math.PI / 180;
             const y = Math.sin(dLon) * Math.cos(to[0] * Math.PI / 180);
@@ -1435,7 +1387,7 @@ ymaps3.ready.then(async () => {
                       Math.sin(from[0] * Math.PI / 180) * Math.cos(to[0] * Math.PI / 180) * Math.cos(dLon);
             const bearing = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
             setMapLocation(from, 19, bearing, 2000);
-            if (APP._isScheme) toggleMapType();
+            if (APP._isScheme) setMapType('sat');
         }
         APP.navCurrentIndex = idx;
         APP._driveShowFrom = idx;
@@ -1525,6 +1477,60 @@ ymaps3.ready.then(async () => {
 <div id="pointsListModal" class="hidden" onclick="if(event.target===this) closePointsList()">
     <div class="modal-sheet">
         <div id="pointsListWrap"></div>
+    </div>
+</div>
+
+<div id="settingsModal" class="hidden" onclick="if(event.target===this) closeSettings()">
+    <div class="modal-sheet">
+        <div class="settings-body">
+            <div class="settings-group">
+                <div class="settings-label">Вид карты</div>
+                <div class="map-type-btns">
+                    <button class="map-type-btn" id="satBtn" onclick="setMapType('sat')">Спутник</button>
+                    <button class="map-type-btn" id="schemeBtn" onclick="setMapType('scheme')">Схема</button>
+                </div>
+                <div class="map-type-btns">
+                    <button class="map-type-btn" id="tilt2dBtn" onclick="setTilt('2d')">2D</button>
+                    <button class="map-type-btn" id="tilt3dBtn" onclick="setTilt('3d')">3D</button>
+                </div>
+            </div>
+
+            <div class="settings-group">
+                <div class="settings-label">Настройки оповещений</div>
+                <div class="trigger-setting-row">
+                    <div class="trigger-setting-header">
+                        <label class="toggle-switch">
+                            <input type="checkbox" class="toggle-input" id="triggerShockToggle" onchange="updateShockDisplay();applyShockConfig()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span class="label">Детекция ударов</span>
+                        <span class="value" id="triggerShockVal">Выкл</span>
+                    </div>
+                    <div id="triggerShockControls">
+                        <input type="range" id="triggerShock" min="0.5" max="3" value="1" step="0.25" oninput="updateShockDisplay();applyShockConfig()">
+                        <div class="trigger-pad">
+                            <input type="text" id="triggerShockPhrase" value="Сильный удар!" class="trigger-input" oninput="applyShockConfig()">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="trigger-setting-row">
+                    <div class="trigger-setting-header">
+                        <label class="toggle-switch">
+                            <input type="checkbox" class="toggle-input" id="triggerSpeedAlertToggle" onchange="applySpeedConfig()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span class="label">Превышение скорости</span>
+                        <input type="text" inputmode="numeric" pattern="[0-9]*" id="triggerSpeedAlert" value="58" class="trigger-input-num speed-input-inline" oninput="this.value=this.value.replace(/[^0-9]/g,'');applySpeedConfig()">
+                    </div>
+                    <div id="triggerSpeedAlertControls">
+                        <div class="trigger-pad">
+                            <input type="text" id="triggerSpeedAlertPhrase" value="Превышена максимальная скорость!" class="trigger-input" oninput="applySpeedConfig()">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 

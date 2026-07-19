@@ -61,8 +61,9 @@ html, body {
 .hidden-vis { visibility: hidden; }
 .marker-img { display: block; }
 .trigger-input { width:100%;padding:10px 14px;border-radius:10px;background:rgba(255,255,255,0.06);color:#fff;font-size:14px;outline:none;box-sizing:border-box;border:none; }
-.trigger-pad { padding:4px 16px 6px; }
+.trigger-pad { padding:4px 0 6px; }
 .trigger-input-num { width:100%;padding:10px 14px;border-radius:10px;background:rgba(255,255,255,0.06);color:#fff;font-size:16px;font-weight:600;outline:none;box-sizing:border-box; }
+.speed-input-inline { width:60px !important;padding:10px 8px !important;text-align:center;font-size:14px !important;border-radius:8px !important;flex-shrink:0; }
 
 /* ============================================
    Стили карты (общие)
@@ -297,14 +298,6 @@ html, body {
     right: 12px;
 }
 
-#tiltBtn {
-    top: calc(140px + env(safe-area-inset-top));
-    left: 12px;
-    font-size: 13px;
-    font-weight: 700;
-    letter-spacing: 0.5px;
-}
-
 #playBtn.active {
     background: rgba(255,59,48,0.2);
 }
@@ -330,9 +323,6 @@ html, body {
 #commentToggleBtn.muted {
     opacity: 0.5;
     border-color: rgba(255,255,255,0.08);
-}
-
-#mapTypeBtn.api-v3 {
 }
 
 #routeNameDisplay {
@@ -817,7 +807,6 @@ html, body {
 }
 
 /* Модалки редактора */
-#settingsModal,
 #pointsOrderModal {
     position: fixed;
     top: calc(76px + env(safe-area-inset-top));
@@ -942,49 +931,9 @@ html, body {
     height: auto;
 }
 
-#triggerSettingsModal {
-    position: fixed;
-    inset: 0;
-    z-index: 18000;
-    display: none;
-    align-items: center;
-    justify-content: center;
-    background: rgba(0, 0, 0, 0.5);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-}
-
-#triggerSettingsModal .modal-sheet {
-    max-width: 360px;
-    margin: 0 16px;
-    height: auto;
-}
-
-.ts-section + .ts-section {
-    margin-top: 8px;
-}
-
-.ts-actions {
-    display: flex;
-    gap: 12px;
-    padding: 12px 16px 16px;
-}
-
-.ts-cancel,
-.ts-save {
-    flex: 1;
-}
-
-.ts-save {
-    background: linear-gradient(180deg, rgba(52,199,89,0.9), rgba(40,160,70,0.85));
-}
-
 .trigger-setting-row {
     display: flex;
     flex-direction: column;
-    padding: 8px 0 0 0;
-    background: rgba(255,255,255,0.04);
-    border-radius: 12px;
 }
 
 .trigger-setting-header {
@@ -992,7 +941,7 @@ html, body {
     align-items: center;
     justify-content: space-between;
     gap: 14px;
-    padding: 0 16px 6px 16px;
+    padding: 0 0 6px 0;
 }
 
 .trigger-setting-row .label {
@@ -1453,36 +1402,6 @@ html, body {
     left: 12px;
 }
 
-#settingsBtn {
-    position: relative;
-    width: auto;
-    padding: 0 18px;
-    border-radius: 100px;
-    height: 48px;
-    background: rgba(15, 15, 15, 0.75);
-    border: 0.5px solid rgba(255, 255, 255, 0.12);
-    color: #ffffff;
-    cursor: pointer;
-    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), inset 0 0.5px 0 rgba(255, 255, 255, 0.1);
-    flex-shrink: 0;
-    pointer-events: auto;
-    font-weight: 700;
-    font-size: 15px;
-    white-space: nowrap;
-    letter-spacing: -0.1px;
-    gap: 6px;
-}
-
-#settingsBtn:active {
-    transform: scale(0.94);
-    background: rgba(30, 30, 30, 0.5);
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
-}
-
 #listPointsBtn {
     top: calc(76px + env(safe-area-inset-top));
     right: 12px;
@@ -1603,15 +1522,6 @@ html, body {
     }
 }
 
-.settings-body {
-    padding: 14px 14px 24px;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    min-height: 0;
-}
-
 .btn-action.loading {
     background: linear-gradient(180deg, rgba(62, 62, 70, 0.66), rgba(42, 42, 48, 0.58)) !important;
     color: #c7c9d1 !important;
@@ -1647,7 +1557,93 @@ input, textarea, select {
     color: #f5f7fa;
     font-family: inherit;
     box-sizing: border-box;
-    -webkit-text-size-adjust: 100%;
+}
+
+/* ============================================
+   Модальное окно настроек
+   ============================================ */
+#settingsModal {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 11000;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+    background: transparent;
+}
+
+#settingsModal:not(.hidden) {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+#settingsModal .modal-sheet {
+    max-height: 70vh;
+    border-radius: 24px 24px 0 0;
+    padding: 16px 12px;
+    margin: 0;
+    width: 100%;
+    max-width: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.settings-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.settings-label {
+    font-size: 16px;
+    font-weight: 600;
+    text-align: center;
+}
+
+.settings-group {
+    background: rgba(255,255,255,0.10);
+    border-radius: 12px;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.settings-group + .settings-group {
+    margin-top: 12px;
+}
+
+.map-type-btns {
+    display: flex;
+    gap: 10px;
+}
+
+.map-type-btn {
+    flex: 1;
+    padding: 14px;
+    border-radius: 12px;
+    background: var(--glass-bg);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    color: #fff;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: center;
+}
+
+.map-type-btn:active {
+    background: rgba(80, 80, 80, 0.6);
+}
+
+.map-type-btn.active {
+    border-color: var(--accent-green);
+    background: rgba(48, 209, 88, 0.15);
+    box-shadow: 0 0 12px rgba(48, 209, 88, 0.2);
 }
 
 /* -- Уникальные стили редактора -- */
@@ -1938,20 +1934,6 @@ input, textarea, select {
 
 .flex-1 {
     flex: 1;
-}
-
-.modal-sheet-compact {
-    gap: 16px;
-    padding: 24px;
-    max-width: 400px;
-    margin: auto;
-}
-
-.modal-title {
-    margin: 0;
-    font-size: 20px;
-    font-weight: 700;
-    text-align: center;
 }
 
 /* Info points UI */
