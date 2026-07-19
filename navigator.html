@@ -271,6 +271,8 @@ function stopDrive() {
     if (APP._zoomWatcherRaf) { cancelAnimationFrame(APP._zoomWatcherRaf); APP._zoomWatcherRaf = null; }
     if (APP._driveMarker) { APP.map.removeChild(APP._driveMarker); APP._driveMarker = null; }
     if (APP._prevAnim) { cancelAnimationFrame(APP._prevAnim); APP._prevAnim = null; }
+    APP.navAudio.pause();
+    APP._commentAudio.pause();
     APP.navAudio.onended = null;
     APP._commentAudio.onended = null;
     const pb = $('playBtn');
@@ -366,17 +368,19 @@ function driveAlongPath(fromIdx) {
                     APP.navCurrentIndex = nextIdx;
                     APP._driveShowFrom = nextIdx;
                     renderRoutePoints();
-                    const startSim = () => { if (!APP._driveActive) driveAlongPath(nextIdx); };
+                    const startSim = () => { if (APP._driveShowFrom >= 0 && !APP._driveActive) driveAlongPath(nextIdx); };
                     const playNextAudio = () => {
+                        if (APP._driveShowFrom < 0) return;
                         APP.navAudio.onended = null;
                         if (np.comm && np.comm.trim() && APP._commentEnabled) {
-                            APP._commentAudio.onended = () => { APP._commentAudio.onended = null; startSim(); };
+                            APP._commentAudio.onended = () => { if (APP._driveShowFrom < 0) return; APP._commentAudio.onended = null; startSim(); };
                             playComment(np.comm);
                         } else {
                             startSim();
                         }
                     };
                     const simTimeout = () => {
+                        if (APP._driveShowFrom < 0) return;
                         if (!APP._driveActive) {
                             const hasAudio = !APP.navAudio.paused && APP.navAudio.currentTime > 0;
                             if (!hasAudio) {
@@ -390,6 +394,8 @@ function driveAlongPath(fromIdx) {
                         APP.navAudio.onended = playNextAudio;
                     });
                     setTimeout(simTimeout, np.comm && np.comm.trim() ? 2000 : 1000);
+                    const pb = $('playBtn');
+                    if (pb) { pb.classList.add('active'); pb.innerHTML = '<svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>'; }
                 }
             }
             if (nextIdx >= APP.navPoints.length ||
@@ -1359,17 +1365,9 @@ ymaps3.ready.then(async () => {
 
     $('settingsBtn').addEventListener('click', openSettings);
     $('playBtn').addEventListener('click', () => {
-        if (APP._driveActive) {
-            if (APP._drivePaused) {
-                const idx = APP._drivePauseData ? APP._drivePauseData.idx : APP.navCurrentIndex;
-                $('playBtn').classList.add('active');
-                $('playBtn').innerHTML = '<svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>';
-                driveAlongPath(idx);
-            } else {
-                APP._drivePaused = true;
-                $('playBtn').classList.remove('active');
-                $('playBtn').innerHTML = '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
-            }
+        if (APP._driveActive || (!APP.navAudio.paused && APP.navAudio.currentTime > 0) ||
+            (!APP._commentAudio.paused && APP._commentAudio.currentTime > 0)) {
+            stopDrive();
             return;
         }
         APP._drivePauseData = null;
@@ -1399,7 +1397,7 @@ ymaps3.ready.then(async () => {
         $('playBtn').classList.add('active');
         $('playBtn').innerHTML = '<svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>';
         const startSim = () => {
-            if (!APP._driveActive) driveAlongPath(idx);
+            if (APP._driveShowFrom >= 0 && !APP._driveActive) driveAlongPath(idx);
         };
         const playNext = () => {
             APP.navAudio.onended = null;
@@ -1411,7 +1409,7 @@ ymaps3.ready.then(async () => {
             }
         };
         const simTimeout = () => {
-            if (!APP._driveActive) {
+            if (APP._driveShowFrom >= 0 && !APP._driveActive) {
                 const hasAudio = !APP.navAudio.paused && APP.navAudio.currentTime > 0;
                 if (!hasAudio) {
                     APP.navAudio.onended = null;
