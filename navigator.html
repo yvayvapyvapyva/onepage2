@@ -272,6 +272,7 @@ function stopDrive() {
     if (APP._driveMarker) { APP.map.removeChild(APP._driveMarker); APP._driveMarker = null; }
     if (APP._prevAnim) { cancelAnimationFrame(APP._prevAnim); APP._prevAnim = null; }
     APP.navAudio.onended = null;
+    APP._commentAudio.onended = null;
     const pb = $('playBtn');
     if (pb) {
         pb.classList.remove('active');
