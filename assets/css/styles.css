@@ -807,6 +807,7 @@ html, body {
 }
 
 /* Модалки редактора */
+#settingsModal,
 #pointsOrderModal {
     position: fixed;
     top: calc(76px + env(safe-area-inset-top));
@@ -1412,6 +1413,36 @@ html, body {
     right: 12px;
 }
 
+.top-controls #settingsBtn {
+    position: relative;
+    width: auto;
+    padding: 0 18px;
+    border-radius: 100px;
+    height: 48px;
+    background: rgba(15, 15, 15, 0.75);
+    border: 0.5px solid rgba(255, 255, 255, 0.12);
+    color: #ffffff;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), inset 0 0.5px 0 rgba(255, 255, 255, 0.1);
+    flex-shrink: 0;
+    pointer-events: auto;
+    font-weight: 700;
+    font-size: 15px;
+    white-space: nowrap;
+    letter-spacing: -0.1px;
+    gap: 6px;
+}
+
+.top-controls #settingsBtn:active {
+    transform: scale(0.94);
+    background: rgba(30, 30, 30, 0.5);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+}
+
 .floating-save {
     position: absolute;
     top: env(safe-area-inset-top, 0px);
@@ -1562,7 +1593,7 @@ input, textarea, select {
 /* ============================================
    Модальное окно настроек
    ============================================ */
-#settingsModal {
+#navSettingsModal {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
     z-index: 11000;
@@ -1575,12 +1606,12 @@ input, textarea, select {
     background: transparent;
 }
 
-#settingsModal:not(.hidden) {
+#navSettingsModal:not(.hidden) {
     opacity: 1;
     pointer-events: auto;
 }
 
-#settingsModal .modal-sheet {
+#navSettingsModal .modal-sheet {
     max-height: 70vh;
     border-radius: 24px 24px 0 0;
     padding: 16px 12px;
@@ -1596,6 +1627,9 @@ input, textarea, select {
     display: flex;
     flex-direction: column;
     gap: 8px;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
 }
 
 .settings-label {
@@ -1644,6 +1678,20 @@ input, textarea, select {
     border-color: var(--accent-green);
     background: rgba(48, 209, 88, 0.15);
     box-shadow: 0 0 12px rgba(48, 209, 88, 0.2);
+}
+
+.modal-sheet-compact {
+    gap: 16px;
+    padding: 24px;
+    max-width: 400px;
+    margin: auto;
+}
+
+.modal-title {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 700;
+    text-align: center;
 }
 
 /* -- Уникальные стили редактора -- */

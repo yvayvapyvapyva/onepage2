@@ -130,6 +130,7 @@ const APP = {
     _shockDisplayG: 0,
     _shockPeakTime: 0,
     _simFirstRun: true,
+    _simMode: false,
     _drivePaused: false,
     _drivePauseData: null,
     _navSeq: 0,
@@ -404,6 +405,13 @@ function driveAlongPath(fromIdx) {
                     setTimeout(simTimeout, np.comm && np.comm.trim() ? 2000 : 1000);
                 }
             }
+            if (nextIdx >= APP.navPoints.length ||
+                !APP.navPoints[nextIdx] ||
+                !APP.navPoints[nextIdx].pts ||
+                APP.navPoints[nextIdx].pts.length < 2) {
+                APP._simMode = false;
+                updateTiltState();
+            }
             return;
         }
 
@@ -513,6 +521,7 @@ function toggleAutoCenter() {
     $('locateBtn').classList.toggle('active', APP.autoCenter);
     if (APP.autoCenter) {
         stopDrive();
+        APP._simMode = false;
     }
     if (APP.autoCenter && APP.lastPos) {
         const camera = { tilt: APP.lastTilt, duration: 0 };
@@ -524,6 +533,7 @@ function toggleAutoCenter() {
             camera
         });
     }
+    updateTiltState();
     showToast(APP.autoCenter ? 'Привязка включена' : 'Привязка отключена');
 }
 
@@ -690,15 +700,15 @@ function setTilt(mode) {
     APP._is3D = is3d;
     APP.lastTilt = is3d ? 60 : 0;
     APP.map.update({ camera: { tilt: APP.lastTilt, duration: 300 } });
-    $('tilt2dBtn').classList.toggle('active', !is3d);
-    $('tilt3dBtn').classList.toggle('active', is3d);
+}
+
+function updateTiltState() {
+    setTilt(APP._simMode || APP.autoCenter ? '3d' : '2d');
 }
 
 function openSettings() {
     $('schemeBtn').classList.toggle('active', APP._isScheme);
     $('satBtn').classList.toggle('active', !APP._isScheme);
-    $('tilt2dBtn').classList.toggle('active', !APP._is3D);
-    $('tilt3dBtn').classList.toggle('active', APP._is3D);
     const shockOn = APP.navConfig.SHOCK_THRESHOLD > 0;
     $('triggerShockToggle').checked = shockOn;
     $('triggerShock').value = shockOn ? APP.navConfig.SHOCK_THRESHOLD : 1;
@@ -708,11 +718,11 @@ function openSettings() {
     $('triggerSpeedAlert').value = speedOn ? APP.navConfig.SPEED_ALERT_THRESHOLD : 58;
     $('triggerSpeedAlertPhrase').value = APP.navConfig.SPEED_ALERT_PHRASE;
     $('triggerShockVal').textContent = shockOn ? APP.navConfig.SHOCK_THRESHOLD + 'g' : 'Выкл';
-    $('settingsModal').classList.remove('hidden');
+    $('navSettingsModal').classList.remove('hidden');
 }
 
 function closeSettings() {
-    $('settingsModal').classList.add('hidden');
+    $('navSettingsModal').classList.add('hidden');
 }
 
 function addBuildingsToMap() {
@@ -799,6 +809,8 @@ function renderInfoMarkers() {
 
 function clearRoute() {
     stopDrive();
+    APP._simMode = false;
+    updateTiltState();
     removeRouteObjects();
     clearInfoMarkers();
     APP.navPoints = [];
@@ -906,9 +918,9 @@ function updateHud() {
     const prevBtn = $('prevBtn'), nextBtn = $('nextBtn');
     prevBtn.disabled = (idx <= 0);
     nextBtn.disabled = (idx >= APP.navPoints.length - 1);
-    prevBtn.onclick = () => { stopDrive(); idx > 0 && setTarget(idx - 1); };
-    nextBtn.onclick = () => { if (idx < APP.navPoints.length - 1) { stopDrive(); setTarget(idx + 1); } };
+    prevBtn.onclick = () => { stopDrive(); APP._simMode = false; updateTiltState(); idx > 0 && setTarget(idx - 1); };
 
+    nextBtn.onclick = () => { if (idx < APP.navPoints.length - 1) { stopDrive(); APP._simMode = false; updateTiltState(); setTarget(idx + 1); } };
     prevBtn.innerHTML = `<svg class="arrow-icon" viewBox="0 0 24 24" width="18" height="18"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>`;
     nextBtn.innerHTML = `<svg class="arrow-icon" viewBox="0 0 24 24" width="18" height="18"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>`;
 
@@ -1375,11 +1387,11 @@ ymaps3.ready.then(async () => {
             showToast('У текущей точки нет пути для симуляции', 'info');
             return;
         }
+        APP._simMode = true;
+        updateTiltState();
         APP._simForceZoom = APP._simFirstRun;
         if (APP._simFirstRun) {
             APP._simFirstRun = false;
-            APP._is3D = true;
-            APP.lastTilt = 60;
             const from = p.pts[0], to = p.pts[1];
             const dLon = (to[1] - from[1]) * Math.PI / 180;
             const y = Math.sin(dLon) * Math.cos(to[0] * Math.PI / 180);
@@ -1430,6 +1442,8 @@ ymaps3.ready.then(async () => {
 
     document.getElementById('map').addEventListener('click', () => {
         stopDrive();
+        APP._simMode = false;
+        updateTiltState();
     });
 
     $('pointsListWrap').addEventListener('click', (e) => {
@@ -1455,6 +1469,8 @@ ymaps3.ready.then(async () => {
         if (!isNaN(idx) && idx >= 0 && idx < APP.navPoints.length) {
             closePointsList();
             stopDrive();
+            APP._simMode = false;
+            updateTiltState();
             setTarget(idx);
         }
     });
@@ -1480,7 +1496,7 @@ ymaps3.ready.then(async () => {
     </div>
 </div>
 
-<div id="settingsModal" class="hidden" onclick="if(event.target===this) closeSettings()">
+<div id="navSettingsModal" class="hidden" onclick="if(event.target===this) closeSettings()">
     <div class="modal-sheet">
         <div class="settings-body">
             <div class="settings-group">
@@ -1488,10 +1504,6 @@ ymaps3.ready.then(async () => {
                 <div class="map-type-btns">
                     <button class="map-type-btn" id="satBtn" onclick="setMapType('sat')">Спутник</button>
                     <button class="map-type-btn" id="schemeBtn" onclick="setMapType('scheme')">Схема</button>
-                </div>
-                <div class="map-type-btns">
-                    <button class="map-type-btn" id="tilt2dBtn" onclick="setTilt('2d')">2D</button>
-                    <button class="map-type-btn" id="tilt3dBtn" onclick="setTilt('3d')">3D</button>
                 </div>
             </div>
 
