@@ -713,6 +713,7 @@ function closeAllSheets() {
 }
 
 function openSettings() {
+    if (!$('navSettingsModal').classList.contains('hidden')) { closeSettings(); return; }
     closeAllSheets();
     $('schemeBtn').classList.toggle('active', APP._isScheme);
     $('satBtn').classList.toggle('active', !APP._isScheme);
@@ -978,6 +979,7 @@ function escapeHtml(str) {
 }
 
 function openPointsList() {
+    if (!$('pointsListModal').classList.contains('hidden')) { closePointsList(); return; }
     closeAllSheets();
     const wrap = $('pointsListWrap');
     if (!wrap || APP.navPoints.length === 0) return;
