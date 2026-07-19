@@ -406,7 +406,7 @@ html, body {
 .hud-cmd-row {
     display: flex;
     align-items: center;
-    padding: 2px 4px;
+    padding: 2px 0;
     gap: 10px;
     min-height: 52px;
 }
