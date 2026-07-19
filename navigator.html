@@ -893,11 +893,25 @@ function updateHud() {
     $('hudCmdTextInner').style.opacity = APP._audioCache.has(t.cmd) ? '1' : '0.35';
     $('hudCmdNum').onclick = (e) => {
         e.stopPropagation();
+        const el = $('hudCmdNum');
+        document.querySelectorAll('.playing').forEach(e => e.classList.remove('playing'));
+        APP._commentAudio.onended = null;
+        el.classList.add('playing');
         playCommand(t.cmd).then(() => {
+            const done = () => el.classList.remove('playing');
             if (t.comm && t.comm.trim()) {
                 APP.navAudio.onended = () => {
                     APP.navAudio.onended = null;
+                    APP._commentAudio.onended = () => {
+                        APP._commentAudio.onended = null;
+                        done();
+                    };
                     playComment(t.comm);
+                };
+            } else {
+                APP.navAudio.onended = () => {
+                    APP.navAudio.onended = null;
+                    done();
                 };
             }
         });
@@ -1447,11 +1461,24 @@ ymaps3.ready.then(async () => {
             const idx = +icon.dataset.play;
             if (!isNaN(idx) && APP.navPoints[idx]) {
                 const p = APP.navPoints[idx];
+                document.querySelectorAll('.playing').forEach(e => e.classList.remove('playing'));
+                APP._commentAudio.onended = null;
+                icon.classList.add('playing');
                 playCommand(p.cmd).then(() => {
+                    const done = () => icon.classList.remove('playing');
                     if (p.comm && p.comm.trim()) {
                         APP.navAudio.onended = () => {
                             APP.navAudio.onended = null;
+                            APP._commentAudio.onended = () => {
+                                APP._commentAudio.onended = null;
+                                done();
+                            };
                             playComment(p.comm);
+                        };
+                    } else {
+                        APP.navAudio.onended = () => {
+                            APP.navAudio.onended = null;
+                            done();
                         };
                     }
                 });
