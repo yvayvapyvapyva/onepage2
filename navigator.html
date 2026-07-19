@@ -1604,58 +1604,6 @@ ymaps3.ready.then(async () => {
 </div>
 
 <script>
-function initSheetDrag(sheetId, handleId, onClose) {
-    const sheet = document.getElementById(sheetId);
-    const handle = document.getElementById(handleId);
-    let startY = 0, currentY = 0, dragging = false;
-
-    if (!sheet || !handle) return;
-
-    const onStart = (e) => {
-        e.preventDefault();
-        startY = e.clientY;
-        currentY = startY;
-        dragging = false;
-    };
-
-    const onMove = (e) => {
-        if (startY === 0) return;
-        const dy = e.clientY - startY;
-        if (Math.abs(dy) > 5) dragging = true;
-        if (!dragging) return;
-        currentY = e.clientY;
-        sheet.style.transition = 'none';
-        if (dy > 0) {
-            sheet.style.transform = `translateY(${dy}px)`;
-        }
-    };
-
-    const onEnd = () => {
-        if (startY === 0) return;
-        if (dragging) {
-            sheet.style.transition = '';
-            const dy = currentY - startY;
-            if (dy > 100) {
-                onClose();
-                return;
-            }
-            sheet.style.transform = '';
-        } else {
-            onClose();
-        }
-        startY = 0;
-    };
-
-    handle.addEventListener('pointerdown', onStart);
-    window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', onEnd);
-    window.addEventListener('pointercancel', onEnd);
-}
-
-initSheetDrag('pointsListSheet', 'sheetHandle', closePointsList);
-initSheetDrag('navSettingsSheet', 'settingsSheetHandle', closeSettings);
-initSheetDrag('instructionSheet', 'instructionHandle', closeInstruction);
-
 document.addEventListener('click', (e) => {
     const sheetModals = [
         { id: 'navSettingsModal', close: closeSettings, triggers: ['settingsBtn', 'menuBtn'] },
