@@ -901,7 +901,7 @@ function updateHud() {
     const t = APP.navPoints[idx];
     if (!t) return;
 
-    $('hudCmdNum').innerHTML = `<svg width="40" height="40" viewBox="0 0 20 20"><circle cx="10" cy="10" r="9" fill="${t.hex}" opacity="0.3"/><circle cx="10" cy="10" r="9" fill="none" stroke="${t.hex}" stroke-width="1.5"/><text x="10" y="10.5" font-size="8" font-family="Arial" font-weight="900" text-anchor="middle" dominant-baseline="middle" fill="#fff">${t.id}</text></svg>`;
+    $('hudCmdNum').innerHTML = `<svg width="44" height="44" viewBox="0 0 20 20"><circle cx="10" cy="10" r="9" fill="${t.hex}" opacity="0.3"/><circle cx="10" cy="10" r="9" fill="none" stroke="${t.hex}" stroke-width="1.5"/><text x="10" y="10.5" font-size="8" font-family="Arial" font-weight="900" text-anchor="middle" dominant-baseline="middle" fill="#fff">${t.id}</text></svg>`;
     $('hudCmdTextInner').textContent = t.cmd;
     $('hudCmdTextInner').style.opacity = APP._audioCache.has(t.cmd) ? '1' : '0.35';
     $('hudCmdNum').onclick = (e) => {
@@ -993,7 +993,7 @@ function openPointsList() {
         return `<div class="${cls}" data-idx="${i}">
             <div class="pl-item-row"${activeStyle}>
                 <div class="pl-item-row-main">
-                    <div class="pl-item-icon" data-play="${i}"><svg width="40" height="40" viewBox="0 0 20 20"><circle cx="10" cy="10" r="9" fill="${p.hex}" opacity="0.3"/><circle cx="10" cy="10" r="9" fill="none" stroke="${p.hex}" stroke-width="1.5"/><text x="10" y="10.5" font-size="8" font-family="Arial" font-weight="900" text-anchor="middle" dominant-baseline="middle" fill="#fff">${p.id}</text></svg></div>
+                    <div class="pl-item-icon" data-play="${i}"><svg width="44" height="44" viewBox="0 0 20 20"><circle cx="10" cy="10" r="9" fill="${p.hex}" opacity="0.3"/><circle cx="10" cy="10" r="9" fill="none" stroke="${p.hex}" stroke-width="1.5"/><text x="10" y="10.5" font-size="8" font-family="Arial" font-weight="900" text-anchor="middle" dominant-baseline="middle" fill="#fff">${p.id}</text></svg></div>
                     <div class="pl-item-text">${p.cmd}</div>
                     ${dist ? `<div class="pl-item-dist">${dist}</div>` : ''}
                 </div>

@@ -406,7 +406,7 @@ html, body {
 .hud-cmd-row {
     display: flex;
     align-items: center;
-    padding: 6px 4px;
+    padding: 2px 4px;
     gap: 10px;
     min-height: 52px;
 }
@@ -442,6 +442,7 @@ html, body {
     display: flex;
     align-items: center;
     min-width: 0;
+    padding: 4px 0;
 }
 
 #hudCmdTextInner {
@@ -1210,6 +1211,7 @@ html, body {
     align-items: center;
     gap: 10px;
     min-height: 52px;
+    padding: 2px 0;
 }
 
 .pl-item.pl-active .pl-item-row {
@@ -1248,6 +1250,7 @@ html, body {
     min-width: 0;
     word-break: break-word;
     line-height: 1.3;
+    padding: 4px 0;
 }
 
 .pl-item-dist {
