@@ -1389,7 +1389,6 @@ ymaps3.ready.then(async () => {
                       Math.sin(from[0] * Math.PI / 180) * Math.cos(to[0] * Math.PI / 180) * Math.cos(dLon);
             const bearing = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
             setMapLocation(from, 19, bearing, 2000);
-            if (APP._isScheme) setMapType('sat');
         }
         APP.navCurrentIndex = idx;
         APP._driveShowFrom = idx;
