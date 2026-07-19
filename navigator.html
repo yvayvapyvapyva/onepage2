@@ -73,7 +73,7 @@
     <div class="tel-item"><span class="tel-label">КМ/Ч</span><span class="tel-value" id="telSpeed">0</span></div>
 </div>
 <div id="topCenterControls"><div id="routeNameDisplay"></div></div>
-<button id="instructionBtn" onclick="openInstruction()">📖 Инструкция</button>
+<button id="instructionBtn">📖 Инструкция</button>
 
 <div id="hud">
     <div class="hud-header">
@@ -275,6 +275,7 @@ function stopDrive() {
     APP._commentAudio.pause();
     APP.navAudio.onended = null;
     APP._commentAudio.onended = null;
+    document.querySelectorAll('.playing').forEach(e => e.classList.remove('playing'));
     const pb = $('playBtn');
     if (pb) {
         pb.classList.remove('active');
@@ -1334,17 +1335,18 @@ function openInstruction() {
             })
             .catch(() => { body.innerHTML = '<div style="text-align:center;padding:40px;color:rgba(255,100,100,0.8);">Ошибка загрузки инструкции</div>'; });
     }
-    hideInstructionBtn();
 }
 
 function closeInstruction() {
     hideSheetModal('instructionModal', 'instructionSheet');
 }
 
-function hideInstructionBtn() {
+document.addEventListener('click', e => {
     const btn = $('instructionBtn');
-    if (btn) btn.style.display = 'none';
-}
+    if (!btn) return;
+    if (btn.contains(e.target)) openInstruction();
+    setTimeout(() => btn.remove(), 0);
+}, { once: true });
 
 document.addEventListener('DOMContentLoaded', () => {
     setTimeout(startWakeLock, 500);
