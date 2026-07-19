@@ -735,15 +735,14 @@ html, body {
 
 #jsonModal {
     position: fixed;
-    top: calc(76px + env(safe-area-inset-top));
-    bottom: calc(20px + env(safe-area-inset-bottom));
-    left: 8px;
-    right: 8px;
+    top: 0; left: 0; right: 0; bottom: 0;
     z-index: 10000;
     display: flex;
-    opacity: 0;
+    align-items: flex-end;
+    justify-content: center;
     pointer-events: none;
-    transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    opacity: 0;
+    transition: opacity 0.3s;
 }
 
 #jsonModal.hidden {
@@ -754,6 +753,29 @@ html, body {
 #jsonModal:not(.hidden) {
     opacity: 1;
     pointer-events: auto;
+}
+
+#jsonModal .modal-sheet {
+    max-height: 70vh;
+    border-radius: 24px 24px 0 0;
+    padding: 0;
+    margin: 0;
+    width: 100%;
+    max-width: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    transform: translateY(100%);
+    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+#jsonModal:not(.hidden) .modal-sheet {
+    transform: translateY(0);
+}
+
+#jsonModal .routes-list {
+    padding: 0 8px 16px;
+    margin-top: 0;
 }
 
 .modal-sheet {

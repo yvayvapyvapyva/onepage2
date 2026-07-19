@@ -708,8 +708,9 @@ const MenuModule = {
     // Создание модального окна
     createModal() {
         const html = `
-            <div id="jsonModal">
-                <div class="modal-sheet">
+            <div id="jsonModal" onclick="if(event.target===this) MenuModule.hide()">
+                <div class="modal-sheet" id="jsonModalSheet">
+                    <div class="sheet-handle" id="jsonModalHandle"><svg viewBox="0 0 24 24"><path d="M3 9L12 14.2L21 9" stroke="#fff" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
                     <div id="routesListContainer" class="routes-list">
                         <div style="text-align:center; padding:20px; color:rgba(255,255,255,0.5); font-size:14px;">
                             Загрузка списка маршрутов...
@@ -738,6 +739,41 @@ const MenuModule = {
                 this.hide();
             }
         });
+
+        // Drag-to-dismiss на ручку
+        const self = this;
+        (() => {
+            const sheet = document.getElementById('jsonModalSheet');
+            const handle = document.getElementById('jsonModalHandle');
+            let startY = 0, currentY = 0, dragging = false;
+            if (!sheet || !handle) return;
+            const onStart = (e) => { startY = e.clientY; currentY = startY; dragging = false; };
+            const onMove = (e) => {
+                if (startY === 0) return;
+                const dy = e.clientY - startY;
+                if (Math.abs(dy) > 5) dragging = true;
+                if (!dragging) return;
+                currentY = e.clientY;
+                sheet.style.transition = 'none';
+                if (dy > 0) sheet.style.transform = `translateY(${dy}px)`;
+            };
+            const onEnd = () => {
+                if (startY === 0) return;
+                if (dragging) {
+                    sheet.style.transition = '';
+                    const dy = currentY - startY;
+                    if (dy > 100) { self.hide(); return; }
+                    sheet.style.transform = '';
+                } else {
+                    self.hide();
+                }
+                startY = 0;
+            };
+            handle.addEventListener('pointerdown', onStart);
+            window.addEventListener('pointermove', onMove);
+            window.addEventListener('pointerup', onEnd);
+            window.addEventListener('pointercancel', onEnd);
+        })();
 
         // Закрытие при клике на любую кнопку приложения (кроме кнопки меню и модалки описания)
         document.addEventListener('click', (e) => {
@@ -953,7 +989,11 @@ const MenuModule = {
     // Скрыть модальное окно
     hide() {
         const modal = document.getElementById('jsonModal');
-        if (modal) modal.classList.add('hidden');
+        if (modal) {
+            const sheet = document.getElementById('jsonModalSheet');
+            if (sheet) { sheet.style.transform = ''; sheet.style.transition = ''; }
+            modal.classList.add('hidden');
+        }
         this._hideRouteDescription();
         if (this._retryTimer) {
             clearTimeout(this._retryTimer);
