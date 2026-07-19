@@ -709,7 +709,6 @@ function updateTiltState() {
 function closeAllSheets() {
     closePointsList();
     closeSettings();
-    closeInstruction();
     if (typeof MenuModule !== 'undefined') MenuModule.hide();
 }
 
@@ -1318,7 +1317,9 @@ document.addEventListener('visibilitychange', () => {
 });
 
 function openInstruction() {
-    closeAllSheets();
+    closePointsList();
+    closeSettings();
+    if (typeof MenuModule !== 'undefined') MenuModule.hide();
     const modal = $('instructionModal');
     const body = $('instructionBody');
     if (!modal || !body) return;
@@ -1333,19 +1334,17 @@ function openInstruction() {
             })
             .catch(() => { body.innerHTML = '<div style="text-align:center;padding:40px;color:rgba(255,100,100,0.8);">Ошибка загрузки инструкции</div>'; });
     }
+    hideInstructionBtn();
 }
 
 function closeInstruction() {
     hideSheetModal('instructionModal', 'instructionSheet');
 }
 
-document.addEventListener('pointerdown', (e) => {
+function hideInstructionBtn() {
     const btn = $('instructionBtn');
-    if (!btn) return;
-    const isBtn = btn.contains(e.target);
-    btn.style.display = 'none';
-    if (isBtn) openInstruction();
-}, { once: true });
+    if (btn) btn.style.display = 'none';
+}
 
 document.addEventListener('DOMContentLoaded', () => {
     setTimeout(startWakeLock, 500);
