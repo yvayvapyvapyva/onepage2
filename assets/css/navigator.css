@@ -1126,6 +1126,7 @@ html, body {
     max-width: none;
     display: flex;
     flex-direction: column;
+    gap: 0;
     transform: translateY(100%);
     transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -1432,19 +1433,26 @@ html, body {
     max-width: none;
     display: flex;
     flex-direction: column;
+    gap: 0;
     transform: translateY(100%);
     transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .sheet-handle {
-    width: 36px;
-    height: 5px;
-    border-radius: 3px;
-    background: rgba(255,255,255,0.25);
-    margin: 8px auto 4px;
+    width: 60px;
+    height: 30px;
+    margin: 0 auto 0;
     flex-shrink: 0;
     cursor: grab;
     touch-action: none;
+    opacity: 0.5;
+}
+
+.sheet-handle svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    fill: #fff;
 }
 
 #pointsListModal:not(.hidden) .modal-sheet {
