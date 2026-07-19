@@ -973,6 +973,10 @@ function openPointsList() {
         </div>`;
     }).join('');
     $('pointsListModal').classList.remove('hidden');
+    requestAnimationFrame(() => {
+        const active = wrap.querySelector('.pl-active');
+        if (active) active.scrollIntoView({ block: 'center', behavior: 'auto' });
+    });
 }
 
 function closePointsList() {
