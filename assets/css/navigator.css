@@ -61,8 +61,8 @@ html, body {
 .marker-img { display: block; }
 .trigger-input { width:100%;padding:10px 14px;border-radius:10px;background:rgba(255,255,255,0.06);color:#fff;font-size:14px;outline:none;box-sizing:border-box;border:none; }
 .trigger-pad { padding:4px 0 6px; }
-.trigger-input-num { width:100%;padding:10px 14px;border-radius:10px;background:rgba(255,255,255,0.06);color:#fff;font-size:16px;font-weight:600;outline:none;box-sizing:border-box; }
-.speed-input-inline { width:60px !important;padding:10px 8px !important;text-align:center;font-size:14px !important;border-radius:8px !important;flex-shrink:0; }
+.trigger-input-num { width:100%;padding:10px 14px;border-radius:10px;border:none;background:rgba(255,255,255,0.06);color:#fff;font-size:16px;font-weight:600;outline:none;box-sizing:border-box; }
+.speed-input-inline { width:60px !important;padding:10px 8px !important;text-align:center;font-size:14px !important;border-radius:8px !important;border:none !important;flex-shrink:0; }
 
 /* ============================================
    Стили карты (общие)
