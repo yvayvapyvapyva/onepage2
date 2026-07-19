@@ -1147,14 +1147,14 @@ html, body {
 }
 
 .sheet-handle {
-    width: 60px;
-    height: 30px;
-    margin: 6px auto 6px;
+    width: 150px;
+    height: 36px;
+    margin: 3px auto 3px;
     flex-shrink: 0;
     cursor: grab;
     touch-action: none;
     opacity: 0.5;
-    border: 1px solid rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.35);
     border-radius: 8px;
     display: flex;
     align-items: center;
