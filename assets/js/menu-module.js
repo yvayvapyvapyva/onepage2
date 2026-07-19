@@ -708,7 +708,7 @@ const MenuModule = {
     // Создание модального окна
     createModal() {
         const html = `
-            <div id="jsonModal" onclick="if(event.target===this) MenuModule.hide()">
+            <div id="jsonModal" class="sheet-modal" onclick="if(event.target===this) MenuModule.hide()">
                 <div class="modal-sheet" id="jsonModalSheet">
                     <div class="sheet-handle" id="jsonModalHandle"><svg viewBox="0 0 24 24"><path d="M3 9L12 14.2L21 9" stroke="#fff" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
                     <div id="routesListContainer" class="routes-list">

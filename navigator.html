@@ -722,10 +722,14 @@ function openSettings() {
     $('navSettingsModal').classList.remove('hidden');
 }
 
-function closeSettings() {
-    const sheet = $('navSettingsSheet');
+function hideSheetModal(modalId, sheetId) {
+    const sheet = document.getElementById(sheetId);
     if (sheet) { sheet.style.transform = ''; sheet.style.transition = ''; }
-    $('navSettingsModal').classList.add('hidden');
+    document.getElementById(modalId).classList.add('hidden');
+}
+
+function closeSettings() {
+    hideSheetModal('navSettingsModal', 'navSettingsSheet');
 }
 
 function addBuildingsToMap() {
@@ -996,9 +1000,7 @@ function openPointsList() {
 }
 
 function closePointsList() {
-    const sheet = document.getElementById('pointsListSheet');
-    if (sheet) { sheet.style.transform = ''; sheet.style.transition = ''; }
-    $('pointsListModal').classList.add('hidden');
+    hideSheetModal('pointsListModal', 'pointsListSheet');
 }
 
 function updateHudDist(d, ad) {
@@ -1516,14 +1518,14 @@ ymaps3.ready.then(async () => {
 });
 </script>
 
-<div id="pointsListModal" class="hidden" onclick="if(event.target===this) closePointsList()">
+<div id="pointsListModal" class="hidden sheet-modal" onclick="if(event.target===this) closePointsList()">
     <div class="modal-sheet" id="pointsListSheet">
         <div class="sheet-handle" id="sheetHandle"><svg viewBox="0 0 24 24"><path d="M3 9L12 14.2L21 9" stroke="#fff" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
         <div id="pointsListWrap"></div>
     </div>
 </div>
 
-<div id="navSettingsModal" class="hidden" onclick="if(event.target===this) closeSettings()">
+<div id="navSettingsModal" class="hidden sheet-modal" onclick="if(event.target===this) closeSettings()">
     <div class="modal-sheet" id="navSettingsSheet">
         <div class="sheet-handle" id="settingsSheetHandle"><svg viewBox="0 0 24 24"><path d="M3 9L12 14.2L21 9" stroke="#fff" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
         <div class="settings-body">
@@ -1588,57 +1590,9 @@ ymaps3.ready.then(async () => {
 </div>
 
 <script>
-(function() {
-    const modal = document.getElementById('pointsListModal');
-    const sheet = document.getElementById('pointsListSheet');
-    const handle = document.getElementById('sheetHandle');
-    let startY = 0, currentY = 0, dragging = false;
-
-    if (!sheet || !handle) return;
-
-    const onStart = (e) => {
-        startY = e.clientY;
-        dragging = false;
-    };
-
-    const onMove = (e) => {
-        if (startY === 0) return;
-        const dy = e.clientY - startY;
-        if (Math.abs(dy) > 5) dragging = true;
-        if (!dragging) return;
-        currentY = e.clientY;
-        sheet.style.transition = 'none';
-        const d = currentY - startY;
-        if (d > 0) {
-            sheet.style.transform = `translateY(${d}px)`;
-        }
-    };
-
-    const onEnd = () => {
-        if (startY === 0) return;
-        if (dragging) {
-            sheet.style.transition = '';
-            const dy = currentY - startY;
-            if (dy > 100) {
-                closePointsList();
-                return;
-            }
-            sheet.style.transform = '';
-        } else {
-            closePointsList();
-        }
-        startY = 0;
-    };
-
-    handle.addEventListener('pointerdown', onStart);
-    window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', onEnd);
-    window.addEventListener('pointercancel', onEnd);
-})();
-
-(() => {
-    const sheet = document.getElementById('navSettingsSheet');
-    const handle = document.getElementById('settingsSheetHandle');
+function initSheetDrag(sheetId, handleId, onClose) {
+    const sheet = document.getElementById(sheetId);
+    const handle = document.getElementById(handleId);
     let startY = 0, currentY = 0, dragging = false;
 
     if (!sheet || !handle) return;
@@ -1667,12 +1621,12 @@ ymaps3.ready.then(async () => {
             sheet.style.transition = '';
             const dy = currentY - startY;
             if (dy > 100) {
-                closeSettings();
+                onClose();
                 return;
             }
             sheet.style.transform = '';
         } else {
-            closeSettings();
+            onClose();
         }
         startY = 0;
     };
@@ -1681,8 +1635,10 @@ ymaps3.ready.then(async () => {
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onEnd);
     window.addEventListener('pointercancel', onEnd);
-})();
+}
 
+initSheetDrag('pointsListSheet', 'sheetHandle', closePointsList);
+initSheetDrag('navSettingsSheet', 'settingsSheetHandle', closeSettings);
 </script>
 </body>
 </html>

@@ -734,43 +734,7 @@ html, body {
 }
 
 #jsonModal {
-    position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
     z-index: 10000;
-    display: flex;
-    align-items: flex-end;
-    justify-content: center;
-    pointer-events: none;
-    opacity: 0;
-    transition: opacity 0.3s;
-}
-
-#jsonModal.hidden {
-    opacity: 0;
-    pointer-events: none;
-}
-
-#jsonModal:not(.hidden) {
-    opacity: 1;
-    pointer-events: auto;
-}
-
-#jsonModal .modal-sheet {
-    max-height: 70vh;
-    border-radius: 24px 24px 0 0;
-    padding: 0;
-    margin: 0;
-    width: 100%;
-    max-width: none;
-    display: flex;
-    flex-direction: column;
-    gap: 0;
-    transform: translateY(100%);
-    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-#jsonModal:not(.hidden) .modal-sheet {
-    transform: translateY(0);
 }
 
 #jsonModal .routes-list {
@@ -1123,38 +1087,7 @@ html, body {
    Модальное окно настроек навигатора
    ============================================ */
 #navSettingsModal {
-    position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
     z-index: 11000;
-    display: flex;
-    align-items: flex-end;
-    justify-content: center;
-    pointer-events: none;
-    opacity: 0;
-    transition: opacity 0.3s;
-}
-
-#navSettingsModal:not(.hidden) {
-    opacity: 1;
-    pointer-events: auto;
-}
-
-#navSettingsModal .modal-sheet {
-    max-height: 70vh;
-    border-radius: 24px 24px 0 0;
-    padding: 0;
-    margin: 0;
-    width: 100%;
-    max-width: none;
-    display: flex;
-    flex-direction: column;
-    gap: 0;
-    transform: translateY(100%);
-    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-#navSettingsModal:not(.hidden) .modal-sheet {
-    transform: translateY(0);
 }
 
 #navSettingsModal .settings-body {
@@ -1427,12 +1360,11 @@ html, body {
 }
 
 /* ============================================
-   Модальное окно со списком точек
+   Bottom sheet modal (shared)
    ============================================ */
-#pointsListModal {
+.sheet-modal {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
-    z-index: 11000;
     display: flex;
     align-items: flex-end;
     justify-content: center;
@@ -1441,12 +1373,16 @@ html, body {
     transition: opacity 0.3s;
 }
 
-#pointsListModal:not(.hidden) {
+.sheet-modal:not(.hidden) {
     opacity: 1;
     pointer-events: auto;
 }
 
-#pointsListModal .modal-sheet {
+.sheet-modal:not(.hidden) .modal-sheet {
+    transform: translateY(0);
+}
+
+.sheet-modal .modal-sheet {
     max-height: 70vh;
     border-radius: 24px 24px 0 0;
     padding: 0;
@@ -1459,6 +1395,8 @@ html, body {
     transform: translateY(100%);
     transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
+
+#pointsListModal { z-index: 11000; }
 
 .sheet-handle {
     width: 60px;
@@ -1475,10 +1413,6 @@ html, body {
     width: 100%;
     height: 100%;
     fill: #fff;
-}
-
-#pointsListModal:not(.hidden) .modal-sheet {
-    transform: translateY(0);
 }
 
 #pointsListWrap {
