@@ -723,6 +723,8 @@ function openSettings() {
 }
 
 function closeSettings() {
+    const sheet = $('navSettingsSheet');
+    if (sheet) { sheet.style.transform = ''; sheet.style.transition = ''; }
     $('navSettingsModal').classList.add('hidden');
 }
 
@@ -994,6 +996,8 @@ function openPointsList() {
 }
 
 function closePointsList() {
+    const sheet = document.getElementById('pointsListSheet');
+    if (sheet) { sheet.style.transform = ''; sheet.style.transition = ''; }
     $('pointsListModal').classList.add('hidden');
 }
 
@@ -1513,13 +1517,15 @@ ymaps3.ready.then(async () => {
 </script>
 
 <div id="pointsListModal" class="hidden" onclick="if(event.target===this) closePointsList()">
-    <div class="modal-sheet">
+    <div class="modal-sheet" id="pointsListSheet">
+        <div class="sheet-handle" id="sheetHandle"></div>
         <div id="pointsListWrap"></div>
     </div>
 </div>
 
 <div id="navSettingsModal" class="hidden" onclick="if(event.target===this) closeSettings()">
-    <div class="modal-sheet">
+    <div class="modal-sheet" id="navSettingsSheet">
+        <div class="sheet-handle" id="settingsSheetHandle"></div>
         <div class="settings-body">
             <div class="settings-group">
                 <div class="settings-label">Вид карты</div>
@@ -1581,5 +1587,101 @@ ymaps3.ready.then(async () => {
     </div>
 </div>
 
+<script>
+(function() {
+    const modal = document.getElementById('pointsListModal');
+    const sheet = document.getElementById('pointsListSheet');
+    const handle = document.getElementById('sheetHandle');
+    let startY = 0, currentY = 0, dragging = false;
+
+    if (!sheet || !handle) return;
+
+    const onStart = (e) => {
+        startY = e.clientY;
+        dragging = false;
+    };
+
+    const onMove = (e) => {
+        if (startY === 0) return;
+        const dy = e.clientY - startY;
+        if (Math.abs(dy) > 5) dragging = true;
+        if (!dragging) return;
+        currentY = e.clientY;
+        sheet.style.transition = 'none';
+        const d = currentY - startY;
+        if (d > 0) {
+            sheet.style.transform = `translateY(${d}px)`;
+        }
+    };
+
+    const onEnd = () => {
+        if (startY === 0) return;
+        if (dragging) {
+            sheet.style.transition = '';
+            const dy = currentY - startY;
+            if (dy > 100) {
+                closePointsList();
+                return;
+            }
+            sheet.style.transform = '';
+        } else {
+            closePointsList();
+        }
+        startY = 0;
+    };
+
+    handle.addEventListener('pointerdown', onStart);
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onEnd);
+    window.addEventListener('pointercancel', onEnd);
+})();
+
+(() => {
+    const sheet = document.getElementById('navSettingsSheet');
+    const handle = document.getElementById('settingsSheetHandle');
+    let startY = 0, currentY = 0, dragging = false;
+
+    if (!sheet || !handle) return;
+
+    const onStart = (e) => {
+        startY = e.clientY;
+        currentY = startY;
+        dragging = false;
+    };
+
+    const onMove = (e) => {
+        if (startY === 0) return;
+        const dy = e.clientY - startY;
+        if (Math.abs(dy) > 5) dragging = true;
+        if (!dragging) return;
+        currentY = e.clientY;
+        sheet.style.transition = 'none';
+        if (dy > 0) {
+            sheet.style.transform = `translateY(${dy}px)`;
+        }
+    };
+
+    const onEnd = () => {
+        if (startY === 0) return;
+        if (dragging) {
+            sheet.style.transition = '';
+            const dy = currentY - startY;
+            if (dy > 100) {
+                closeSettings();
+                return;
+            }
+            sheet.style.transform = '';
+        } else {
+            closeSettings();
+        }
+        startY = 0;
+    };
+
+    handle.addEventListener('pointerdown', onStart);
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onEnd);
+    window.addEventListener('pointercancel', onEnd);
+})();
+</script>
 </body>
 </html>
