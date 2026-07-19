@@ -305,25 +305,6 @@ html, body {
     fill: #FF453A;
 }
 
-#commentToggleBtn {
-    display: none;
-    top: calc(204px + env(safe-area-inset-top));
-    right: 12px;
-}
-#commentToggleBtn .speaker-off {
-    display: none;
-}
-#commentToggleBtn.muted .speaker-on {
-    display: none;
-}
-#commentToggleBtn.muted .speaker-off {
-    display: block;
-}
-#commentToggleBtn.muted {
-    opacity: 0.5;
-    border-color: rgba(255,255,255,0.08);
-}
-
 #routeNameDisplay {
     position: absolute;
     top: calc(50px + env(safe-area-inset-top));
