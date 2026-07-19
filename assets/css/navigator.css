@@ -141,7 +141,7 @@ html, body {
 #instructionModal { z-index: 20000; }
 
 #instructionModal .modal-sheet {
-    max-height: 75vh;
+    max-height: 70vh;
 }
 
 #instructionModal .icon-row,
@@ -1107,7 +1107,7 @@ html, body {
 }
 
 .sheet-modal .modal-sheet {
-    max-height: 75vh;
+    max-height: 70vh;
     border-radius: 24px 24px 0 0;
     padding: 0;
     margin: 0;
