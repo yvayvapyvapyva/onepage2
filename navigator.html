@@ -47,11 +47,11 @@
     <div id="loadingText">ЗАГРУЗКА...</div>
 </div>
 
-<div id="instructionModal" class="instruction-overlay" onclick="if(event.target===this) closeInstruction()">
-    <div class="instruction-sheet">
+<div id="instructionModal" class="hidden sheet-modal">
+    <div class="modal-sheet" id="instructionSheet">
+        <div class="sheet-handle" id="instructionHandle"><svg viewBox="0 0 24 24"><path d="M3 9L12 14.2L21 9" stroke="#fff" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
         <div class="instruction-header">
             <span class="instruction-title">📖 Инструкция</span>
-            <button class="instruction-close" onclick="closeInstruction()">✕</button>
         </div>
         <div class="instruction-body" id="instructionBody">
             <div class="instruction-loading">Загрузка...</div>
@@ -709,6 +709,7 @@ function updateTiltState() {
 function closeAllSheets() {
     closePointsList();
     closeSettings();
+    closeInstruction();
     if (typeof MenuModule !== 'undefined') MenuModule.hide();
 }
 
@@ -1317,10 +1318,11 @@ document.addEventListener('visibilitychange', () => {
 });
 
 function openInstruction() {
+    closeAllSheets();
     const modal = $('instructionModal');
     const body = $('instructionBody');
     if (!modal || !body) return;
-    modal.classList.add('visible');
+    modal.classList.remove('hidden');
     if (!body.dataset.loaded) {
         fetch('instr.html')
             .then(r => r.text())
@@ -1334,8 +1336,7 @@ function openInstruction() {
 }
 
 function closeInstruction() {
-    const modal = $('instructionModal');
-    if (modal) modal.classList.remove('visible');
+    hideSheetModal('instructionModal', 'instructionSheet');
 }
 
 document.addEventListener('pointerdown', (e) => {
@@ -1595,6 +1596,10 @@ ymaps3.ready.then(async () => {
                     </div>
                 </div>
             </div>
+
+            <div class="settings-group" style="cursor:pointer" onclick="closeSettings(); setTimeout(openInstruction, 350)">
+                <div class="settings-label" style="text-align:center;color:rgba(255,255,255,0.6)">📖 Инструкция</div>
+            </div>
         </div>
     </div>
 </div>
@@ -1650,21 +1655,23 @@ function initSheetDrag(sheetId, handleId, onClose) {
 
 initSheetDrag('pointsListSheet', 'sheetHandle', closePointsList);
 initSheetDrag('navSettingsSheet', 'settingsSheetHandle', closeSettings);
+initSheetDrag('instructionSheet', 'instructionHandle', closeInstruction);
 
 document.addEventListener('click', (e) => {
-    ['navSettingsModal', 'pointsListModal'].forEach(id => {
+    const sheetModals = [
+        { id: 'navSettingsModal', close: closeSettings, triggers: ['settingsBtn', 'menuBtn'] },
+        { id: 'pointsListModal', close: closePointsList, triggers: ['hudCmd', 'menuBtn'] },
+        { id: 'instructionModal', close: closeInstruction, triggers: ['instructionBtn', 'menuBtn'] },
+    ];
+    sheetModals.forEach(({ id, close, triggers }) => {
         const modal = document.getElementById(id);
         if (!modal || modal.classList.contains('hidden')) return;
         const sheet = modal.querySelector('.modal-sheet');
-        const triggers = ['settingsBtn', 'hudCmd', 'menuBtn'];
         const isTrigger = triggers.some(tid => {
             const el = document.getElementById(tid);
             return el && (el === e.target || el.contains(e.target));
         });
-        if (sheet && !sheet.contains(e.target) && !isTrigger) {
-            if (id === 'navSettingsModal') closeSettings();
-            else closePointsList();
-        }
+        if (sheet && !sheet.contains(e.target) && !isTrigger) close();
     });
 });
 </script>
