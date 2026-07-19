@@ -1374,6 +1374,92 @@ input, textarea, select {
     color: #8b8f99;
     text-align: center;
 }
+/* ---- Info points UI ---- */
+.info-points-wrap {
+    margin-top: 6px;
+}
+.info-points-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 14px;
+    color: rgba(255,255,255,0.8);
+    user-select: none;
+}
+.info-points-toggle:hover {
+    background: rgba(255,255,255,0.08);
+}
+.info-arrow {
+    font-size: 12px;
+    color: #8b8f99;
+    transition: transform 0.2s;
+}
+.info-points-body {
+    padding: 8px 0 4px;
+}
+.info-points-body .comm-input {
+    margin: 0 0 6px;
+    min-height: 40px;
+}
+.info-point-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 8px;
+    margin-bottom: 4px;
+}
+.info-point-row.active {
+    outline: 2px solid rgba(255,255,255,0.3);
+    outline-offset: -2px;
+}
+.info-del-btn {
+    background: none;
+    border: none;
+    color: #FF453A;
+    font-size: 16px;
+    cursor: pointer;
+    padding: 2px 4px;
+    opacity: 0.6;
+}
+.info-del-btn:hover {
+    opacity: 1;
+}
+.btn-info-add {
+    width: 100%;
+    padding: 8px;
+    background: rgba(255,255,255,0.06);
+    border: 0.5px dashed rgba(255,255,255,0.2);
+    border-radius: 8px;
+    color: rgba(255,255,255,0.7);
+    font-size: 13px;
+    cursor: pointer;
+    margin-top: 4px;
+}
+.btn-info-add:hover {
+    background: rgba(255,255,255,0.1);
+    color: #fff;
+}
+.info-point-img {
+    width: 32px;
+    height: 32px;
+    border-radius: 4px;
+    object-fit: contain;
+    border: 1px solid rgba(255,255,255,0.15);
+    background: rgba(0,0,0,0.2);
+    flex-shrink: 0;
+}
+.info-point-filename {
+    flex: 1;
+    font-size: 12px;
+    color: rgba(255,255,255,0.7);
+    font-family: 'Courier New', monospace;
+}
 
 /* ============================================
    Прочее
