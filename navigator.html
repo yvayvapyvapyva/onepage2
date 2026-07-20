@@ -1015,6 +1015,19 @@ function closePointsList() {
 function updateHudDist(d, ad) {
     $('hudCmdDist').innerHTML = formatDistance(d);
     $('hudCmdDist').classList.toggle('in-range', d < 50 && ad <= APP.navConfig.AZ_TOLERANCE);
+    updatePointsListDist();
+}
+
+function updatePointsListDist() {
+    const modal = $('pointsListModal');
+    if (!modal || modal.classList.contains('hidden')) return;
+    const activeItem = modal.querySelector('.pl-active');
+    if (!activeItem || !APP.lastPos || APP.navCurrentIndex < 0) return;
+    const t = APP.navPoints[APP.navCurrentIndex];
+    if (!t) return;
+    const d = getGeoDistance(APP.lastPos, [t.lat, t.lon]);
+    const distEl = activeItem.querySelector('.pl-item-dist');
+    if (distEl) distEl.innerHTML = formatDistance(d);
 }
 
 
@@ -1036,6 +1049,16 @@ function setTarget(i) {
     updateHud();
     updateCurrentPointHud();
     fitMapToCurrentTarget();
+    updatePointsListActive();
+}
+
+function updatePointsListActive() {
+    const modal = $('pointsListModal');
+    if (!modal || modal.classList.contains('hidden')) return;
+    modal.querySelectorAll('.pl-item').forEach(el => {
+        el.classList.toggle('pl-active', parseInt(el.dataset.idx) === APP.navCurrentIndex);
+        el.classList.toggle('pl-prev', parseInt(el.dataset.idx) < APP.navCurrentIndex);
+    });
 }
 
 function fitMapToCurrentTarget() {
