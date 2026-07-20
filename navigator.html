@@ -1107,7 +1107,7 @@ function fitMapToCurrentTarget() {
         if (lon > maxLon) maxLon = lon;
     }
     if (minLat === Infinity) return;
-    const pad = Math.max(Math.abs(maxLat - minLat), Math.abs(maxLon - minLon)) * 0.15 || 0.001;
+    const pad = Math.max(Math.abs(maxLat - minLat), Math.abs(maxLon - minLon)) * 0.20;
     APP.map.update({ location: { bounds: [[minLon - pad, minLat - pad], [maxLon + pad, maxLat + pad]], duration: 400 } });
 }
 
