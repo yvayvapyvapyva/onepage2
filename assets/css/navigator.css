@@ -109,7 +109,7 @@ html, body {
 
 #instructionBtn {
     position: fixed;
-    bottom: calc(20px + env(safe-area-inset-bottom));
+    bottom: calc(170px + env(safe-area-inset-bottom));
     left: 50%;
     transform: translateX(-50%);
     z-index: 9005;
@@ -135,7 +135,7 @@ html, body {
 }
 
 .android-app #instructionBtn {
-    bottom: calc(30px + env(safe-area-inset-bottom));
+    bottom: calc(180px + env(safe-area-inset-bottom));
 }
 
 #instructionModal { z-index: 20000; }
