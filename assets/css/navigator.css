@@ -1245,8 +1245,8 @@ html, body {
 
 .pl-item-text {
     flex: 1;
-    font-size: 15px;
-    font-weight: 600;
+    font-size: 18px;
+    font-weight: 700;
     min-width: 0;
     word-break: break-word;
     line-height: 1.3;
