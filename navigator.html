@@ -257,7 +257,7 @@ function setMapLocation(center, zoom, azimuth, duration = 400) {
         while (diff > 180) diff -= 360;
         while (diff < -180) diff += 360;
         const finalDeg = curDeg + diff;
-        params.camera = { azimuth: -finalDeg * Math.PI / 180, tilt: APP.lastTilt, duration, easing: 'linear' };
+        params.camera = { azimuth: -finalDeg * Math.PI / 180, tilt: APP.lastTilt, duration: Math.min(duration, 1000), easing: 'linear' };
     }
     APP.map.update(params);
 }
@@ -268,7 +268,7 @@ function stopDrive() {
     APP._driveShowFrom = -1;
     if (APP._driveRaf) { cancelAnimationFrame(APP._driveRaf); APP._driveRaf = null; }
     if (APP._zoomWatcherRaf) { cancelAnimationFrame(APP._zoomWatcherRaf); APP._zoomWatcherRaf = null; }
-    if (APP._driveMarker) { APP.map.removeChild(APP._driveMarker); APP._driveMarker = null; }
+    if (APP._driveMarker) { APP._driveMarker.element.style.display = 'none'; }
     if (APP._prevAnim) { cancelAnimationFrame(APP._prevAnim); APP._prevAnim = null; }
     APP.navAudio.pause();
     APP._commentAudio.pause();
@@ -288,10 +288,13 @@ function driveAlongPath(fromIdx) {
     stopDrive();
 
     const path = p.pts;
-    const dists = [0];
-    for (let i = 1; i < path.length; i++) {
-        dists[i] = dists[i - 1] + getGeoDistance(path[i - 1], path[i]);
+    if (!p._dists) {
+        p._dists = [0];
+        for (let i = 1; i < path.length; i++) {
+            p._dists[i] = p._dists[i - 1] + getGeoDistance(path[i - 1], path[i]);
+        }
     }
+    const dists = p._dists;
     const totalDist = dists[path.length - 1];
     if (totalDist < 0.1) return;
 
@@ -309,11 +312,10 @@ function driveAlongPath(fromIdx) {
     let _simZoom;
     try { _simZoom = APP.map.zoom; } catch (e) { _simZoom = undefined; }
 
-    const markerEl = document.createElement('div');
-    markerEl.innerHTML = '<svg width="18" height="18" viewBox="0 0 18 18"><circle cx="9" cy="9" r="7" fill="#FF3B30" stroke="#fff" stroke-width="2.5"/></svg>';
-    markerEl.style.transform = 'translate(-50%,-50%)';
-    APP._driveMarker = new ymaps3.YMapMarker({ coordinates: [path[0][1], path[0][0]] }, markerEl);
+    APP.map.removeChild(APP._driveMarker);
     APP.map.addChild(APP._driveMarker);
+    APP._driveMarker.update({ coordinates: [path[0][1], path[0][0]] });
+    APP._driveMarker.element.style.display = '';
 
     if (resume) {
         const mp = getPos(simulatedDist);
@@ -368,32 +370,10 @@ function driveAlongPath(fromIdx) {
                     APP.navCurrentIndex = nextIdx;
                     APP._driveShowFrom = nextIdx;
                     renderRoutePoints();
-                    const startSim = () => { if (APP._driveShowFrom >= 0 && !APP._driveActive) driveAlongPath(nextIdx); };
-                    const playNextAudio = () => {
-                        if (APP._driveShowFrom < 0) return;
-                        APP.navAudio.onended = null;
-                        if (np.comm && np.comm.trim() && APP._commentEnabled) {
-                            APP._commentAudio.onended = () => { if (APP._driveShowFrom < 0) return; APP._commentAudio.onended = null; startSim(); };
-                            playComment(np.comm);
-                        } else {
-                            startSim();
-                        }
-                    };
-                    const simTimeout = () => {
-                        if (APP._driveShowFrom < 0) return;
-                        if (!APP._driveActive) {
-                            const hasAudio = !APP.navAudio.paused && APP.navAudio.currentTime > 0;
-                            if (!hasAudio) {
-                                APP.navAudio.onended = null;
-                                startSim();
-                            }
-                        }
-                    };
                     updateHud();
-                    playCommand(np.cmd).then(() => {
-                        APP.navAudio.onended = playNextAudio;
+                    playPointAudio(np, () => {
+                        if (APP._driveShowFrom >= 0 && !APP._driveActive) driveAlongPath(nextIdx);
                     });
-                    setTimeout(simTimeout, np.comm && np.comm.trim() ? 2000 : 1000);
                     const pb = $('playBtn');
                     if (pb) { pb.classList.add('active'); pb.innerHTML = '<svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>'; }
                 }
@@ -798,6 +778,10 @@ function getNavIconSvg(col, txt, az, isEnd, isCurr = false, hasComm = false) {
     return 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
 }
 
+function hexToRgba(h, a) {
+    return `rgba(${parseInt(h.slice(1,3),16)},${parseInt(h.slice(3,5),16)},${parseInt(h.slice(5,7),16)},${a})`;
+}
+
 function removeRouteObjects() {
     if (!APP.map) return;
     APP.navPoints.forEach(p => {
@@ -869,61 +853,77 @@ function clearRoute() {
 }
 
 function renderRoutePoints() {
-    removeRouteObjects();
-
-    APP.navPoints = APP.navPoints.map((p, i) => {
+    APP.navPoints.forEach((p, i) => {
         const isCurrent = (i === APP.navCurrentIndex);
         const isPassed = (i < APP.navCurrentIndex);
         const isPrevious = (i === APP.navCurrentIndex - 1);
         const hasComm = p.comm && p.comm.trim() !== '';
 
-        const showPoint = APP._driveShowFrom >= 0 ? (i >= APP._driveShowFrom) : (!isPassed || isCurrent || isPrevious);
-        const showPath = APP._driveShowFrom >= 0 ? (i >= APP._driveShowFrom) : (!isPassed || isPrevious);
+        const showPoint = APP._driveShowFrom >= 0 ? (i >= Math.max(APP._driveShowFrom - 1, 0)) : (!isPassed || isCurrent || isPrevious);
+        const showPath = APP._driveShowFrom >= 0 ? (i >= Math.max(APP._driveShowFrom - 1, 0)) : (!isPassed || isPrevious);
 
-        if (!showPoint) return { ...p, placemark: null, line: null, hidden: true };
+        if (!p.placemark) {
+            const el = document.createElement('div');
+            el.style.cssText = 'width:40px;height:40px;cursor:pointer;transform:translate(-50%,-50%);';
+            el.dataset.idx = i;
+            el.addEventListener('click', e => {
+                e.stopPropagation();
+                const idx = parseInt(el.dataset.idx);
+                setTarget(idx);
+            });
+            p.placemark = new ymaps3.YMapMarker({ coordinates: [p.lon, p.lat] }, el);
+        }
 
-        const el = document.createElement('div');
-        el.style.cssText = `width:40px;height:40px;cursor:pointer;transform:translate(-50%,-50%);`;
-        if (isPrevious) el.style.opacity = '0.7';
-        el.innerHTML = `<img src="${getNavIconSvg(p.hex, p.id, p.az, false, isCurrent, hasComm)}" width="40" height="40" class="marker-img" />`;
+        const el = p.placemark.element;
         el.dataset.idx = i;
-        const placemark = new ymaps3.YMapMarker({ coordinates: [p.lon, p.lat] }, el);
-        el.addEventListener('click', e => {
-            e.stopPropagation();
-            const idx = parseInt(el.dataset.idx);
-            setTarget(idx);
-        });
 
-        const swapPts = pts => pts.map(pt => [pt[1], pt[0]]);
-        const hexToRgba = (h, a) => `rgba(${parseInt(h.slice(1,3),16)},${parseInt(h.slice(3,5),16)},${parseInt(h.slice(5,7),16)},${a})`;
-        let line = null;
+        if (showPoint) {
+            el.style.display = '';
+            el.style.opacity = isPrevious ? '0.7' : '';
+            el.innerHTML = `<img src="${getNavIconSvg(p.hex, p.id, p.az, false, isCurrent, hasComm)}" width="40" height="40" class="marker-img" />`;
+            p.placemark.update({ coordinates: [p.lon, p.lat] });
+        } else {
+            el.style.display = 'none';
+        }
+
         if (showPath && p.pts && p.pts.length >= 2) {
-            const coords = swapPts(p.pts);
-            const YMapFeature = ymaps3.YMapFeature;
+            const coords = p.pts.map(pt => [pt[1], pt[0]]);
             const strokes = [];
             strokes.push({ width: isPrevious ? 6 : 4, color: isCurrent ? p.hex : (isPrevious ? hexToRgba(p.hex, 0.5) : p.hex) });
             strokes.push({ width: isCurrent ? 6 : (isPrevious ? 8 : 6), color: isPrevious ? 'rgba(0,0,0,0.7)' : '#000000' });
             if (isCurrent) strokes.push({ width: 10, color: '#00FF00' });
-            line = new YMapFeature({
-                geometry: { type: 'LineString', coordinates: coords },
-                style: { stroke: strokes }
-            });
-        }
 
-        return { ...p, placemark, line, hidden: false };
+            if (!p.line) {
+                p.line = new ymaps3.YMapFeature({
+                    geometry: { type: 'LineString', coordinates: coords },
+                    style: { stroke: strokes }
+                });
+            } else {
+                p.line.update({
+                    geometry: { type: 'LineString', coordinates: coords },
+                    style: { stroke: strokes }
+                });
+            }
+
+            if (APP.map && !p.line._onMap) {
+                APP.map.addChild(p.line);
+                p.line._onMap = true;
+            }
+        } else if (p.line && p.line._onMap) {
+            if (APP.map) APP.map.removeChild(p.line);
+            p.line._onMap = false;
+        }
     });
 
-    const map = APP.map;
-    if (map) {
-        renderInfoMarkers();
-        for (let ci = 0; ci < APP.navPoints.length; ci++) {
-            const pt = APP.navPoints[ci];
-            if (pt.line) map.addChild(pt.line);
-        }
+    if (APP.map) {
         for (let ci = APP.navPoints.length - 1; ci >= 0; ci--) {
             const pt = APP.navPoints[ci];
-            if (pt.placemark) map.addChild(pt.placemark);
+            if (pt.placemark && !pt.placemark._onMap) {
+                APP.map.addChild(pt.placemark);
+                pt.placemark._onMap = true;
+            }
         }
+        renderInfoMarkers();
     }
     updateHud();
 }
@@ -944,24 +944,7 @@ function updateHud() {
         document.querySelectorAll('.playing').forEach(e => e.classList.remove('playing'));
         APP._commentAudio.onended = null;
         el.classList.add('playing');
-        playCommand(t.cmd).then(() => {
-            const done = () => el.classList.remove('playing');
-            if (t.comm && t.comm.trim()) {
-                APP.navAudio.onended = () => {
-                    APP.navAudio.onended = null;
-                    APP._commentAudio.onended = () => {
-                        APP._commentAudio.onended = null;
-                        done();
-                    };
-                    playComment(t.comm);
-                };
-            } else {
-                APP.navAudio.onended = () => {
-                    APP.navAudio.onended = null;
-                    done();
-                };
-            }
-        });
+        playPointAudio(t, () => el.classList.remove('playing'));
     };
     $('hudCmd').onclick = openPointsList;
 
@@ -1170,6 +1153,24 @@ async function playComment(text) {
     }
 }
 
+function playPointAudio(point, onDone) {
+    if (!point) { if (onDone) onDone(); return; }
+    playCommand(point.cmd).then(() => {
+        APP._commentAudio.onended = null;
+        APP.navAudio.onended = () => {
+            APP.navAudio.onended = null;
+            if (point.comm && point.comm.trim() && APP._commentEnabled) {
+                APP._commentAudio.onended = () => {
+                    APP._commentAudio.onended = null;
+                    if (onDone) onDone();
+                };
+                playComment(point.comm);
+            } else {
+                if (onDone) onDone();
+            }
+        };
+    });
+}
 
 function navCheckTriggers() {
     if (APP.navCurrentIndex < 0 || !APP.lastPos || !APP.navPoints[APP.navCurrentIndex]) return;
@@ -1448,6 +1449,13 @@ ymaps3.ready.then(async () => {
     APP._userMarkerEl = userEl;
     APP.userMarker = new YMapMarker({ coordinates: [0, 0] }, userEl);
     APP.map.addChild(APP.userMarker);
+
+    const driveEl = document.createElement('div');
+    driveEl.innerHTML = '<svg width="18" height="18" viewBox="0 0 18 18"><circle cx="9" cy="9" r="7" fill="#FF3B30" stroke="#fff" stroke-width="2.5"/></svg>';
+    driveEl.style.cssText = 'transform:translate(-50%,-50%);display:none;position:relative;z-index:9999;';
+    APP._driveMarker = new YMapMarker({ coordinates: [0, 0] }, driveEl);
+    APP.map.addChild(APP._driveMarker);
+
     initGeolocation();
 
     APP._is3D = false;
@@ -1489,38 +1497,11 @@ ymaps3.ready.then(async () => {
         renderRoutePoints();
         $('playBtn').classList.add('active');
         $('playBtn').innerHTML = '<svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>';
-        const startSim = () => {
+        const startSimAfterAudio = () => {
             if (APP._driveShowFrom >= 0 && !APP._driveActive) driveAlongPath(idx);
         };
-        const playNext = () => {
-            APP.navAudio.onended = null;
-            if (p.comm && p.comm.trim() && APP._commentEnabled) {
-                APP._commentAudio.onended = () => { APP._commentAudio.onended = null; startSim(); };
-                playComment(p.comm);
-            } else {
-                startSim();
-            }
-        };
-        const simTimeout = () => {
-            if (APP._driveShowFrom >= 0 && !APP._driveActive) {
-                const hasAudio = !APP.navAudio.paused && APP.navAudio.currentTime > 0;
-                if (!hasAudio) {
-                    APP.navAudio.onended = null;
-                    startSim();
-                }
-            }
-        };
-        const playAudio = () => {
-            playCommand(p.cmd).then(() => {
-                APP.navAudio.onended = playNext;
-            });
-            setTimeout(simTimeout, p.comm && p.comm.trim() ? 2000 : 1000);
-        };
-        if (APP._simForceZoom) {
-            setTimeout(playAudio, 2000);
-        } else {
-            playAudio();
-        }
+        const doPlay = () => playPointAudio(p, startSimAfterAudio);
+        APP._simForceZoom ? setTimeout(doPlay, 2000) : doPlay();
     });
 
     document.getElementById('map').addEventListener('click', () => {
@@ -1538,24 +1519,7 @@ ymaps3.ready.then(async () => {
                 document.querySelectorAll('.playing').forEach(e => e.classList.remove('playing'));
                 APP._commentAudio.onended = null;
                 icon.classList.add('playing');
-                playCommand(p.cmd).then(() => {
-                    const done = () => icon.classList.remove('playing');
-                    if (p.comm && p.comm.trim()) {
-                        APP.navAudio.onended = () => {
-                            APP.navAudio.onended = null;
-                            APP._commentAudio.onended = () => {
-                                APP._commentAudio.onended = null;
-                                done();
-                            };
-                            playComment(p.comm);
-                        };
-                    } else {
-                        APP.navAudio.onended = () => {
-                            APP.navAudio.onended = null;
-                            done();
-                        };
-                    }
-                });
+                playPointAudio(p, () => icon.classList.remove('playing'));
             }
             return;
         }
