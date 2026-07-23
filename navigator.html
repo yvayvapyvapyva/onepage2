@@ -360,7 +360,6 @@ function driveAlongPath(fromIdx) {
             const lastPt = path[path.length - 1];
             const prevPt = path.length >= 2 ? path[path.length - 2] : lastPt;
             currentAz = calcAzimuth(prevPt, lastPt);
-            setMapLocation([lastPt[0], lastPt[1]], undefined, currentAz, 0);
             APP._driveMarker.update({ coordinates: [lastPt[1], lastPt[0]] });
             stopDrive();
             const nextIdx = fromIdx + 1;
