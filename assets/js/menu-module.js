@@ -755,7 +755,7 @@ const MenuModule = {
                 if (dragging) {
                     sheet.style.transition = '';
                     const dy = currentY - startY;
-                    if (dy > 100) { self.hide(); return; }
+                    if (dy > 100) { self.hide(); startY = 0; return; }
                     sheet.style.transform = '';
                 } else {
                     self.hide();
