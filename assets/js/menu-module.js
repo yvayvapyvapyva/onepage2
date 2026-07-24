@@ -710,7 +710,9 @@ const MenuModule = {
         const html = `
             <div id="jsonModal" class="sheet-modal">
                 <div class="modal-sheet" id="jsonModalSheet">
-                    <div class="sheet-handle" id="jsonModalHandle"><svg viewBox="0 0 24 24"><path d="M3 9L12 14.2L21 9" stroke="#fff" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                    <div class="sheet-drag-area" id="jsonModalDragArea">
+                        <div class="sheet-handle"><svg viewBox="0 0 24 24"><path d="M3 9L12 14.2L21 9" stroke="#fff" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                    </div>
                     <div id="routesListContainer" class="routes-list">
                         <div style="text-align:center; padding:20px; color:rgba(255,255,255,0.5); font-size:14px;">
                             Загрузка списка маршрутов...
@@ -737,7 +739,7 @@ const MenuModule = {
         const self = this;
         (() => {
             const sheet = document.getElementById('jsonModalSheet');
-            const handle = document.getElementById('jsonModalHandle');
+            const handle = document.getElementById('jsonModalDragArea');
             let startY = 0, currentY = 0, dragging = false;
             if (!sheet || !handle) return;
             const onStart = (e) => { e.preventDefault(); startY = e.clientY; currentY = startY; dragging = false; };

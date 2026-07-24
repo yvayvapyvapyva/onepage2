@@ -50,7 +50,9 @@
 
 <div id="instructionModal" class="hidden sheet-modal">
     <div class="modal-sheet" id="instructionSheet">
-        <div class="sheet-handle" id="instructionHandle"><svg viewBox="0 0 24 24"><path d="M3 9L12 14.2L21 9" stroke="#fff" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="sheet-drag-area" id="instructionDragArea">
+            <div class="sheet-handle"><svg viewBox="0 0 24 24"><path d="M3 9L12 14.2L21 9" stroke="#fff" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        </div>
         <div class="instruction-body" id="instructionBody">
             <div class="instruction-loading">Загрузка...</div>
         </div>
@@ -1578,14 +1580,18 @@ ymaps3.ready.then(async () => {
 
 <div id="pointsListModal" class="hidden sheet-modal">
     <div class="modal-sheet" id="pointsListSheet">
-        <div class="sheet-handle" id="sheetHandle"><svg viewBox="0 0 24 24"><path d="M3 9L12 14.2L21 9" stroke="#fff" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="sheet-drag-area" id="sheetDragArea">
+            <div class="sheet-handle"><svg viewBox="0 0 24 24"><path d="M3 9L12 14.2L21 9" stroke="#fff" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        </div>
         <div id="pointsListWrap"></div>
     </div>
 </div>
 
 <div id="navSettingsModal" class="hidden sheet-modal">
     <div class="modal-sheet" id="navSettingsSheet">
-        <div class="sheet-handle" id="settingsSheetHandle"><svg viewBox="0 0 24 24"><path d="M3 9L12 14.2L21 9" stroke="#fff" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="sheet-drag-area" id="settingsSheetDragArea">
+            <div class="sheet-handle"><svg viewBox="0 0 24 24"><path d="M3 9L12 14.2L21 9" stroke="#fff" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        </div>
         <div class="settings-body">
             <div class="settings-group">
                 <div class="settings-label">Вид карты</div>
@@ -1654,9 +1660,9 @@ ymaps3.ready.then(async () => {
 <script>
 document.addEventListener('click', (e) => {
     const sheetModals = [
-        { id: 'navSettingsModal', close: closeSettings, triggers: ['settingsBtn', 'menuBtn'], handle: 'settingsSheetHandle' },
-        { id: 'pointsListModal', close: closePointsList, triggers: ['hudCmd', 'menuBtn'], handle: 'sheetHandle' },
-        { id: 'instructionModal', close: closeInstruction, triggers: ['instructionBtn', 'menuBtn'], handle: 'instructionHandle' },
+        { id: 'navSettingsModal', close: closeSettings, triggers: ['settingsBtn', 'menuBtn'], handle: 'settingsSheetDragArea' },
+        { id: 'pointsListModal', close: closePointsList, triggers: ['hudCmd', 'menuBtn'], handle: 'sheetDragArea' },
+        { id: 'instructionModal', close: closeInstruction, triggers: ['instructionBtn', 'menuBtn'], handle: 'instructionDragArea' },
     ];
     sheetModals.forEach(({ id, close, triggers, handle: handleId }) => {
         const modal = document.getElementById(id);
@@ -1704,8 +1710,9 @@ function enableSheetSwipe(modalId, sheetId, handleId, closeFn) {
     window.addEventListener('pointercancel', onEnd);
 }
 
-enableSheetSwipe('navSettingsModal', 'navSettingsSheet', 'settingsSheetHandle', closeSettings);
-enableSheetSwipe('pointsListModal', 'pointsListSheet', 'sheetHandle', closePointsList);
+enableSheetSwipe('navSettingsModal', 'navSettingsSheet', 'settingsSheetDragArea', closeSettings);
+enableSheetSwipe('pointsListModal', 'pointsListSheet', 'sheetDragArea', closePointsList);
+enableSheetSwipe('instructionModal', 'instructionSheet', 'instructionDragArea', closeInstruction);
 </script>
 </body>
 </html>

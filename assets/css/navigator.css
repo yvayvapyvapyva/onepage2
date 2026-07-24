@@ -1147,19 +1147,28 @@ html, body {
     pointer-events: none;
 }
 
+.sheet-drag-area {
+    flex-shrink: 0;
+    touch-action: none;
+    cursor: grab;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 0 4px;
+    min-height: 44px;
+}
+
 .sheet-handle {
     width: 100px;
     height: 34px;
-    margin: 3px auto 6px;
     flex-shrink: 0;
-    cursor: grab;
-    touch-action: none;
     opacity: 0.5;
     border: 1px solid rgba(255,255,255,0.25);
     border-radius: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
+    pointer-events: none;
 }
 
 .sheet-handle svg {
