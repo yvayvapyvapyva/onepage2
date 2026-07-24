@@ -370,6 +370,7 @@ function driveAlongPath(fromIdx) {
                     APP._driveShowFrom = nextIdx;
                     renderRoutePoints();
                     updateHud();
+                    updatePointsListActive();
                     playPointAudio(np, () => {
                         if (APP._driveShowFrom >= 0 && !APP._driveActive) driveAlongPath(nextIdx);
                     });
@@ -1072,8 +1073,32 @@ function updatePointsListActive() {
     const modal = $('pointsListModal');
     if (!modal || modal.classList.contains('hidden')) return;
     modal.querySelectorAll('.pl-item').forEach(el => {
-        el.classList.toggle('pl-active', parseInt(el.dataset.idx) === APP.navCurrentIndex);
-        el.classList.toggle('pl-prev', parseInt(el.dataset.idx) < APP.navCurrentIndex);
+        const idx = parseInt(el.dataset.idx);
+        const isCurrent = idx === APP.navCurrentIndex;
+        el.classList.toggle('pl-active', isCurrent);
+        el.classList.toggle('pl-prev', idx < APP.navCurrentIndex);
+
+        const row = el.querySelector('.pl-item-row');
+        if (row) row.style.cssText = isCurrent ? 'border-color:#00FF00;border-width:2px' : '';
+
+        const pt = APP.navPoints[idx];
+        let distEl = el.querySelector('.pl-item-dist');
+        if (isCurrent && APP.lastPos && pt && pt.pts && pt.pts[0]) {
+            const distText = formatDistance(getGeoDistance(APP.lastPos, [pt.pts[0][0], pt.pts[0][1]]));
+            if (distEl) {
+                distEl.innerHTML = distText;
+            } else {
+                const main = el.querySelector('.pl-item-row-main');
+                if (main) {
+                    distEl = document.createElement('div');
+                    distEl.className = 'pl-item-dist';
+                    distEl.innerHTML = distText;
+                    main.appendChild(distEl);
+                }
+            }
+        } else if (distEl) {
+            distEl.remove();
+        }
     });
 }
 
@@ -1195,6 +1220,7 @@ function navCheckTriggers() {
         if (APP.navCurrentIndex < APP.navPoints.length) {
             renderRoutePoints();
             updateHud();
+            updatePointsListActive();
         } else {
             showToast('Маршрут завершён!', 'success');
             updateHud();
