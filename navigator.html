@@ -1102,6 +1102,8 @@ function updatePointsListActive() {
             distEl.remove();
         }
     });
+    const active = modal.querySelector('.pl-active');
+    if (active) active.scrollIntoView({ block: 'center', behavior: 'smooth' });
 }
 
 function fitMapToCurrentTarget() {
