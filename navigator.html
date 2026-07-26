@@ -111,7 +111,7 @@ const APP = {
     map: null, userMarker: null, lastPos: null, lastAz: 0, rawAz: 0, lastTilt: 0, autoCenter: false, currentSpeed: 0,
     navPoints: [],     navCurrentIndex: 0, navPreviewIndex: -1, _routeTotalDistance: 0,
     navAudio: new Audio(), _commentAudio: new Audio(),
-    navConfig: { TRIGGER_DIST: 25, AZ_TOLERANCE: 45, SPEED_THRESHOLD: 2, SHOCK_THRESHOLD: 1, SHOCK_PHRASE: 'Сильный удар!', SPEED_ALERT_THRESHOLD: 58, SPEED_ALERT_PHRASE: 'Превышена максимальная скорость!' },
+    navConfig: { TRIGGER_DIST: 25, AZ_TOLERANCE: 45, SPEED_THRESHOLD: 2, SHOCK_THRESHOLD: 1, SHOCK_PHRASE: 'Сильный удар', SPEED_ALERT_THRESHOLD: 58, SPEED_ALERT_PHRASE: 'Превышена максимальная скорость' },
     _isScheme: false, _schemeLayer: null, _satLayer: null, _featuresLayer: null, _buildings: null,
     _driveActive: false, _driveRaf: null, _driveMarker: null, _driveShowFrom: -1,
     _driveSpeed: 90,
@@ -557,7 +557,7 @@ function updateShockDisplay() {
 function applyShockConfig() {
     const on = $('triggerShockToggle').checked;
     const val = on ? parseFloat($('triggerShock').value) : 0;
-    const phrase = $('triggerShockPhrase').value.trim() || 'Сильный удар!';
+    const phrase = $('triggerShockPhrase').value.trim() || 'Сильный удар';
     APP.navConfig.SHOCK_THRESHOLD = val;
     APP.navConfig.SHOCK_PHRASE = phrase;
     updateShockBarVisibility();
@@ -566,7 +566,7 @@ function applyShockConfig() {
 function applySpeedConfig() {
     const on = $('triggerSpeedAlertToggle').checked;
     const val = on ? parseInt($('triggerSpeedAlert').value) || 58 : 0;
-    const phrase = $('triggerSpeedAlertPhrase').value.trim() || 'Превышена максимальная скорость!';
+    const phrase = $('triggerSpeedAlertPhrase').value.trim() || 'Превышена максимальная скорость';
     APP.navConfig.SPEED_ALERT_THRESHOLD = val;
     APP.navConfig.SPEED_ALERT_PHRASE = phrase;
 }
@@ -631,7 +631,7 @@ function onMotion(event) {
         const now = Date.now();
         if (now - APP._lastShockTime < SHOCK_DEBOUNCE) return;
         APP._lastShockTime = now;
-        playCommand(APP.navConfig.SHOCK_PHRASE || 'Сильный удар!').catch(() => {});
+        playCommand(APP.navConfig.SHOCK_PHRASE || 'Сильный удар').catch(() => {});
     }
 }
 
@@ -684,7 +684,7 @@ function checkSpeedAlert(speed) {
         const now = Date.now();
         if (now - APP._lastSpeedAlertTime < SPEED_ALERT_DEBOUNCE) return;
         APP._lastSpeedAlertTime = now;
-        playCommand(APP.navConfig.SPEED_ALERT_PHRASE || 'Превышена максимальная скорость!').catch(() => {});
+        playCommand(APP.navConfig.SPEED_ALERT_PHRASE || 'Превышена максимальная скорость').catch(() => {});
     }
 }
 
@@ -1302,8 +1302,8 @@ async function processRouteData(data) {
 async function precacheRouteAudio(data) {
     const cmdTexts = [...new Set(data.map(d => d.cmd).filter(t => t && t.trim()))];
     const commTexts = [...new Set(data.map(d => d.comm).filter(t => t && t.trim()))];
-    cmdTexts.push(APP.navConfig.SHOCK_PHRASE || 'Сильный удар!');
-    cmdTexts.push(APP.navConfig.SPEED_ALERT_PHRASE || 'Превышена максимальная скорость!');
+    cmdTexts.push(APP.navConfig.SHOCK_PHRASE || 'Сильный удар');
+    cmdTexts.push(APP.navConfig.SPEED_ALERT_PHRASE || 'Превышена максимальная скорость');
     const uncachedCmd = cmdTexts.filter(t => !APP._audioCache.has(t));
     const uncachedComm = commTexts.filter(t => !APP._audioCache.has(t));
     if (uncachedCmd.length + uncachedComm.length === 0) return;
@@ -1617,7 +1617,7 @@ ymaps3.ready.then(async () => {
                     <div id="triggerShockControls">
                         <input type="range" id="triggerShock" min="0.5" max="3" value="1" step="0.25" oninput="updateShockDisplay();applyShockConfig()">
                         <div class="trigger-pad">
-                            <input type="text" id="triggerShockPhrase" value="Сильный удар!" class="trigger-input" oninput="applyShockConfig()">
+                            <input type="text" id="triggerShockPhrase" value="Сильный удар" class="trigger-input" oninput="applyShockConfig()">
                         </div>
                     </div>
                 </div>
@@ -1633,7 +1633,7 @@ ymaps3.ready.then(async () => {
                     </div>
                     <div id="triggerSpeedAlertControls">
                         <div class="trigger-pad">
-                            <input type="text" id="triggerSpeedAlertPhrase" value="Превышена максимальная скорость!" class="trigger-input" oninput="applySpeedConfig()">
+                            <input type="text" id="triggerSpeedAlertPhrase" value="Превышена максимальная скорость" class="trigger-input" oninput="applySpeedConfig()">
                         </div>
                     </div>
                 </div>
