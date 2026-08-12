@@ -104,7 +104,8 @@ def send_report(user_id, m_val, i_val=None, report_type='navigator', route_name=
             f"{extra_lines}"
         )
 
-    print(f"[report] {log_prefix}: отправка запущена")
+    geoloc = f", location: lat={lat}, lon={lon}" if lat and lon else ""
+    print(f"[report] {log_prefix}: отправка запущена, chat_id={chat_id}, message: {message}{geoloc}")
     threading.Thread(target=_send_async, args=(token, chat_id, message, lat, lon, log_prefix)).start()
     return True
 

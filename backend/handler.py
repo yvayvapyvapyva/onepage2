@@ -434,8 +434,7 @@ def handler(event, context):
             row = result_sets[0].rows[0]
             route_name = getattr(row, 'name', '') or ''
             if i_val or id_val:
-                report_sent = send_report(id_val, m_val, i_val, 'navigator', route_name=route_name, user_agent=ua_val, lat=lat_val, lon=lon_val)
-                print(f"[report] navigator {id_val}-{m_val}: " + ("отправка запущена" if report_sent else "отправка пропущена"))
+                send_report(id_val, m_val, i_val, 'navigator', route_name=route_name, user_agent=ua_val, lat=lat_val, lon=lon_val)
 
             raw_data = row.json
             parsed_data = json.loads(raw_data) if isinstance(raw_data, str) else raw_data
@@ -506,8 +505,7 @@ def handler(event, context):
 
             i_val = params.get('i')
             ua_val = params.get('ua', '')
-            report_sent = send_report(user_id, m_val, i_val, 'editor', route_name=route_name, user_agent=ua_val)
-            print(f"[report] editor {user_id}-{m_val}: " + ("отправка запущена" if report_sent else "отправка пропущена"))
+            send_report(user_id, m_val, i_val, 'editor', route_name=route_name, user_agent=ua_val)
 
             return create_response(200, {'id': user_id, 'm': m_val, 'data': parsed_data})
 
