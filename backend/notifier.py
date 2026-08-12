@@ -23,8 +23,11 @@ def send_report(user_id, m_val, i_val=None, report_type='navigator', route_name=
     token = os.getenv("TELEGRAM_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
     
+    log_prefix = f"{report_type} {user_id}-{m_val}"
+
     if not token or not chat_id:
-        return
+        print(f"[report] {log_prefix}: SKIP, TELEGRAM_TOKEN/TELEGRAM_CHAT_ID не заданы")
+        return False
 
     offset = datetime.timezone(datetime.timedelta(hours=3))
     now_moscow = datetime.datetime.now(offset).strftime("%d.%m.%Y %H:%M:%S")
@@ -101,24 +104,36 @@ def send_report(user_id, m_val, i_val=None, report_type='navigator', route_name=
             f"{extra_lines}"
         )
 
-    threading.Thread(target=_send_async, args=(token, chat_id, message, lat, lon)).start()
+    print(f"[report] {log_prefix}: отправка запущена")
+    threading.Thread(target=_send_async, args=(token, chat_id, message, lat, lon, log_prefix)).start()
+    return True
 
 
-def _send_async(token, chat_id, message, lat, lon):
+def _send_async(token, chat_id, message, lat, lon, log_prefix):
     try:
-        requests.get(
+        r = requests.get(
             f"https://api.telegram.org/bot{token}/sendMessage",
             params={"chat_id": chat_id, "text": message, "parse_mode": "HTML"},
             timeout=5
         )
-    except Exception:
-        pass
+        ok = r.ok and r.json().get("ok", False)
+        if ok:
+            print(f"[report] {log_prefix}: OK (status={r.status_code})")
+        else:
+            print(f"[report] {log_prefix}: FAILED (status={r.status_code}, body={r.text[:200]})")
+    except Exception as e:
+        print(f"[report] {log_prefix}: ERROR: {e}")
     if lat and lon:
         try:
-            requests.get(
+            r = requests.get(
                 f"https://api.telegram.org/bot{token}/sendLocation",
                 params={"chat_id": chat_id, "latitude": float(lat), "longitude": float(lon)},
                 timeout=5
             )
-        except Exception:
-            pass
+            ok = r.ok and r.json().get("ok", False)
+            if ok:
+                print(f"[report] {log_prefix}: location OK (status={r.status_code})")
+            else:
+                print(f"[report] {log_prefix}: location FAILED (status={r.status_code}, body={r.text[:200]})")
+        except Exception as e:
+            print(f"[report] {log_prefix}: location ERROR: {e}")
