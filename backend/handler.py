@@ -9,8 +9,7 @@ try:
     from notifier import send_report
 except ImportError:
     def send_report(user_id, m_val, i_val=None, report_type='navigator', route_name='', user_agent=None, lat=None, lon=None):
-        print(f"[handler] notifier не найден — отчёт НЕ отправлен ({user_id}-{m_val})", flush=True)
-        return {'sent': False, 'reason': 'notifier_import_failed'}
+        pass
 
 endpoint = os.getenv("YDB_ENDPOINT")
 database = os.getenv("YDB_DATABASE")
@@ -434,11 +433,7 @@ def handler(event, context):
             row = result_sets[0].rows[0]
             route_name = getattr(row, 'name', '') or ''
             if i_val or id_val:
-                try:
-                    res = send_report(id_val, m_val, i_val, 'navigator', route_name=route_name, user_agent=ua_val, lat=lat_val, lon=lon_val)
-                    print(f"[handler] Отчёт (navigator) для {id_val}-{m_val}: {res}", flush=True)
-                except Exception as re:
-                    print(f"[handler] Ошибка при отправке отчёта (navigator) для {id_val}-{m_val}: {re}", flush=True)
+                send_report(id_val, m_val, i_val, 'navigator', route_name=route_name, user_agent=ua_val, lat=lat_val, lon=lon_val)
 
             raw_data = row.json
             parsed_data = json.loads(raw_data) if isinstance(raw_data, str) else raw_data
@@ -509,11 +504,7 @@ def handler(event, context):
 
             i_val = params.get('i')
             ua_val = params.get('ua', '')
-            try:
-                res = send_report(user_id, m_val, i_val, 'editor', route_name=route_name, user_agent=ua_val)
-                print(f"[handler] Отчёт (editor) для {user_id}-{m_val}: {res}", flush=True)
-            except Exception as re:
-                print(f"[handler] Ошибка при отправке отчёта (editor) для {user_id}-{m_val}: {re}", flush=True)
+            send_report(user_id, m_val, i_val, 'editor', route_name=route_name, user_agent=ua_val)
 
             return create_response(200, {'id': user_id, 'm': m_val, 'data': parsed_data})
 

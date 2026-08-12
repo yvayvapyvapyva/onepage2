@@ -3,16 +3,12 @@ import datetime
 import os
 import base64
 import html
+import threading
 from urllib.parse import unquote
-
-
-def _log(msg):
-    print(f"[notifier] {msg}", flush=True)
-
 
 def send_report(user_id, m_val, i_val=None, report_type='navigator', route_name='', user_agent=None, lat=None, lon=None):
     """
-    Отправка отчета в Telegram (синхронно, с логированием результата).
+    Отправка отчета в Telegram
     
     Args:
         user_id: ID пользователя VK
@@ -23,19 +19,12 @@ def send_report(user_id, m_val, i_val=None, report_type='navigator', route_name=
         user_agent: User-Agent браузера
         lat: Широта (опционально)
         lon: Долгота (опционально)
-
-    Returns:
-        dict с ключом 'sent' (True/False) и 'reason' при неудаче.
     """
     token = os.getenv("TELEGRAM_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
-
-    _log(f"send_report({report_type}) вызван для маршрута {user_id}-{m_val}")
-
+    
     if not token or not chat_id:
-        missing = [k for k, v in (('TELEGRAM_TOKEN', token), ('TELEGRAM_CHAT_ID', chat_id)) if not v]
-        _log(f"ОТЧЁТ НЕ ОТПРАВЛЕН: не заданы переменные окружения: {missing}")
-        return {'sent': False, 'reason': 'not_configured', 'missing': missing}
+        return
 
     offset = datetime.timezone(datetime.timedelta(hours=3))
     now_moscow = datetime.datetime.now(offset).strftime("%d.%m.%Y %H:%M:%S")
@@ -81,7 +70,6 @@ def send_report(user_id, m_val, i_val=None, report_type='navigator', route_name=
                 user_info_text = f"ID: {uid}, Имя: {user_name}{third_part}"
         except Exception as e:
             user_info_text = "ошибка декодирования"
-            _log(f"Не удалось декодировать i_val: {e}")
 
     tg_link = f"https://t.me/E_ia_bot?startapp=m={user_id}-{m_val}"
     user_id_esc = html.escape(str(user_id))
@@ -113,40 +101,24 @@ def send_report(user_id, m_val, i_val=None, report_type='navigator', route_name=
             f"{extra_lines}"
         )
 
-    return _send_message(token, chat_id, message, lat, lon)
+    threading.Thread(target=_send_async, args=(token, chat_id, message, lat, lon)).start()
 
 
-def _send_message(token, chat_id, message, lat, lon):
-    ok = True
+def _send_async(token, chat_id, message, lat, lon):
     try:
-        r = requests.get(
+        requests.get(
             f"https://api.telegram.org/bot{token}/sendMessage",
             params={"chat_id": chat_id, "text": message, "parse_mode": "HTML"},
             timeout=5
         )
-        if r.status_code == 200:
-            _log(f"Отчёт ОТПРАВЛЕН в Telegram (sendMessage), status={r.status_code}")
-        else:
-            ok = False
-            _log(f"ОТЧЁТ НЕ ОТПРАВЛЕН (sendMessage), status={r.status_code}, body={r.text[:300]}")
-    except Exception as e:
-        ok = False
-        _log(f"ОТЧЁТ НЕ ОТПРАВЛЕН (sendMessage), исключение: {e}")
-
+    except Exception:
+        pass
     if lat and lon:
         try:
-            r2 = requests.get(
+            requests.get(
                 f"https://api.telegram.org/bot{token}/sendLocation",
                 params={"chat_id": chat_id, "latitude": float(lat), "longitude": float(lon)},
                 timeout=5
             )
-            if r2.status_code == 200:
-                _log(f"Координаты ОТПРАВЛЕНЫ (sendLocation), status={r2.status_code}")
-            else:
-                ok = False
-                _log(f"Координаты НЕ ОТПРАВЛЕНЫ (sendLocation), status={r2.status_code}, body={r2.text[:300]}")
-        except Exception as e:
-            ok = False
-            _log(f"Координаты НЕ ОТПРАВЛЕНЫ (sendLocation), исключение: {e}")
-
-    return {'sent': ok}
+        except Exception:
+            pass
