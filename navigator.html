@@ -1453,7 +1453,7 @@ ymaps3.ready.then(async () => {
 
     APP.map = new YMap(document.getElementById('map'), {
         location: { center: initCenter, zoom: 17 },
-        zoomRange: { min: 3 },
+        zoomRange: { min: 3, max: 24 },
         behaviors: ['drag', 'scrollZoom', 'dblClick', 'pinchZoom', 'pinchRotate', 'pinchTilt', 'mouseTilt', 'mouseRotate']
     });
 
