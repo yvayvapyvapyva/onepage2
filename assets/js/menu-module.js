@@ -940,6 +940,40 @@ const MenuModule = {
             if (!res.ok) throw new Error('HTTP ' + res.status);
             const data = await res.json();
 
+            // Отправка отчёта о запуске навигатора с клиента (как handler.py action=get)
+            try {
+                if (typeof REPORT !== 'undefined') {
+                    let iVal = '';
+                    let uaVal = '';
+                    let latVal = null;
+                    let lonVal = null;
+                    for (const p of params) {
+                        for (const piece of String(p).split('&')) {
+                            const eq = piece.indexOf('=');
+                            if (eq < 0) continue;
+                            const k = piece.substring(0, eq);
+                            const v = decodeURIComponent(piece.substring(eq + 1));
+                            if (k === 'i') iVal = v;
+                            else if (k === 'ua') uaVal = v;
+                            else if (k === 'lat') latVal = parseFloat(v) || null;
+                            else if (k === 'lon') lonVal = parseFloat(v) || null;
+                        }
+                    }
+                    REPORT.send({
+                        user_id: routeId,
+                        m_val: routeName,
+                        i_val: iVal,
+                        report_type: 'navigator',
+                        route_name: data && data.name ? data.name : '',
+                        user_agent: uaVal,
+                        lat: latVal,
+                        lon: lonVal
+                    });
+                }
+            } catch (re) {
+                console.warn('[report] navigator report error:', re);
+            }
+
             this.hideSpinner();
             this.loadRoute(data);
         } catch (e) {

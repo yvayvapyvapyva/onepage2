@@ -5,12 +5,6 @@ import urllib.parse
 import ydb
 import ydb.iam
 import json
-try:
-    from notifier import send_report
-except ImportError:
-    def send_report(user_id, m_val, i_val=None, report_type='navigator', route_name='', user_agent=None, lat=None, lon=None):
-        print("[report] SKIP: notifier module not available")
-        return False
 
 endpoint = os.getenv("YDB_ENDPOINT")
 database = os.getenv("YDB_DATABASE")
@@ -410,7 +404,6 @@ def handler(event, context):
             return create_response(500, {'error': 'login_failed', 'details': str(e)})
 
     # Получение маршрута без подписи (для навигатора)
-    # Но с отправкой отчета - i_val декодируется для получения информации о пользователе
     if action == 'get' and not m_val:
         return create_response(400, {'error': 'missing_route_name'})
 
@@ -418,12 +411,6 @@ def handler(event, context):
         # Пробуем получить публичный маршрут без подписи
         if not id_val:
             return create_response(400, {'error': 'missing_id'})
-        
-        i_val = params.get('i')
-        
-        ua_val = params.get('ua', '')
-        lat_val = params.get('lat', '')
-        lon_val = params.get('lon', '')
 
         try:
             result_sets = get_pool().retry_operation_sync(execute_get_route, id_param=id_val, m_param=m_val)
@@ -433,8 +420,6 @@ def handler(event, context):
 
             row = result_sets[0].rows[0]
             route_name = getattr(row, 'name', '') or ''
-            if i_val or id_val:
-                send_report(id_val, m_val, i_val, 'navigator', route_name=route_name, user_agent=ua_val, lat=lat_val, lon=lon_val)
 
             raw_data = row.json
             parsed_data = json.loads(raw_data) if isinstance(raw_data, str) else raw_data
@@ -496,16 +481,11 @@ def handler(event, context):
                 return create_response(404, {'error': 'route_not_found'})
 
             row = result[0].rows[0]
-            route_name = getattr(row, 'name', '') or ''
             raw_data = row.json
             try:
                 parsed_data = json.loads(raw_data) if isinstance(raw_data, str) else raw_data
             except:
                 parsed_data = []
-
-            i_val = params.get('i')
-            ua_val = params.get('ua', '')
-            send_report(user_id, m_val, i_val, 'editor', route_name=route_name, user_agent=ua_val)
 
             return create_response(200, {'id': user_id, 'm': m_val, 'data': parsed_data})
 
