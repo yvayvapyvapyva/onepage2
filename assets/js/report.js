@@ -78,9 +78,9 @@ const REPORT = (() => {
             String(moscow.getUTCMinutes()).padStart(2, '0') + ':' +
             String(moscow.getUTCSeconds()).padStart(2, '0');
 
-        const info = decodeUserInfo(iVal);
+        const info = decodeUserInfo(i_val);
         let userInfoText = '';
-        if (iVal) {
+        if (i_val) {
             if (info.platform === 'vk') {
                 const thirdPart = info.third ? `, Город: ${info.third}` : '';
                 userInfoText = `ID: ${info.userId}, Имя: ${info.userName}${thirdPart}`;
