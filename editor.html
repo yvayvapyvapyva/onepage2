@@ -547,7 +547,7 @@ ymaps3.ready.then(async () => {
     const center = await initMapWithGeolocation();
     map = new YMap(document.getElementById('map'), {
         location: { center: [center[1], center[0]], zoom: 17 },
-        zoomRange: { min: 3, max: 20 },
+        zoomRange: { min: 3 },
         behaviors: ['drag', 'scrollZoom', 'dblClick', 'pinchZoom', 'pinchRotate']
     });
 
