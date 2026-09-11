@@ -101,9 +101,43 @@
 
 <script src="assets/js/config.js?v=1"></script>
 <script src="assets/js/report.js?v=1"></script>
-<script src="https://api-maps.yandex.ru/v3/?apikey=c0e28937-4e16-4d15-9b99-09a30cb8fc13&lang=ru_RU"></script>
-<script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js"></script>
-<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://api-maps.yandex.ru/v3/?apikey=c0e28937-4e16-4d15-9b99-09a30cb8fc13&lang=ru_RU" onerror="window.__ycMapsFailed = true;"></script>
+<script>
+// Грузим Telegram/VK SDK асинхронно с таймаутом 6с.
+// Если telegram.org / unpkg.com заблокированы или недоступны — не блокируем загрузку приложения.
+(function (g) {
+  var finished = false, pending = 0, cbs = [];
+  function finish() {
+    if (finished) return;
+    finished = true;
+    var list = cbs.splice(0);
+    for (var i = 0; i < list.length; i++) { try { list[i](); } catch (e) {} }
+  }
+  function tryLoad(url, flag) {
+    pending++;
+    var s = document.createElement('script');
+    s.src = url; s.async = true;
+    var settled = false;
+    function settle(failed) {
+      if (settled) return; settled = true;
+      if (failed) { try { g[flag] = true; } catch (e) {} }
+      if (--pending === 0) finish();
+    }
+    s.onload = function () { settle(false); };
+    s.onerror = function () { settle(true); };
+    setTimeout(function () { settle(true); }, 6000);
+    try { (document.head || document.documentElement).appendChild(s); }
+    catch (e) { settle(true); }
+  }
+  g.bootPlatforms = function (cb) {
+    if (finished) { try { cb(); } catch (e) {} }
+    else cbs.push(cb);
+  };
+  g.platformReady = new Promise(function (r) { g.bootPlatforms(r); });
+  tryLoad('https://telegram.org/js/telegram-web-app.js', '__tgWebAppFailed');
+  tryLoad('https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js', '__vkBridgeFailed');
+})(window);
+</script>
 <script src="assets/js/menu-module.js?v=1" defer></script>
 <script>
 const TTS_API_URL = 'https://functions.yandexcloud.net/d4erngid6s4rf5oinnp1';
@@ -137,51 +171,60 @@ const APP = {
 
 const $ = id => document.getElementById(id);
 
-// Auth detection
+// Auth detection (ждёт загрузки Telegram/VK SDK, максимум ~6с)
 (function() {
-    if (typeof Telegram !== 'undefined' && Telegram.WebApp) {
-        Telegram.WebApp.ready();
-        Telegram.WebApp.expand();
-        if (Telegram.WebApp.version && parseFloat(Telegram.WebApp.version) >= 7.0) {
-            try { Telegram.WebApp.requestFullscreen?.(); } catch (e) {}
-            try { Telegram.WebApp.disableVerticalSwipes?.(); } catch (e) {}
+    const runAuth = () => {
+        if (window._authRan) return;
+        window._authRan = true;
+        if (!window.authPlatform && typeof Telegram !== 'undefined' && Telegram.WebApp) {
+            try {
+                Telegram.WebApp.ready();
+                Telegram.WebApp.expand();
+                if (Telegram.WebApp.version && parseFloat(Telegram.WebApp.version) >= 7.0) {
+                    try { Telegram.WebApp.requestFullscreen?.(); } catch (e) {}
+                    try { Telegram.WebApp.disableVerticalSwipes?.(); } catch (e) {}
+                }
+                const user = Telegram.WebApp.initDataUnsafe?.user;
+                if (user) {
+                    window.authPlatform = 'tg';
+                    window.authLogin = String(user.id);
+                    window.authPassword = '';
+                    window.authName = [user.first_name, user.last_name].filter(Boolean).join(' ');
+                    window.tgUser = user;
+                    window.tgInitData = Telegram.WebApp.initData;
+                }
+            } catch (e) {}
         }
-        const user = Telegram.WebApp.initDataUnsafe?.user;
-        if (user) {
-            window.authPlatform = 'tg';
-            window.authLogin = String(user.id);
-            window.authPassword = '';
-            window.authName = [user.first_name, user.last_name].filter(Boolean).join(' ');
-            window.tgUser = user;
-            window.tgInitData = Telegram.WebApp.initData;
+        if (!window.authPlatform && typeof vkBridge !== 'undefined') {
+            try {
+                vkBridge.send('VKWebAppInit');
+                vkBridge.send('VKWebAppGetUserInfo').then(data => {
+                    if (data?.id && !window.authPlatform) {
+                        window.authPlatform = 'vk';
+                        window.authLogin = String(data.id);
+                        window.authPassword = '';
+                        window.authName = [data.first_name, data.last_name].filter(Boolean).join(' ');
+                        window.vkUser = data;
+                    }
+                });
+            } catch (e) {}
         }
-    }
-    if (typeof vkBridge !== 'undefined') {
-        vkBridge.send('VKWebAppInit');
-        vkBridge.send('VKWebAppGetUserInfo').then(data => {
-            if (data?.id && !window.authPlatform) {
-                window.authPlatform = 'vk';
-                window.authLogin = String(data.id);
-                window.authPassword = '';
-                window.authName = [data.first_name, data.last_name].filter(Boolean).join(' ');
-                window.vkUser = data;
-            }
-        });
-    }
-    if (!window.authPlatform) {
-        try {
-            const stored = JSON.parse(localStorage.getItem('3api_auth') || '{}');
-            if (stored.platform && stored.login) {
-                window.authPlatform = stored.platform;
-                window.authLogin = stored.login;
-                window.authPassword = stored.password || '';
-                window.authName = stored.name || stored.login;
-            }
-        } catch (e) {}
-    }
-    if (navigator.userAgent.includes('Android') && window.authPlatform === 'tg') {
-        document.documentElement.classList.add('android-app');
-    }
+        if (!window.authPlatform) {
+            try {
+                const stored = JSON.parse(localStorage.getItem('3api_auth') || '{}');
+                if (stored.platform && stored.login) {
+                    window.authPlatform = stored.platform;
+                    window.authLogin = stored.login;
+                    window.authPassword = stored.password || '';
+                    window.authName = stored.name || stored.login;
+                }
+            } catch (e) {}
+        }
+        if (navigator.userAgent.includes('Android') && window.authPlatform === 'tg') {
+            document.documentElement.classList.add('android-app');
+        }
+    };
+    if (window.bootPlatforms) window.bootPlatforms(runAuth); else runAuth();
 })();
 
 let toastTimer = null;
@@ -1438,6 +1481,10 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(startWakeLock, 500);
 });
 
+if (typeof ymaps3 === 'undefined' || !ymaps3.ready) {
+    showToast('Ошибка загрузки Яндекс.Карт (возможно, блокировка)', 'error', 8000);
+    $('loading').classList.add('hidden');
+} else {
 ymaps3.ready.then(async () => {
     const { YMap, YMapDefaultSchemeLayer, YMapDefaultFeaturesLayer, YMapDefaultSatelliteLayer, YMapMarker, YMapControls } = ymaps3;
 
@@ -1566,6 +1613,7 @@ ymaps3.ready.then(async () => {
         }
     });
 
+    if (window.platformReady) { try { await window.platformReady; } catch (e) {} }
     MenuModule.init(loadRouteFromJSON);
     $('loading').classList.add('hidden');
     ensureMotionTracking();
@@ -1578,7 +1626,9 @@ ymaps3.ready.then(async () => {
     }, { once: true });
 }).catch(e => {
     showToast('Ошибка загрузки карты: ' + e.message, 'error', 5000);
+    $('loading').classList.add('hidden');
 });
+}
 </script>
 
 <div id="pointsListModal" class="hidden sheet-modal">
