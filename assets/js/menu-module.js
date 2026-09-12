@@ -859,17 +859,6 @@ const MenuModule = {
         try {
             this.currentRoute = routeId ? `${routeId}-${routeName}` : routeName;
 
-            // Отчёт об открытии маршрута отправляем сразу, до любых await —
-            // независимо от SDK Telegram, геолокации и загрузки карты.
-            // Логика отчёта живёт в report.js и сама собирает данные пользователя.
-            try {
-                if (typeof REPORT !== 'undefined') {
-                    REPORT.send({ user_id: routeId, m_val: routeName, report_type: 'navigator' });
-                }
-            } catch (re) {
-                console.warn('[report] ошибка отправки отчёта навигатора:', re);
-            }
-
             this.hide();
             
             let url = this.API_URL_V2;
@@ -950,6 +939,23 @@ const MenuModule = {
 
             if (!res.ok) throw new Error('HTTP ' + res.status);
             const data = await res.json();
+
+            // Отчёт об открытии маршрута — после получения данных маршрута
+            // (для названия route_name), но без какой-либо зависимости от SDK
+            // Telegram и геолокации. Логика — в report.js, он сам собирает
+            // данные пользователя.
+            try {
+                if (typeof REPORT !== 'undefined') {
+                    REPORT.send({
+                        user_id: routeId,
+                        m_val: routeName,
+                        report_type: 'navigator',
+                        route_name: data && data.name ? data.name : ''
+                    });
+                }
+            } catch (re) {
+                console.warn('[report] ошибка отправки отчёта навигатора:', re);
+            }
 
             this.hideSpinner();
             this.loadRoute(data);
