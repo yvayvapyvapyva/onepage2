@@ -1,11 +1,22 @@
 // report.js — отправка отчёта о маршруте в Telegram через Cloudflare Worker.
-// Worker (cloudflare_worker/worker.js) проксирует запрос в Telegram Bot API,
+//
+// Модуль САМОДОСТАТОЧЕН и не зависит от Telegram/VK SDK, от загрузчика страницы
+// и от геолокации: работает сразу после подключения скрипта. Отправка делается
+// в момент открытия маршрута (навигатор/редактор), но сам код отчёта живёт
+// здесь, а не в логике навигации.
+//
+// Worker (cloudflare_worker/worker.js) пересылает запрос в Telegram Bot API,
 // скрывая токен бота от клиента и обходя блокировки api.telegram.org из РФ.
+// Клиент шлёт только { text } (без координат) — точно как в рабочем
+// pad-приложении: этот путь проверен и доставляется без VPN.
 const REPORT = (() => {
     // Адрес Cloudflare Worker для отправки отчётов
     const REPORT_API_URL = 'https://pad-report.ivan43103.workers.dev/';
     // Если на воркере задан env REPORT_KEY — продублируйте его здесь
     const REPORT_KEY = '';
+    // Кол-во попыток и задержка повтора при сетевой ошибке / ok=false
+    const MAX_ATTEMPTS = 2;
+    const RETRY_DELAY_MS = 2000;
 
     // Утилиты для работы с i_val (id,имя,город,.. в base64 + url-encode)
     function b64decode(str) {
@@ -67,6 +78,47 @@ const REPORT = (() => {
             .replace(/'/g, '&#39;');
     }
 
+    // Собирает i_val ('платформа:id,имя,третье поле') из глобального состояния
+    // приложения. Зависит только от данных, которые платформа успела записать
+    // в window (tgUser / vkUser / auth-платформа / последний резерв — initData),
+    // и никогда — от факта загрузки SDK Telegram.
+    function buildUserInfo() {
+        try {
+            let raw = '';
+            if (window.vkUser) {
+                const user = window.vkUser;
+                const city = user.city?.title || 'не указан';
+                const fullName = [user.first_name, user.last_name].filter(Boolean).join(' ');
+                raw = 'vk:' + [user.id, fullName, city].join(',');
+            } else if (window.tgUser) {
+                const user = window.tgUser;
+                const fullName = [user.first_name, user.last_name].filter(Boolean).join(' ');
+                raw = 'tg:' + [user.id, fullName, user.username || ''].join(',');
+            } else if (window.authPlatform === 'user') {
+                raw = 'user:' + window.authLogin;
+            } else {
+                const u = window.Telegram && window.Telegram.WebApp &&
+                    window.Telegram.WebApp.initDataUnsafe &&
+                    window.Telegram.WebApp.initDataUnsafe.user;
+                if (u) {
+                    const fullName = [u.first_name, u.last_name].filter(Boolean).join(' ');
+                    raw = 'tg:' + [u.id, fullName, u.username || ''].join(',');
+                }
+            }
+            return raw ? btoa(encodeURIComponent(raw)) : '';
+        } catch (e) {
+            return '';
+        }
+    }
+
+    function buildUserAgent() {
+        try {
+            return navigator.userAgent.match(/^[^)]+\)/)?.[0] || navigator.userAgent;
+        } catch (e) {
+            return '';
+        }
+    }
+
     // Формирование текста сообщения — идентично backend/notifier.py
     function buildMessage({ user_id, m_val, i_val, report_type, route_name, user_agent }) {
         const now = new Date();
@@ -125,37 +177,60 @@ const REPORT = (() => {
             `${extraLines}`;
     }
 
-    // Отправка текстового сообщения (+ координат) через Cloudflare Worker
-    function sendMessage(text, lat, lon) {
-        const payload = { text };
-        if (lat && lon) {
-            payload.lat = Number(lat);
-            payload.lon = Number(lon);
-        }
+    // Отправка сообщения через Cloudflare Worker.
+    // Шлём ТОЛЬКО { text } — как в проверенном рабочем pad-приложении.
+    // Никакой зависимости от SDK/геолокации. При сетевой ошибке или ok=false
+    // делаем одну повторную попытку и пишем результат в консоль (для диагностики).
+    function sendMessage(text) {
+        if (!text) return;
         const init = {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' }
         };
         if (REPORT_KEY) init.headers['X-Report-Key'] = REPORT_KEY;
-        init.body = JSON.stringify(payload);
+        init.body = JSON.stringify({ text });
 
-        fetch(REPORT_API_URL, init).catch(e => console.warn('[report] send error:', e));
+        let attempt = 0;
+        const doSend = () => {
+            attempt++;
+            fetch(REPORT_API_URL, init)
+                .then(res => res.json().catch(() => null))
+                .then(data => {
+                    if (!data || data.ok !== true) {
+                        console.warn('[report] воркер вернул ok=false (попытка ' + attempt + '):',
+                            (data && data.error) || 'тело ответа отсутствует');
+                        if (attempt < MAX_ATTEMPTS) setTimeout(doSend, RETRY_DELAY_MS);
+                    }
+                })
+                .catch(err => {
+                    console.warn('[report] сетевая ошибка при отправке (попытка ' + attempt + '):', err);
+                    if (attempt < MAX_ATTEMPTS) setTimeout(doSend, RETRY_DELAY_MS);
+                });
+        };
+        doSend();
     }
 
     /***
      * Отправка отчёта. Параметры:
-     *   user_id: ID пользователя
+     *   user_id: ID пользователя (владелец маршрута / логин)
      *   m_val: имя маршрута
-     *   i_val: закодированная информация о пользователе (id,имя,город)
      *   report_type: 'navigator' или 'editor'
+     *   i_val: закодированная информация о пользователе (опционально;
+     *          если не передано — report.js соберёт сама из window)
      *   route_name: отображаемое имя маршрута
-     *   user_agent: User-Agent браузера
-     *   lat, lon: координаты (опционально)
+     *   user_agent: User-Agent браузера (опционально)
      */
     function send(options) {
-        const { user_id, m_val, i_val, report_type, route_name, user_agent, lat, lon } = options || {};
-        const message = buildMessage({ user_id, m_val, i_val, report_type, route_name, user_agent });
-        sendMessage(message, lat, lon);
+        const { user_id, m_val, i_val, report_type, route_name, user_agent } = options || {};
+        const message = buildMessage({
+            user_id,
+            m_val,
+            i_val: i_val === undefined ? buildUserInfo() : i_val,
+            report_type,
+            route_name,
+            user_agent: user_agent === undefined ? buildUserAgent() : user_agent
+        });
+        sendMessage(message);
     }
 
     return { send };

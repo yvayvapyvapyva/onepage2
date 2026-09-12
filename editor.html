@@ -166,7 +166,7 @@
     <script src="https://api-maps.yandex.ru/v3/?apikey=c0e28937-4e16-4d15-9b99-09a30cb8fc13&lang=ru_RU" onerror="window.__ycMapsFailed = true;"></script>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js" defer onerror="window.__sortableFailed = true;"></script>
 <script src="assets/js/config.js?v=1"></script>
-<script src="assets/js/report.js?v=1"></script>
+<script src="assets/js/report.js?v=2"></script>
 <script>
 (function (global) {
   const byId = (id) => document.getElementById(id);
@@ -1170,6 +1170,21 @@ const handleCreateNew = async () => {
 const loadRoute = async (routeName) => {
     showToast("Загрузка...", "info");
     try {
+        // Отчёт об открытии маршрута отправляем сразу, до всех await —
+        // независимо от SDK Telegram и загрузки данных.
+        // Логика отчёта живёт в report.js и сама собирает данные пользователя.
+        try {
+            if (typeof REPORT !== 'undefined') {
+                REPORT.send({
+                    user_id: window.authLogin,
+                    m_val: routeName,
+                    report_type: 'editor'
+                });
+            }
+        } catch (re) {
+            console.warn('[report] ошибка отправки отчёта редактора:', re);
+        }
+
         const userInfo = encodeUserInfo();
         const params = { m: routeName };
         if (userInfo) params.i = userInfo;
@@ -1200,24 +1215,6 @@ const loadRoute = async (routeName) => {
             currentRouteMeta = { name: routeName, description: '', visible: false };
         }
 
-        // Отправка отчёта о загрузке в редакторе с клиента (как handler.py get_protected)
-        try {
-            if (typeof REPORT !== 'undefined') {
-                REPORT.send({
-                    user_id: window.authLogin,
-                    m_val: routeName,
-                    i_val: userInfo || '',
-                    report_type: 'editor',
-                    route_name: currentRouteMeta.name || '',
-                    user_agent: params.ua,
-                    lat: null,
-                    lon: null
-                });
-            }
-        } catch (re) {
-            console.warn('[report] editor report error:', re);
-        }
-        
         updateVisibility();
         setActivePoint(points[0] || null);
         toggleM('settingsModal');
