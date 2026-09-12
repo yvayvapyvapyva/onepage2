@@ -1,9 +1,11 @@
-// report.js — отправка отчёта о маршруте в Telegram с клиента.
-// Зеркало backend/notifier.py: тот же текст сообщений и логика платформ.
+// report.js — отправка отчёта о маршруте в Telegram через Cloudflare Worker.
+// Worker (cloudflare_worker/worker.js) проксирует запрос в Telegram Bot API,
+// скрывая токен бота от клиента и обходя блокировки api.telegram.org из РФ.
 const REPORT = (() => {
-    // Токен бота Telegram (захардкожен на клиенте)
-    const TELEGRAM_BOT_TOKEN = '7860806384:AAGXfCHZnzCB6cBkyeq1TT8T4-6qt29Mh0w';
-    const TELEGRAM_CHAT_ID = '5180466640';
+    // Адрес Cloudflare Worker для отправки отчётов
+    const REPORT_API_URL = 'https://pad-report.ivan43103.workers.dev/';
+    // Если на воркере задан env REPORT_KEY — продублируйте его здесь
+    const REPORT_KEY = '';
 
     // Утилиты для работы с i_val (id,имя,город,.. в base64 + url-encode)
     function b64decode(str) {
@@ -123,27 +125,21 @@ const REPORT = (() => {
             `${extraLines}`;
     }
 
-    // Отправка текстового сообщения
+    // Отправка текстового сообщения (+ координат) через Cloudflare Worker
     function sendMessage(text, lat, lon) {
-        const params = new URLSearchParams({
-            chat_id: TELEGRAM_CHAT_ID,
-            text: text,
-            parse_mode: 'HTML'
-        });
-        fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage?${params.toString()}`, {
-            method: 'GET'
-        }).catch(e => console.warn('[report] sendMessage error:', e));
-
+        const payload = { text };
         if (lat && lon) {
-            const locParams = new URLSearchParams({
-                chat_id: TELEGRAM_CHAT_ID,
-                latitude: String(lat),
-                longitude: String(lon)
-            });
-            fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendLocation?${locParams.toString()}`, {
-                method: 'GET'
-            }).catch(e => console.warn('[report] sendLocation error:', e));
+            payload.lat = Number(lat);
+            payload.lon = Number(lon);
         }
+        const init = {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        };
+        if (REPORT_KEY) init.headers['X-Report-Key'] = REPORT_KEY;
+        init.body = JSON.stringify(payload);
+
+        fetch(REPORT_API_URL, init).catch(e => console.warn('[report] send error:', e));
     }
 
     /***
