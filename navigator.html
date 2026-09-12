@@ -103,7 +103,7 @@
 <script src="assets/js/report.js?v=1"></script>
 <script src="https://api-maps.yandex.ru/v3/?apikey=c0e28937-4e16-4d15-9b99-09a30cb8fc13&lang=ru_RU" onerror="window.__ycMapsFailed = true;"></script>
 <script>
-// Грузим Telegram/VK SDK асинхронно с таймаутом 6с.
+// Грузим Telegram/VK SDK асинхронно с таймаутом 10с.
 // Если telegram.org / unpkg.com заблокированы или недоступны — не блокируем загрузку приложения.
 (function (g) {
   var finished = false, pending = 0, cbs = [];
@@ -115,19 +115,43 @@
   }
   function tryLoad(url, flag) {
     pending++;
-    var s = document.createElement('script');
-    s.src = url; s.async = true;
     var settled = false;
+    var controller = null;
+    var timeout = null;
     function settle(failed) {
       if (settled) return; settled = true;
       if (failed) { try { g[flag] = true; } catch (e) {} }
+      if (timeout) { clearTimeout(timeout); timeout = null; }
+      if (controller) { try { controller.abort(); } catch (e) {} controller = null; }
       if (--pending === 0) finish();
     }
-    s.onload = function () { settle(false); };
-    s.onerror = function () { settle(true); };
-    setTimeout(function () { settle(true); }, 6000);
-    try { (document.head || document.documentElement).appendChild(s); }
-    catch (e) { settle(true); }
+    timeout = setTimeout(function () { settle(true); }, 10000);
+    if (typeof fetch === 'function' && typeof AbortController !== 'undefined') {
+      // Реально отменяем запрос через 10с, чтобы браузер не крутил спиннер
+      controller = new AbortController();
+      fetch(url, { signal: controller.signal })
+        .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+        .then(function (code) {
+          if (settled) return;
+          try {
+            var s = document.createElement('script');
+            s.text = code;
+            (document.head || document.documentElement).appendChild(s);
+          } catch (e) {}
+          settle(false);
+        })
+        .catch(function () { settle(true); });
+    } else {
+      var s = document.createElement('script');
+      s.async = true;
+      var done = false;
+      function done_(failed) { if (done) return; done = true; settle(failed); }
+      s.onload = function () { done_(false); };
+      s.onerror = function () { done_(true); };
+      s.src = url;
+      try { (document.head || document.documentElement).appendChild(s); }
+      catch (e) { done_(true); }
+    }
   }
   g.bootPlatforms = function (cb) {
     if (finished) { try { cb(); } catch (e) {} }
@@ -171,7 +195,7 @@ const APP = {
 
 const $ = id => document.getElementById(id);
 
-// Auth detection (ждёт загрузки Telegram/VK SDK, максимум ~6с)
+// Auth detection (ждёт загрузки Telegram/VK SDK, максимум ~10с)
 (function() {
     const runAuth = () => {
         if (window._authRan) return;
