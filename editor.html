@@ -183,12 +183,25 @@ const { byId, round6 } = window.AppShared;
 const $ = byId;
 const f6 = round6;
 
-// ---- Auth detection (ждёт загрузки Telegram/VK SDK, максимум ~6с) ----
+// ---- Auth detection (ждёт загрузки Telegram/VK SDK, максимум ~10с) ----
 (function() {
+    // localStorage-авторизация применяется СРАЗУ (браузер без TG/VK), чтобы личные маршруты
+    // не ждали таймаута загрузки SDK (до ~10с). TG/VK ниже имеют приоритет и переопределяют её.
+    if (!window.authPlatform) {
+        try {
+            const stored = JSON.parse(localStorage.getItem('3api_auth') || '{}');
+            if (stored.platform && stored.login) {
+                window.authPlatform = stored.platform;
+                window.authLogin = stored.login;
+                window.authPassword = stored.password || '';
+                window.authName = stored.name || stored.login;
+            }
+        } catch (e) {}
+    }
     const runAuth = () => {
         if (window._authRan) return;
         window._authRan = true;
-        if (!window.authPlatform && typeof Telegram !== 'undefined' && Telegram.WebApp) {
+        if (typeof Telegram !== 'undefined' && Telegram.WebApp) {
             try {
                 Telegram.WebApp.ready();
                 Telegram.WebApp.expand();
@@ -207,11 +220,11 @@ const f6 = round6;
                 }
             } catch (e) {}
         }
-        if (!window.authPlatform && typeof vkBridge !== 'undefined') {
+        if (typeof vkBridge !== 'undefined') {
             try {
                 vkBridge.send('VKWebAppInit');
                 vkBridge.send('VKWebAppGetUserInfo').then(data => {
-                    if (data?.id && !window.authPlatform) {
+                    if (data?.id) {
                         window.authPlatform = 'vk';
                         window.authLogin = String(data.id);
                         window.authPassword = '';
@@ -585,8 +598,14 @@ if (typeof ymaps3 === 'undefined' || !ymaps3.ready) {
 ymaps3.ready.then(async () => {
     const { YMap, YMapDefaultSchemeLayer, YMapDefaultSatelliteLayer, YMapDefaultFeaturesLayer, YMapMarker, YMapFeature, YMapListener } = ymaps3;
 
-    // Ждём инициализацию платформы (Telegram/VK до ~6с), чтобы блокировки SDK не вываливали в логин
-    if (window.platformReady) { try { await window.platformReady; } catch (e) {} }
+    // Скрываем welcomeScreen сразу, не дожидаясь загрузки SDK (в браузере блокировки тянутся до ~10с)
+    const wsEl0 = document.getElementById('welcomeScreen');
+    if (wsEl0) wsEl0.style.display = 'none';
+    // Даём SDK короткую фору (1.5с); в TG/VK он приходит мгновенно, в браузере — продолжаем без него
+    if (window.platformReady) {
+        const grace = new Promise(r => setTimeout(r, 1500));
+        try { await Promise.race([window.platformReady, grace]); } catch (e) {}
+    }
 
     // Wait for VK async auth if needed
     if (!window.authPlatform && typeof vkBridge !== 'undefined') {

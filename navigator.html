@@ -197,10 +197,23 @@ const $ = id => document.getElementById(id);
 
 // Auth detection (ждёт загрузки Telegram/VK SDK, максимум ~10с)
 (function() {
+    // localStorage-авторизация применяется СРАЗУ (браузер без TG/VK), чтобы личные маршруты
+    // не ждали таймаута загрузки SDK (до ~10с). TG/VK ниже имеют приоритет и переопределяют её.
+    if (!window.authPlatform) {
+        try {
+            const stored = JSON.parse(localStorage.getItem('3api_auth') || '{}');
+            if (stored.platform && stored.login) {
+                window.authPlatform = stored.platform;
+                window.authLogin = stored.login;
+                window.authPassword = stored.password || '';
+                window.authName = stored.name || stored.login;
+            }
+        } catch (e) {}
+    }
     const runAuth = () => {
         if (window._authRan) return;
         window._authRan = true;
-        if (!window.authPlatform && typeof Telegram !== 'undefined' && Telegram.WebApp) {
+        if (typeof Telegram !== 'undefined' && Telegram.WebApp) {
             try {
                 Telegram.WebApp.ready();
                 Telegram.WebApp.expand();
@@ -219,11 +232,11 @@ const $ = id => document.getElementById(id);
                 }
             } catch (e) {}
         }
-        if (!window.authPlatform && typeof vkBridge !== 'undefined') {
+        if (typeof vkBridge !== 'undefined') {
             try {
                 vkBridge.send('VKWebAppInit');
                 vkBridge.send('VKWebAppGetUserInfo').then(data => {
-                    if (data?.id && !window.authPlatform) {
+                    if (data?.id) {
                         window.authPlatform = 'vk';
                         window.authLogin = String(data.id);
                         window.authPassword = '';
@@ -1637,9 +1650,14 @@ ymaps3.ready.then(async () => {
         }
     });
 
-    if (window.platformReady) { try { await window.platformReady; } catch (e) {} }
-    MenuModule.init(loadRouteFromJSON);
+    // Скрываем оверлей сразу, не дожидаясь загрузки SDK (в браузере блокировки тянутся до ~10с)
     $('loading').classList.add('hidden');
+    // Даём SDK короткую фору (1.5с); в TG/VK он приходит мгновенно, в браузере — продолжаем без него
+    if (window.platformReady) {
+        const grace = new Promise(r => setTimeout(r, 1500));
+        try { await Promise.race([window.platformReady, grace]); } catch (e) {}
+    }
+    MenuModule.init(loadRouteFromJSON);
     ensureMotionTracking();
 
     document.addEventListener('click', function activateAudio() {
