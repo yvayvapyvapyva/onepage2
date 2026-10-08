@@ -384,6 +384,78 @@ html, body {
     gap: 10px;
 }
 
+/* Панель предыдущей команды — та же вёрстка, что и основная, но полупрозрачная */
+.hud-prev-header {
+    width: 100%;
+}
+
+.hud-cmd.hud-prev {
+    opacity: 0.55;
+    width: 100%;
+}
+
+#hudPrevCmdNum {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    cursor: pointer;
+    border-radius: 50%;
+    transition: transform 0.1s, opacity 0.1s;
+    -webkit-tap-highlight-color: transparent;
+}
+
+#hudPrevCmdNum:active {
+    transform: scale(0.85);
+    opacity: 0.7;
+}
+
+#hudPrevCmdNum.playing {
+    animation: hud-pulse 0.4s ease-in-out infinite;
+}
+
+#hudPrevCmdText {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    padding: 4px 0;
+}
+
+#hudPrevCmdTextInner {
+    display: block;
+    text-align: left;
+}
+
+#hudPrevCmdDist {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    line-height: 1.2;
+    flex-shrink: 0;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    padding: 6px 10px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.08);
+    font-size: 15px;
+}
+
+#prevCommentText {
+    font-size: 11px;
+    line-height: 1.3;
+    color: rgba(255,255,255,0.8);
+    white-space: pre-wrap;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+    display: none;
+    border: 1px solid rgba(255,69,58,0.5);
+    border-radius: 4px;
+    padding: 6px 12px;
+    margin: 2px 2px 6px;
+    box-sizing: border-box;
+}
+
 .hud-cmd {
     font-size: 18px;
     font-weight: 700;

@@ -76,6 +76,9 @@
 <button id="instructionBtn">📖 Инструкция</button>
 
 <div id="hud">
+    <div class="hud-header hud-prev-header" id="hudPrevHeader" style="display:none">
+        <button class="hud-cmd hud-prev" id="hudPrevCmd"><div class="hud-cmd-row"><span id="hudPrevCmdNum">1</span><span id="hudPrevCmdText"><span id="hudPrevCmdTextInner"></span></span><span id="hudPrevCmdDist" style="display:none">---</span></div><span id="prevCommentText"></span></button>
+    </div>
     <div class="hud-header">
         <button class="hud-cmd" id="hudCmd"><div class="hud-cmd-row"><span id="hudCmdNum">1</span><span id="hudCmdText"><span id="hudCmdTextInner">Маршрут не выбран</span></span><span id="hudCmdDist">---</span></div><span id="commentText"></span></button>
     </div>
@@ -657,6 +660,8 @@ function applyCommentConfig() {
     if (!APP._commentEnabled) APP._commentAudio.pause();
     const ct = $('commentText');
     ct.style.display = APP._commentEnabled && ct.textContent.trim() ? 'block' : 'none';
+    const pct = $('prevCommentText');
+    if (pct) pct.style.display = APP._commentEnabled && pct.textContent.trim() ? 'block' : 'none';
 }
 
 async function requestMotionPermission() {
@@ -1061,6 +1066,33 @@ function updateHud() {
     const hasComm = t.comm && t.comm.trim() !== '';
     $('commentText').style.display = hasComm && APP._commentEnabled ? 'block' : 'none';
     $('commentText').style.opacity = (t.comm && APP._audioCache.has(t.comm)) ? '1' : '0.35';
+
+    // Панель предыдущей команды — та же вёрстка над основной, полупрозрачная
+    const prevHeader = $('hudPrevHeader');
+    const prev = idx > 0 ? APP.navPoints[idx - 1] : null;
+    if (prevHeader) {
+        if (!prev) {
+            prevHeader.style.display = 'none';
+        } else {
+            prevHeader.style.display = '';
+            $('hudPrevCmdNum').innerHTML = `<svg width="44" height="44" viewBox="0 0 20 20"><circle cx="10" cy="10" r="9" fill="${prev.hex}" opacity="0.3"/><circle cx="10" cy="10" r="9" fill="none" stroke="${prev.hex}" stroke-width="1.5"/><text x="10" y="10.5" font-size="8" font-family="Arial" font-weight="900" text-anchor="middle" dominant-baseline="middle" fill="#fff">${prev.id}</text></svg>`;
+            $('hudPrevCmdTextInner').textContent = prev.cmd;
+            $('hudPrevCmdTextInner').style.opacity = APP._audioCache.has(prev.cmd) ? '1' : '0.35';
+            $('hudPrevCmdNum').onclick = (e) => {
+                e.stopPropagation();
+                const el = $('hudPrevCmdNum');
+                document.querySelectorAll('.playing').forEach(e => e.classList.remove('playing'));
+                APP._commentAudio.onended = null;
+                el.classList.add('playing');
+                playPointAudio(prev, () => el.classList.remove('playing'));
+            };
+            $('hudPrevCmd').onclick = openPointsList;
+            $('prevCommentText').textContent = prev.comm || '';
+            const hasPrevComm = prev.comm && prev.comm.trim() !== '';
+            $('prevCommentText').style.display = hasPrevComm && APP._commentEnabled ? 'block' : 'none';
+            $('prevCommentText').style.opacity = (prev.comm && APP._audioCache.has(prev.comm)) ? '1' : '0.35';
+        }
+    }
 }
 
 function formatDistance(d) {
@@ -1756,7 +1788,7 @@ ymaps3.ready.then(async () => {
 document.addEventListener('click', (e) => {
     const sheetModals = [
         { id: 'navSettingsModal', close: closeSettings, triggers: ['settingsBtn', 'menuBtn'], handle: 'settingsSheetDragArea' },
-        { id: 'pointsListModal', close: closePointsList, triggers: ['hudCmd', 'menuBtn'], handle: 'sheetDragArea' },
+        { id: 'pointsListModal', close: closePointsList, triggers: ['hudCmd', 'hudPrevCmd', 'menuBtn'], handle: 'sheetDragArea' },
         { id: 'instructionModal', close: closeInstruction, triggers: ['instructionBtn', 'menuBtn'], handle: 'instructionDragArea' },
     ];
     sheetModals.forEach(({ id, close, triggers, handle: handleId }) => {
