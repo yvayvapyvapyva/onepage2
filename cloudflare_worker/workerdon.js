@@ -375,9 +375,10 @@ async function getStatsText(env) {
   const donors = new Map();
   for (const r of live) {
     const id = r.uid ?? r.charge_id;
-    const cur = donors.get(id) || { sum: 0, name: null };
+    const cur = donors.get(id) || { sum: 0, name: null, username: null, uid: r.uid ?? null };
     cur.sum += Number(r.amount) || 0;
-    if (r.name || r.username) cur.name = r.name || ("@" + r.username);
+    if (r.name) cur.name = r.name;
+    if (r.username) cur.username = r.username;
     donors.set(id, cur);
   }
   const top = [...donors.values()].sort((a, b) => b.sum - a.sum).slice(0, 5);
@@ -397,7 +398,12 @@ async function getStatsText(env) {
   ];
   if (refunded.length) lines.push(`↩️ Возвратов: ${refunded.length} (${sum(refunded)} ⭐)`);
   lines.push("", "🏆 Топ-5:");
-  top.forEach((d, i) => lines.push(`${i + 1}. ${d.name || "без имени"} — ${d.sum} ⭐`));
+  top.forEach((d, i) => {
+    const who = [d.name || "без имени"];
+    if (d.username) who.push("@" + d.username);
+    if (d.uid != null) who.push("id" + d.uid);
+    lines.push(`${i + 1}. ${who.join(" · ")} — ${d.sum} ⭐`);
+  });
   lines.push("", "📅 По дням:");
   days.forEach(([d, s]) => lines.push(`${d} — ${s} ⭐`));
   return lines.join("\n");
