@@ -7,6 +7,8 @@ const MenuModule = {
     _isFetchingRoutes: false,
     _categoryTree: null,
     _expandedFolders: new Set(),
+    _locks: {}, // {folderPath: price} — платные папки
+    _access: new Set(), // купленные папки пользователя
 
     // URL бекенда для загрузки маршрутов: новый API-воркер (D1), фолбэк — старая Яндекс-функция.
     // Задаётся в assets/js/config.js -> API_CONFIG.API_BASE после deploy.
@@ -69,6 +71,9 @@ const MenuModule = {
 
         // Загружаем список маршрутов динамически
         await this._loadRoutesList();
+
+        // Замки платных папок + купленные доступы (Telegram)
+        await this._refreshShop();
 
         // Проверяем параметры URL
         this.checkUrlParam();
@@ -169,6 +174,199 @@ const MenuModule = {
         return;
     },
 
+    // ---- Платные папки (Telegram Stars) ----
+    _tgInitData() {
+        try {
+            return (typeof Telegram !== 'undefined' && Telegram.WebApp && Telegram.WebApp.initData) || '';
+        } catch (e) {
+            return '';
+        }
+    },
+
+    _isTg() {
+        return !!this._tgInitData();
+    },
+
+    // Ближайший замок для пути папки (сама или предок). _locks: {folder: price}.
+    _lockFor(folderPath) {
+        let cur = folderPath;
+        for (;;) {
+            if (cur && Object.prototype.hasOwnProperty.call(this._locks, cur)) {
+                return { folder: cur, price: this._locks[cur] };
+            }
+            const i = cur.lastIndexOf('/');
+            if (i < 0) break;
+            cur = cur.substring(0, i);
+        }
+        return null;
+    },
+
+    _hasAccess(lockFolder) {
+        if (!lockFolder) return true;
+        for (const owned of this._access) {
+            if (lockFolder === owned || lockFolder.startsWith(owned + '/')) return true;
+        }
+        return false;
+    },
+
+    async _refreshShop() {
+        try {
+            const res = await fetch(`${this.API_URL_V2}?action=locks`);
+            if (res.ok) {
+                const data = await res.json();
+                this._locks = {};
+                for (const l of (data.locks || [])) this._locks[l.folder] = l.price;
+            }
+        } catch (e) {
+            this._locks = this._locks || {};
+        }
+        this._access = this._access || new Set();
+        const initData = this._tgInitData();
+        if (initData) {
+            try {
+                const res = await fetch(`${this.API_URL_V2}?action=my_access`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ initData })
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    this._access = new Set(data.folders || []);
+                }
+            } catch (e) {}
+        }
+        if (typeof this._buildRoutesList === 'function' && document.getElementById('routesListContainer')) {
+            try { this._buildRoutesList(); } catch (e) {}
+        }
+    },
+
+    _openPaywall(folder, price) {
+        let m = document.getElementById('paywallModal');
+        if (!m) {
+            m = document.createElement('div');
+            m.id = 'paywallModal';
+            m.innerHTML = `
+                <div class="desc-modal-overlay" id="paywallOverlay">
+                    <div class="desc-modal-content">
+                        <div class="desc-modal-header">
+                            <span id="paywallTitle"></span>
+                            <button id="paywallCloseBtn" class="desc-close-btn">×</button>
+                        </div>
+                        <div class="desc-modal-body" id="paywallBody" style="display:flex;flex-direction:column;gap:12px;"></div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(m);
+            document.getElementById('paywallOverlay').addEventListener('click', (e) => {
+                if (e.target === e.currentTarget) this._hidePaywall();
+            });
+            document.getElementById('paywallCloseBtn').addEventListener('click', () => this._hidePaywall());
+        }
+        document.getElementById('paywallTitle').textContent = '🔒 ' + folder.split('/').pop();
+        const body = document.getElementById('paywallBody');
+        body.innerHTML = '';
+        const desc = document.createElement('div');
+        desc.style.cssText = 'color:rgba(255,255,255,0.7);font-size:14px;';
+        desc.textContent = `Папка «${folder}» доступна после оплаты.`;
+        body.appendChild(desc);
+        const priceEl = document.createElement('div');
+        priceEl.style.cssText = 'font-size:22px;font-weight:800;color:#fff;';
+        priceEl.textContent = `⭐ ${price}`;
+        body.appendChild(priceEl);
+        if (this._isTg()) {
+            const buy = document.createElement('button');
+            buy.className = 'route-item';
+            buy.style.cssText = 'justify-content:center;font-weight:700;';
+            buy.textContent = `Купить за ${price} ⭐`;
+            buy.addEventListener('click', () => this._buyFolder(folder, buy));
+            body.appendChild(buy);
+            const owned = document.createElement('button');
+            owned.className = 'route-item';
+            owned.style.cssText = 'justify-content:center;opacity:0.8;';
+            owned.textContent = 'Я уже оплатил — обновить';
+            owned.addEventListener('click', () => this._claimPurchases(owned));
+            body.appendChild(owned);
+        } else {
+            const hint = document.createElement('div');
+            hint.style.cssText = 'color:rgba(255,255,255,0.7);font-size:14px;';
+            hint.textContent = 'Открой приложение в Telegram, чтобы купить доступ за звёзды.';
+            body.appendChild(hint);
+        }
+        m.style.display = 'block';
+        requestAnimationFrame(() => m.classList.add('visible'));
+    },
+
+    _hidePaywall() {
+        const m = document.getElementById('paywallModal');
+        if (m) {
+            m.classList.remove('visible');
+            setTimeout(() => { m.style.display = 'none'; }, 300);
+        }
+    },
+
+    async _buyFolder(folder, btn) {
+        const initData = this._tgInitData();
+        if (!initData) return;
+        if (btn) { btn.disabled = true; btn.textContent = 'Создаём счёт…'; }
+        try {
+            const res = await fetch(`${this.API_URL_V2}?action=shop_invoice`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ initData, folder })
+            });
+            const data = await res.json();
+            if (data.owned) {
+                await this._refreshShop();
+                this._hidePaywall();
+                if (typeof showToast === 'function') showToast('Доступ уже куплен', 'success');
+                return;
+            }
+            if (!res.ok || !data.invoiceLink) throw new Error((data && data.error) || ('HTTP ' + res.status));
+            Telegram.WebApp.openInvoice(data.invoiceLink, (status) => {
+                if (btn) { btn.disabled = false; btn.textContent = `Купить за ${data.price} ⭐`; }
+                if (status === 'paid') {
+                    this._claimPurchases(null, folder);
+                } else if (typeof showToast === 'function' && status !== 'cancelled') {
+                    showToast('Не оплачено: ' + status, 'error');
+                }
+            });
+        } catch (e) {
+            if (btn) { btn.disabled = false; btn.textContent = `Купить за ⭐`; }
+            if (typeof showToast === 'function') showToast('Ошибка: ' + e.message, 'error', 4000);
+        }
+    },
+
+    async _claimPurchases(btn, thenOpen) {
+        const initData = this._tgInitData();
+        if (!initData) return;
+        if (btn) { btn.disabled = true; btn.textContent = 'Проверяем оплату…'; }
+        try {
+            const res = await fetch(`${this.API_URL_V2}?action=shop_claim`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ initData })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                this._access = new Set(data.folders || []);
+                this._buildRoutesList();
+                this._hidePaywall();
+                if (typeof showToast === 'function') showToast('Доступ открыт! 🎉', 'success');
+                if (thenOpen) {
+                    const lock = this._lockFor(thenOpen);
+                    if (!lock || this._hasAccess(lock.folder)) {
+                        this._expandedFolders.add(thenOpen);
+                        this._buildRoutesList();
+                    }
+                }
+            }
+        } catch (e) {
+            if (typeof showToast === 'function') showToast('Не удалось подтвердить оплату', 'error');
+        } finally {
+            if (btn) { btn.disabled = false; }
+        }
+    },
+
     _countTreeRoutes(node) {
         let count = node.routes.length;
         for (const f of Object.values(node.folders)) count += this._countTreeRoutes(f);
@@ -233,6 +431,36 @@ const MenuModule = {
         }
     },
 
+    // Отрисовка заголовка папки с учётом замка. Возвращает false если папка закрыта.
+    _renderFolderHeader(container, folderPath, displayName, total, isExpanded, isRoot) {
+        const lock = this._lockFor(folderPath);
+        const locked = lock && !this._hasAccess(lock.folder);
+
+        const el = document.createElement('div');
+        el.className = 'category-folder';
+
+        const header = document.createElement('div');
+        header.className = 'category-header' + (isExpanded && !locked ? ' expanded' : '') + (isRoot ? ' root' : '');
+        header.innerHTML = `
+            <span class="category-icon">${locked ? '🔒' : (isExpanded ? '📂' : '📁')}</span>
+            <span class="category-name">${this._escape(displayName)}</span>
+            <span class="category-count">${locked ? lock.price + ' ⭐' : total}</span>
+        `;
+        header.addEventListener('click', e => {
+            e.stopPropagation();
+            if (locked) {
+                this._openPaywall(lock.folder, lock.price);
+                return;
+            }
+            if (this._expandedFolders.has(folderPath)) this._expandedFolders.delete(folderPath);
+            else this._expandedFolders.add(folderPath);
+            this._buildRoutesList();
+        });
+        el.appendChild(header);
+        container.appendChild(el);
+        return !locked;
+    },
+
     _renderTreeNode(node, container, path, isRoot = !path) {
         const folderNames = Object.keys(node.folders).sort((a, b) => a.localeCompare(b));
 
@@ -243,27 +471,9 @@ const MenuModule = {
             const total = this._countTreeRoutes(sub);
             const isExpanded = this._expandedFolders.has(folderPath);
 
-            const el = document.createElement('div');
-            el.className = 'category-folder';
+            const open = this._renderFolderHeader(container, folderPath, name, total, isExpanded, isRoot);
 
-            const header = document.createElement('div');
-            header.className = 'category-header' + (isExpanded ? ' expanded' : '') + (isRoot ? ' root' : '');
-            header.innerHTML = `
-                <span class="category-icon">${isExpanded ? '📂' : '📁'}</span>
-                <span class="category-name">${this._escape(name)}</span>
-                <span class="category-count">${total}</span>
-            `;
-            header.addEventListener('click', e => {
-                e.stopPropagation();
-                if (this._expandedFolders.has(folderPath)) this._expandedFolders.delete(folderPath);
-                else this._expandedFolders.add(folderPath);
-                this._buildRoutesList();
-            });
-            el.appendChild(header);
-
-            container.appendChild(el);
-
-            if (isExpanded) {
+            if (open && isExpanded) {
                 const childWrap = document.createElement('div');
                 childWrap.style.cssText = 'padding-left:16px;display:flex;flex-direction:column;gap:6px;';
                 this._renderTreeNode(sub, childWrap, folderPath, false);
@@ -276,24 +486,8 @@ const MenuModule = {
             const fcPath = path ? path + '/' + 'Без категории' : 'Без категории';
             const fcExpanded = this._expandedFolders.has(fcPath);
             const fcTotal = this._countTreeRoutes(uncat);
-            const fcEl = document.createElement('div');
-            fcEl.className = 'category-folder';
-            const fcHdr = document.createElement('div');
-            fcHdr.className = 'category-header' + (fcExpanded ? ' expanded' : '') + (isRoot ? ' root' : '');
-            fcHdr.innerHTML = `
-                <span class="category-icon">${fcExpanded ? '📂' : '📁'}</span>
-                <span class="category-name">Без категории</span>
-                <span class="category-count">${fcTotal}</span>
-            `;
-            fcHdr.addEventListener('click', e => {
-                e.stopPropagation();
-                if (this._expandedFolders.has(fcPath)) this._expandedFolders.delete(fcPath);
-                else this._expandedFolders.add(fcPath);
-                this._buildRoutesList();
-            });
-            fcEl.appendChild(fcHdr);
-            container.appendChild(fcEl);
-            if (fcExpanded) {
+            const open = this._renderFolderHeader(container, fcPath, 'Без категории', fcTotal, fcExpanded, isRoot);
+            if (open && fcExpanded) {
                 const childWrap = document.createElement('div');
                 childWrap.style.cssText = 'padding-left:16px;display:flex;flex-direction:column;gap:6px;';
                 this._renderTreeNode(uncat, childWrap, fcPath, false);
@@ -542,6 +736,10 @@ const MenuModule = {
             let url = this.API_URL_V2;
             const params = [`m=${encodeURIComponent(routeName)}`];
 
+            // tg_init_data — для платных папок (сервер проверяет покупку)
+            const tgInit = this._tgInitData();
+            if (tgInit) params.push(`tg_init_data=${encodeURIComponent(tgInit)}`);
+
             if (window.tgUser) {
                 try {
                     const user = window.tgUser;
@@ -574,7 +772,16 @@ const MenuModule = {
 
             const res = await fetch(url);
 
-            if (!res.ok) throw new Error('HTTP ' + res.status);
+            if (!res.ok) {
+                let info = null;
+                try { info = await res.json(); } catch (e) {}
+                if (info && info.error === 'locked') {
+                    this.hideSpinner();
+                    this._openPaywall(info.folder, info.price);
+                    return;
+                }
+                throw new Error('HTTP ' + res.status);
+            }
             const data = await res.json();
 
             // Отчёт об открытии маршрута — после получения данных маршрута

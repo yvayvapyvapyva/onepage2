@@ -14,6 +14,15 @@
 //   GET/POST /?action=get_meta&m=NAME             — метаданные
 //   POST /?action=save_meta&m=NAME {name, description, visible, creator_name, new_m?}
 //   POST /report { text, lat?, lon? }             — прокси отчётов в Telegram Bot API
+//   Платные папки (Telegram Stars):
+//   GET  /?action=locks                            — {locks:[{folder, price}]} (публично)
+//   POST /?action=save_lock {folder, price}        — пометить папку платной (price 0 — снять)
+//   POST /?action=del_lock {folder}               — снять замок
+//   POST /?action=my_access {initData}            — {user_id, folders:[купленные]} (Telegram)
+//   POST /?action=shop_invoice {initData, folder} — {invoiceLink, price, folder}
+//   POST /?action=shop_claim {initData}           — сверить оплаты, {folders:[...]}
+//   Маршрут в платной папке через action=get требует tg_init_data покупателя,
+//   иначе 403 {error:'locked', folder, price}. Редактор (get_protected) без ограничений.
 //
 // Env:
 //   DB               — D1 database binding (см. schema.sql)
@@ -103,6 +112,80 @@ function parseData(raw) {
   }
 }
 
+// Проверка Telegram Mini App initData (без проверки срока — покупки интерактивные).
+async function verifyTgInitData(initData, botToken) {
+  if (!botToken) return { uid: null, err: 'TELEGRAM_TOKEN not configured' };
+  if (!initData) return { uid: null, err: 'initData missing' };
+  try {
+    const params = new URLSearchParams(initData);
+    const hash = params.get('hash');
+    if (!hash) return { uid: null, err: 'hash missing' };
+    params.delete('hash');
+    const dataCheckString = [...params.entries()]
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([k, v]) => `${k}=${v}`)
+      .join('\n');
+    const enc = new TextEncoder();
+    const secretKey = await crypto.subtle.importKey(
+      'raw', enc.encode('WebAppData'), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+    const secret = await crypto.subtle.sign('HMAC', secretKey, enc.encode(botToken));
+    const key = await crypto.subtle.importKey(
+      'raw', secret, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+    const sig = await crypto.subtle.sign('HMAC', key, enc.encode(dataCheckString));
+    const hex = [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, '0')).join('');
+    if (hex !== hash) return { uid: null, err: 'bad signature' };
+    const user = JSON.parse(params.get('user') || 'null');
+    if (!user || !user.id) return { uid: null, err: 'no user' };
+    return { uid: String(user.id), err: null };
+  } catch (e) {
+    return { uid: null, err: String(e) };
+  }
+}
+
+async function tgApi(env, method, payload) {
+  const r = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_TOKEN}/${method}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  return r.json().catch(() => ({}));
+}
+
+// Папка маршрута из отображаемого имени "A/B/Имя" -> "A/B".
+function folderOf(routeName) {
+  const parts = String(routeName || '').split('/').map((s) => s.trim()).filter(Boolean);
+  parts.pop();
+  return parts.join('/');
+}
+
+// Ближайший замок для папки (сама папка или предок). locks: Map(folder->price).
+function lockForFolder(folder, locks) {
+  let cur = folder;
+  for (;;) {
+    if (locks.has(cur)) return { folder: cur, price: locks.get(cur) };
+    const i = cur.lastIndexOf('/');
+    if (i < 0) break;
+    cur = cur.substring(0, i);
+  }
+  return null;
+}
+
+async function loadLocks(env) {
+  const rows = (await env.DB.prepare('SELECT folder, price FROM folder_locks').all()).results || [];
+  return new Map(rows.map((r) => [r.folder, r.price]));
+}
+
+// Есть ли у пользователя доступ: куплена совпавшая или любая вышележащая папка.
+async function hasAccess(env, uid, lockFolder) {
+  const rows = (await env.DB.prepare(
+    'SELECT folder FROM purchases WHERE user_id = ?').bind(uid).all()).results || [];
+  return rows.some((r) => lockFolder === r.folder || lockFolder.startsWith(r.folder + '/'));
+}
+
+function normFolder(f) {
+  return String(f || '').split('/').map((s) => s.trim()).filter(Boolean).join('/');
+}
+
 export default {
   async fetch(request, env) {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
@@ -136,11 +219,24 @@ export default {
         })), 200, { 'Cache-Control': 'no-cache, no-store, must-revalidate' });
       }
 
-      // ---- Получение маршрута (навигатор и редактор) ----
+      // ---- Получение маршрута ----
+      // get — навигатор, с проверкой платных папок (нужен tg_init_data покупателя).
+      // get_protected — редактор, без ограничений.
       if (action === 'get' || action === 'get_protected') {
         if (!mVal) return json({ error: 'missing_route_name' }, 400);
         const { row, m } = await findRoute(env, mVal);
         if (!row) return json({ error: 'not_found' }, 404);
+        if (action === 'get') {
+          const lock = lockForFolder(folderOf(row.name || ''), await loadLocks(env));
+          if (lock) {
+            const initData = url.searchParams.get('tg_init_data') || bodyData.tg_init_data || '';
+            const { uid, err } = await verifyTgInitData(initData, env.TELEGRAM_TOKEN);
+            if (!uid) return json({ error: 'locked', folder: lock.folder, price: lock.price }, 403);
+            if (!(await hasAccess(env, uid, lock.folder))) {
+              return json({ error: 'locked', folder: lock.folder, price: lock.price }, 403);
+            }
+          }
+        }
         return json({ name: row.name || '', m, data: parseData(row.json) });
       }
 
@@ -215,6 +311,108 @@ export default {
             .bind(name, description, visible, m).run();
         }
         return json({ status: 'meta_saved' });
+      }
+
+      // ---- Платные папки ----
+      if (action === 'locks') {
+        const rows = (await env.DB.prepare(
+          'SELECT folder, price FROM folder_locks ORDER BY folder').all()).results || [];
+        return json({ locks: rows.map((r) => ({ folder: r.folder, price: r.price })) });
+      }
+
+      if (action === 'save_lock') {
+        const folder = normFolder(bodyData.folder || url.searchParams.get('folder'));
+        const price = Math.floor(Number(bodyData.price ?? url.searchParams.get('price')));
+        if (!folder) return json({ error: 'missing_folder' }, 400);
+        if (!Number.isFinite(price) || price < 0 || price > 10000) {
+          return json({ error: 'bad_price' }, 400);
+        }
+        if (price === 0) {
+          await env.DB.prepare('DELETE FROM folder_locks WHERE folder = ?').bind(folder).run();
+        } else {
+          await env.DB.prepare(
+            'INSERT INTO folder_locks (folder, price) VALUES (?, ?) ON CONFLICT(folder) DO UPDATE SET price=excluded.price')
+            .bind(folder, price).run();
+        }
+        return json({ status: 'ok', folder, price });
+      }
+
+      if (action === 'del_lock') {
+        const folder = normFolder(bodyData.folder || url.searchParams.get('folder'));
+        if (!folder) return json({ error: 'missing_folder' }, 400);
+        await env.DB.prepare('DELETE FROM folder_locks WHERE folder = ?').bind(folder).run();
+        return json({ status: 'ok' });
+      }
+
+      // Купленные папки пользователя (Telegram).
+      if (action === 'my_access') {
+        const initData = bodyData.initData || url.searchParams.get('tg_init_data') || '';
+        const { uid, err } = await verifyTgInitData(initData, env.TELEGRAM_TOKEN);
+        if (!uid) return json({ error: 'bad_init_data', message: err }, 401);
+        const rows = (await env.DB.prepare(
+          'SELECT folder FROM purchases WHERE user_id = ?').bind(uid).all()).results || [];
+        return json({ user_id: uid, folders: rows.map((r) => r.folder) });
+      }
+
+      // Создать счёт на папку (Telegram Stars).
+      if (action === 'shop_invoice') {
+        const initData = bodyData.initData || '';
+        const { uid, err } = await verifyTgInitData(initData, env.TELEGRAM_TOKEN);
+        if (!uid) return json({ error: 'bad_init_data', message: err }, 401);
+        const locks = await loadLocks(env);
+        const lock = lockForFolder(normFolder(bodyData.folder), locks);
+        if (!lock) return json({ error: 'not_locked' }, 400);
+        if (await hasAccess(env, uid, lock.folder)) {
+          return json({ ok: true, owned: true, folder: lock.folder });
+        }
+        const title = (`Доступ: ${lock.folder}`).substring(0, 32);
+        const payload = `folder:${uid}:${lock.folder}:${Date.now()}`;
+        const res = await tgApi(env, 'createInvoiceLink', {
+          title,
+          description: `Доступ к папке «${lock.folder}» навсегда`.substring(0, 255),
+          payload,
+          currency: 'XTR',
+          prices: [{ label: title, amount: lock.price }],
+        });
+        if (!res || !res.ok) {
+          return json({ ok: false, error: 'invoice_failed', details: res && res.description }, 500);
+        }
+        return json({ ok: true, invoiceLink: res.result, price: lock.price, folder: lock.folder });
+      }
+
+      // Подтвердить оплаты: сверяем getStarTransactions по payload, пишем в purchases.
+      if (action === 'shop_claim') {
+        const initData = bodyData.initData || '';
+        const { uid, err } = await verifyTgInitData(initData, env.TELEGRAM_TOKEN);
+        if (!uid) return json({ error: 'bad_init_data', message: err }, 401);
+        const found = [];
+        let offset = 0;
+        for (let page = 0; page < 5; page++) {
+          const res = await tgApi(env, 'getStarTransactions', { offset, limit: 100 });
+          if (!res || !res.ok) break;
+          const txns = (res.result && res.result.transactions) || [];
+          for (const t of txns) {
+            for (const p of [t.source, t.receiver]) {
+              const payload = p && p.invoice_payload;
+              if (typeof payload === 'string' && payload.startsWith(`folder:${uid}:`)) {
+                const parts = payload.split(':');
+                const folder = parts.slice(2, -1).join(':');
+                const stars = Math.trunc(Number(t.amount || 0));
+                if (folder) {
+                  found.push({ folder, stars, payload });
+                  await env.DB.prepare(
+                    'INSERT INTO purchases (user_id, folder, stars, ts, payload) VALUES (?, ?, ?, ?, ?) ON CONFLICT(user_id, folder) DO UPDATE SET stars=excluded.stars, ts=excluded.ts, payload=excluded.payload')
+                    .bind(uid, folder, stars, Math.floor(Date.now() / 1000), payload).run();
+                }
+              }
+            }
+          }
+          if (txns.length < 100) break;
+          offset += 100;
+        }
+        const rows = (await env.DB.prepare(
+          'SELECT folder FROM purchases WHERE user_id = ?').bind(uid).all()).results || [];
+        return json({ ok: true, claimed: found.length, folders: rows.map((r) => r.folder) });
       }
 
       return json({ error: 'unknown_action' }, 400);
