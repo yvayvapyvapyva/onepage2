@@ -2,6 +2,12 @@
 // Роуты:
 //  POST /         — webhook от Telegram (апдейты)
 //  POST /invoice  — запрос от Mini App: выдать ссылку на оплату
+//
+// Env:
+//  TG_TOKEN    — токен бота (обязательно)
+//  TG_SECRET   — секрет webhook (опционально, проверка X-Telegram-Bot-Api-Secret-Token)
+//  ADMIN_IDS   — telegram user id админов через запятую (для /balance /stats /refund)
+//  PAYMENTS_KV — KV-namespace для учёта оплат (защита от дублей + /stats + /refund)
 
 const PRODUCTS = {
   premium_30d: {
@@ -124,12 +130,13 @@ async function handleUpdate(update, env) {
   if (message.successful_payment) {
     const pay = message.successful_payment;
     const chatId = message.chat.id;
+    // Пишем в KV: защита от повторной обработки при ретрае webhook.
+    const { duplicate } = await recordPayment(env, pay, message.from);
     console.log(
-      `PAID ${pay.telegram_payment_charge_id} payload=${pay.invoice_payload} stars=${pay.total_amount}`
+      `PAID ${pay.telegram_payment_charge_id} payload=${pay.invoice_payload} stars=${pay.total_amount} duplicate=${duplicate}`
     );
+    if (duplicate) return;
     const isDonate = String(pay.invoice_payload || "").startsWith("donate:");
-    // TODO production: проверить pay.invoice_payload и записать charge_id в KV/D1,
-    // чтобы при ретрае webhook не выдать товар дважды.
     await tgApi(env, "sendMessage", {
       chat_id: chatId,
       text: isDonate
@@ -141,12 +148,98 @@ async function handleUpdate(update, env) {
 
   // 3. Обычные команды
   const chatId = message.chat?.id;
-  const text = message.text || "";
+  const text = (message.text || "").trim();
   if (!chatId) return;
 
+  const cmd = text.split(" ")[0].split("@")[0];
+
+  // /balance — только для админа (ADMIN_IDS в env воркера, через запятую).
+  // Остальным отвечает отказом, баланс не раскрывает.
+  if (cmd === "/balance") {
+    if (!isAdmin(chatId, env)) {
+      await tgApi(env, "sendMessage", { chat_id: chatId, text: "⛔ Эта команда только для администратора." });
+      return;
+    }
+    const reply = await getStarsBalanceText(env);
+    await tgApi(env, "sendMessage", { chat_id: chatId, text: reply });
+    return;
+  }
+
+  // /stats — только для админа.
+  if (cmd === "/stats") {
+    if (!isAdmin(chatId, env)) {
+      await tgApi(env, "sendMessage", { chat_id: chatId, text: "⛔ Эта команда только для администратора." });
+      return;
+    }
+    const reply = await getStatsText(env);
+    await tgApi(env, "sendMessage", { chat_id: chatId, text: reply });
+    return;
+  }
+
+  // /refund — только для админа. Форматы:
+  //   /refund <charge_id>            — user_id берём из KV
+  //   /refund <user_id> <charge_id>  — если записи в KV нет
+  if (cmd === "/refund") {
+    if (!isAdmin(chatId, env)) {
+      await tgApi(env, "sendMessage", { chat_id: chatId, text: "⛔ Эта команда только для администратора." });
+      return;
+    }
+    const args = text.split(/\s+/).slice(1).filter(Boolean);
+    let uid = null,
+      chargeId = null;
+    if (args.length === 1) {
+      chargeId = args[0];
+      const rec = await getPayment(env, chargeId);
+      if (!rec || !rec.uid) {
+        await tgApi(env, "sendMessage", {
+          chat_id: chatId,
+          text: "Не нашёл оплату в KV. Формат: /refund <user_id> <charge_id>",
+        });
+        return;
+      }
+      uid = rec.uid;
+    } else if (args.length >= 2) {
+      uid = Number(args[0]);
+      chargeId = args[1];
+    } else {
+      await tgApi(env, "sendMessage", {
+        chat_id: chatId,
+        text: "Формат: /refund <charge_id>  или  /refund <user_id> <charge_id>",
+      });
+      return;
+    }
+    if (!Number.isFinite(uid) || !chargeId) {
+      await tgApi(env, "sendMessage", {
+        chat_id: chatId,
+        text: "Формат: /refund <charge_id>  или  /refund <user_id> <charge_id>",
+      });
+      return;
+    }
+    const res = await tgApi(env, "refundStarPayment", {
+      user_id: uid,
+      telegram_payment_charge_id: chargeId,
+    });
+    if (!res?.ok) {
+      await tgApi(env, "sendMessage", {
+        chat_id: chatId,
+        text: "↩️ Возврат не удался: " + (res?.description || "ошибка API"),
+      });
+      return;
+    }
+    const rec = await markRefunded(env, chargeId);
+    const amount = rec ? ` ${rec.amount} ⭐` : "";
+    await tgApi(env, "sendMessage", { chat_id: chatId, text: `✅ Возврат${amount} выполнен.` });
+    return;
+  }
+
   let reply;
-  if (text === "/start") reply = "Привет! Открой Mini App и нажми Купить ⭐";
-  else if (text === "/ping") reply = "pong 🏓";
+  if (cmd === "/start") {
+    reply = "Привет! Открой Mini App и нажми Купить ⭐";
+    if (isAdmin(chatId, env)) {
+      reply += "\n\nАдмин-команды:\n/balance — баланс звёзд\n/stats — статистика\n/refund <charge_id> — возврат";
+    }
+  }
+  else if (cmd === "/ping") reply = "pong 🏓";
   else reply = `Ты написал: ${text}`;
 
   await tgApi(env, "sendMessage", { chat_id: chatId, text: reply });
@@ -167,6 +260,147 @@ async function tgApi(env, method, payload) {
   const data = await r.json().catch(() => ({}));
   console.log(`TG ${method}: ${r.status}`);
   return data;
+}
+
+// ADMIN_IDS — telegram user id админов через запятую, например "123456789,987654321".
+function isAdmin(chatId, env) {
+  const ids = String(env.ADMIN_IDS || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return ids.includes(String(chatId));
+}
+
+// Суммирует getStarTransactions с пагинацией (до ~2000 последних операций).
+async function getStarsBalanceText(env) {
+  let offset = 0,
+    stars = 0,
+    nanos = 0,
+    count = 0,
+    pages = 0;
+  while (pages < 20) {
+    const res = await tgApi(env, "getStarTransactions", { offset, limit: 100 });
+    if (!res?.ok) return "Не смог получить транзакции: " + (res?.description || "ошибка API");
+    const txns = res.result?.transactions || [];
+    for (const t of txns) {
+      stars += Number(t.amount || 0);
+      nanos += Number(t.nanostar_amount || 0);
+      count++;
+    }
+    if (txns.length < 100) break;
+    offset += 100;
+    pages++;
+  }
+  stars += Math.trunc(nanos / 1_000_000_000);
+  const frac = Math.abs(nanos % 1_000_000_000);
+  const total = frac ? `${stars}.${String(frac).padStart(9, "0").replace(/0+$/, "")}` : `${stars}`;
+  const more = pages >= 20 ? "\n(учтены последние ~2000 операций)" : "";
+  return `⭐ Баланс звёзд бота: ${total}\nОпераций учтено: ${count}${more}`;
+}
+
+// ---------- Учёт оплат в KV ----------
+// Ключ pay:<charge_id> -> { charge_id, uid, name, username, amount, kind, payload, ts, refunded }.
+// Возвращает { duplicate: true }, если такой charge_id уже обрабатывали (ретрай webhook).
+async function recordPayment(env, pay, from) {
+  const kv = env.PAYMENTS_KV;
+  if (!kv) return { duplicate: false };
+  const chargeId = pay.telegram_payment_charge_id;
+  if (!chargeId) return { duplicate: false };
+  const key = `pay:${chargeId}`;
+  if (await kv.get(key)) return { duplicate: true };
+  const payload = String(pay.invoice_payload || "");
+  const kind = payload.startsWith("donate:")
+    ? "donate"
+    : payload.startsWith("premium_30d:")
+      ? "premium"
+      : "other";
+  const rec = {
+    charge_id: chargeId,
+    uid: from?.id ?? null,
+    name: [from?.first_name, from?.last_name].filter(Boolean).join(" ") || null,
+    username: from?.username || null,
+    amount: Number(pay.total_amount || 0),
+    kind,
+    payload,
+    ts: Math.floor(Date.now() / 1000),
+    refunded: false,
+  };
+  await kv.put(key, JSON.stringify(rec));
+  return { duplicate: false };
+}
+
+async function getPayment(env, chargeId) {
+  try {
+    const raw = await env.PAYMENTS_KV?.get(`pay:${chargeId}`);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function markRefunded(env, chargeId) {
+  const rec = await getPayment(env, chargeId);
+  if (!rec || !env.PAYMENTS_KV) return rec;
+  rec.refunded = true;
+  await env.PAYMENTS_KV.put(`pay:${chargeId}`, JSON.stringify(rec));
+  return rec;
+}
+
+// /stats: итоги, донаты/premium, возвраты, топ-5 донатеров, по дням (UTC).
+async function getStatsText(env) {
+  const kv = env.PAYMENTS_KV;
+  if (!kv) {
+    return "⛔ Не подключён PAYMENTS_KV: создай KV-namespace и привяжи его к воркеру как PAYMENTS_KV, затем задеплои.";
+  }
+  const recs = [];
+  let cursor = undefined,
+    guard = 0;
+  while (guard++ < 10) {
+    const page = await kv.list({ prefix: "pay:", limit: 1000, cursor });
+    for (const k of page.keys) {
+      try {
+        const raw = await kv.get(k.name);
+        if (raw) recs.push(JSON.parse(raw));
+      } catch {}
+    }
+    if (page.list_complete) break;
+    cursor = page.cursor;
+  }
+  if (!recs.length) return "📊 Оплат пока нет.";
+  const live = recs.filter((r) => !r.refunded);
+  const refunded = recs.filter((r) => r.refunded);
+  const sum = (arr) => arr.reduce((a, r) => a + (Number(r.amount) || 0), 0);
+  const byKind = (kind) => sum(live.filter((r) => r.kind === kind));
+
+  const donors = new Map();
+  for (const r of live) {
+    const id = r.uid ?? r.charge_id;
+    const cur = donors.get(id) || { sum: 0, name: null };
+    cur.sum += Number(r.amount) || 0;
+    if (r.name || r.username) cur.name = r.name || ("@" + r.username);
+    donors.set(id, cur);
+  }
+  const top = [...donors.values()].sort((a, b) => b.sum - a.sum).slice(0, 5);
+
+  const byDay = new Map();
+  for (const r of live) {
+    const d = new Date((Number(r.ts) || 0) * 1000).toISOString().slice(0, 10);
+    byDay.set(d, (byDay.get(d) || 0) + (Number(r.amount) || 0));
+  }
+  const days = [...byDay.entries()].sort((a, b) => (a[0] < b[0] ? 1 : -1)).slice(0, 7);
+
+  const lines = [
+    "📊 Статистика",
+    `💰 Всего: ${sum(live)} ⭐ (${live.length} оплат, ${donors.size} чел.)`,
+    `❤️ Донаты: ${byKind("donate")} ⭐`,
+    `👑 Premium: ${byKind("premium")} ⭐`,
+  ];
+  if (refunded.length) lines.push(`↩️ Возвратов: ${refunded.length} (${sum(refunded)} ⭐)`);
+  lines.push("", "🏆 Топ-5:");
+  top.forEach((d, i) => lines.push(`${i + 1}. ${d.name || "без имени"} — ${d.sum} ⭐`));
+  lines.push("", "📅 По дням:");
+  days.forEach(([d, s]) => lines.push(`${d} — ${s} ⭐`));
+  return lines.join("\n");
 }
 
 function json(obj, status = 200) {
