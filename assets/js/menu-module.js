@@ -444,7 +444,7 @@ const MenuModule = {
         header.innerHTML = `
             <span class="category-icon">${locked ? '🔒' : (isExpanded ? '📂' : '📁')}</span>
             <span class="category-name">${this._escape(displayName)}</span>
-            <span class="category-count">${locked ? lock.price + ' ⭐' : total}</span>
+            <span class="category-count">${locked ? total + ' · ' + lock.price + ' ⭐' : total}</span>
         `;
         header.addEventListener('click', e => {
             e.stopPropagation();
