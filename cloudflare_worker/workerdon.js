@@ -126,23 +126,14 @@ async function handleUpdate(update, env) {
 
   const message = update.message || update.edited_message || {};
 
-  // 2. Успешная оплата — выдаём товар
+  // 2. Успешная оплата — только учёт в KV, сообщений юзеру нет.
   if (message.successful_payment) {
     const pay = message.successful_payment;
-    const chatId = message.chat.id;
     // Пишем в KV: защита от повторной обработки при ретрае webhook.
     const { duplicate } = await recordPayment(env, pay, message.from);
     console.log(
       `PAID ${pay.telegram_payment_charge_id} payload=${pay.invoice_payload} stars=${pay.total_amount} duplicate=${duplicate}`
     );
-    if (duplicate) return;
-    const isDonate = String(pay.invoice_payload || "").startsWith("donate:");
-    await tgApi(env, "sendMessage", {
-      chat_id: chatId,
-      text: isDonate
-        ? `Спасибо за поддержку! ❤️\nТвои ${pay.total_amount} ⭐ очень помогут!`
-        : `Оплата прошла! ⭐ ${pay.total_amount}\nСпасибо за покупку 🎉`,
-    });
     return;
   }
 
@@ -153,24 +144,17 @@ async function handleUpdate(update, env) {
 
   const cmd = text.split(" ")[0].split("@")[0];
 
-  // /balance — только для админа (ADMIN_IDS в env воркера, через запятую).
-  // Остальным отвечает отказом, баланс не раскрывает.
+  // /balance — только для админа. Не админу — тихо, без сообщений.
   if (cmd === "/balance") {
-    if (!isAdmin(chatId, env)) {
-      await tgApi(env, "sendMessage", { chat_id: chatId, text: "⛔ Эта команда только для администратора." });
-      return;
-    }
+    if (!isAdmin(chatId, env)) return;
     const reply = await getStarsBalanceText(env);
     await tgApi(env, "sendMessage", { chat_id: chatId, text: reply });
     return;
   }
 
-  // /stats — только для админа.
+  // /stats — только для админа. Не админу — тихо, без сообщений.
   if (cmd === "/stats") {
-    if (!isAdmin(chatId, env)) {
-      await tgApi(env, "sendMessage", { chat_id: chatId, text: "⛔ Эта команда только для администратора." });
-      return;
-    }
+    if (!isAdmin(chatId, env)) return;
     const reply = await getStatsText(env);
     await tgApi(env, "sendMessage", { chat_id: chatId, text: reply });
     return;
@@ -179,11 +163,9 @@ async function handleUpdate(update, env) {
   // /refund — только для админа. Форматы:
   //   /refund <charge_id>            — user_id берём из KV
   //   /refund <user_id> <charge_id>  — если записи в KV нет
+  // Не админу — тихо, без сообщений.
   if (cmd === "/refund") {
-    if (!isAdmin(chatId, env)) {
-      await tgApi(env, "sendMessage", { chat_id: chatId, text: "⛔ Эта команда только для администратора." });
-      return;
-    }
+    if (!isAdmin(chatId, env)) return;
     const args = text.split(/\s+/).slice(1).filter(Boolean);
     let uid = null,
       chargeId = null;
@@ -232,17 +214,23 @@ async function handleUpdate(update, env) {
     return;
   }
 
-  let reply;
-  if (cmd === "/start") {
-    reply = "Привет! Открой Mini App и нажми Купить ⭐";
-    if (isAdmin(chatId, env)) {
-      reply += "\n\nАдмин-команды:\n/balance — баланс звёзд\n/stats — статистика\n/refund <charge_id> — возврат";
-    }
+  // /start — только для админа: список команд. Остальным — тихо.
+  if (cmd === "/start" && isAdmin(chatId, env)) {
+    await tgApi(env, "sendMessage", {
+      chat_id: chatId,
+      text: [
+        "Админ-команды:",
+        "/balance — баланс звёзд",
+        "/stats — статистика оплат",
+        "/refund <charge_id> — возврат",
+        "/refund <user_id> <charge_id> — возврат без записи в KV",
+      ].join("\n"),
+    });
+    return;
   }
-  else if (cmd === "/ping") reply = "pong 🏓";
-  else reply = `Ты написал: ${text}`;
 
-  await tgApi(env, "sendMessage", { chat_id: chatId, text: reply });
+  // Остальное — тихо: /ping и обычный текст без ответов.
+  return;
 }
 
 // ---------- helpers ----------
