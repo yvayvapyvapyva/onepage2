@@ -113,49 +113,10 @@ const MenuModule = {
         if (uid) {
             this._userId = uid;
             await this._fetchUserRoutes(uid);
-        } else if (typeof vkBridge !== 'undefined') {
-            vkBridge.subscribe((event) => {
-                const data = event.detail?.data || null;
-                if (data?.id && !this._userId) {
-                    this._userId = String(data.id);
-                    this._fetchUserRoutes(this._userId).then(() => this._buildRoutesList());
-                }
-            });
         }
 
-        // Проверяем параметры сразу и при получении данных от VK Bridge
+        // Проверяем параметры URL
         this.checkUrlParam();
-
-        // Подписка на события VK Bridge для параметров запуска
-        if (typeof vkBridge !== 'undefined') {
-            vkBridge.subscribe((event) => {
-                // Проверяем, что маршрут ещё не загружен
-                if (!this.isLoaded && (event && event.type === 'VKWebAppUpdateConfig' || event.detail)) {
-                    this.checkUrlParam();
-                }
-            });
-
-            // Пробуем получить параметры из launchParams
-            try {
-                vkBridge.send('VKWebAppGetLaunchParams')
-                    .then(params => {
-                        // Проверяем, что маршрут ещё не загружен
-                        if (!this.isLoaded && params && params.m) {
-                            const { id, name } = this.parseRouteInput(params.m);
-                            if (name) {
-                                this.isLoaded = true;
-                                this._filterCreator = id;
-                                this.hide();
-                                this.loadRouteByName(name, id);
-                            } else if (id) {
-                                this.currentRoute = id;
-                            }
-                        }
-                    })
-                    .catch(e => {});
-            } catch (e) {
-            }
-        }
 
         // Проверка start_param от Telegram Mini App (на конкретный маршрут)
         if (typeof Telegram !== 'undefined' && Telegram.WebApp) {
@@ -278,9 +239,6 @@ const MenuModule = {
             const uname = window.tgUser?.username || '';
             return uname ? `${name} (tg: @${uname})` : `${name} (tg)`;
         }
-        if (window.authPlatform === 'vk') {
-            return `${name} (vk: id${window.authLogin})`;
-        }
         return name;
     },
 
@@ -292,10 +250,8 @@ const MenuModule = {
 
             if (window.authPlatform === 'tg') {
                 params.push(`p=tg&id=${encodeURIComponent(userId)}&tg_init_data=${encodeURIComponent(window.tgInitData || '')}`);
-            } else if (window.authPlatform === 'user') {
-                params.push(`p=user&login=${encodeURIComponent(window.authLogin)}&password=${encodeURIComponent(window.authPassword)}`);
             } else {
-                params.push(`p=vk&id=${encodeURIComponent(userId)}`);
+                params.push(`p=user&login=${encodeURIComponent(window.authLogin)}&password=${encodeURIComponent(window.authPassword)}`);
             }
 
             url += '?' + params.join('&');
@@ -868,32 +824,6 @@ const MenuModule = {
             }
             if (routeName) {
                 params.push(`m=${encodeURIComponent(routeName)}`);
-            }
-
-            if (window.vkUser) {
-                const user = window.vkUser;
-                const city = user.city?.title || 'не указан';
-                const fullName = [user.first_name, user.last_name].filter(Boolean).join(' ');
-                const userInfoStr = 'vk:' + [user.id, fullName, city].join(',');
-                const userInfoBase64 = btoa(encodeURIComponent(userInfoStr));
-                params.push(`i=${userInfoBase64}`);
-            } else if (typeof vkBridge !== 'undefined') {
-                try {
-                    const userInfo = await Promise.race([
-                        vkBridge.send('VKWebAppGetUserInfo'),
-                        new Promise((_, reject) =>
-                            setTimeout(() => reject(new Error('timeout')), 1000)
-                        )
-                    ]);
-                    if (userInfo) {
-                        const city = userInfo.city?.title || 'не указан';
-                        const fullName = [userInfo.first_name, userInfo.last_name].filter(Boolean).join(' ');
-                        const userInfoStr = 'vk:' + [userInfo.id, fullName, city].join(',');
-                        const userInfoBase64 = btoa(encodeURIComponent(userInfoStr));
-                        params.push(`i=${userInfoBase64}`);
-                    }
-                } catch (e) {
-                }
             }
 
             if (window.tgUser) {

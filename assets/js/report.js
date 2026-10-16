@@ -1,6 +1,6 @@
 // report.js — отправка отчёта о маршруте в Telegram через Cloudflare Worker.
 //
-// Модуль САМОДОСТАТОЧЕН и не зависит от Telegram/VK SDK, от загрузчика страницы
+// Модуль САМОДОСТАТОЧЕН и не зависит от Telegram SDK, от загрузчика страницы
 // и от геолокации: работает сразу после подключения скрипта. Отправка делается
 // в момент открытия маршрута (навигатор/редактор), но сам код отчёта живёт
 // здесь, а не в логике навигации.
@@ -40,10 +40,7 @@ const REPORT = (() => {
             try {
                 const decoded = decodeURIComponent(b64decode(iVal));
                 let data = decoded;
-                if (decoded.startsWith('vk:')) {
-                    platform = 'vk';
-                    data = decoded.substring(3);
-                } else if (decoded.startsWith('tg:')) {
+                if (decoded.startsWith('tg:')) {
                     platform = 'tg';
                     data = decoded.substring(3);
                 } else if (decoded.startsWith('user:')) {
@@ -55,9 +52,7 @@ const REPORT = (() => {
                 userName = parts[1] || '?';
                 third = parts[2] || '';
 
-                if (platform === 'vk') {
-                    platformIcon = ' VK';
-                } else if (platform === 'tg') {
+                if (platform === 'tg') {
                     platformIcon = ' TG';
                 } else if (platform === 'user') {
                     platformIcon = ' 👤';
@@ -80,17 +75,12 @@ const REPORT = (() => {
 
     // Собирает i_val ('платформа:id,имя,третье поле') из глобального состояния
     // приложения. Зависит только от данных, которые платформа успела записать
-    // в window (tgUser / vkUser / auth-платформа / последний резерв — initData),
+    // в window (tgUser / auth-платформа / последний резерв — initData),
     // и никогда — от факта загрузки SDK Telegram.
     function buildUserInfo() {
         try {
             let raw = '';
-            if (window.vkUser) {
-                const user = window.vkUser;
-                const city = user.city?.title || 'не указан';
-                const fullName = [user.first_name, user.last_name].filter(Boolean).join(' ');
-                raw = 'vk:' + [user.id, fullName, city].join(',');
-            } else if (window.tgUser) {
+            if (window.tgUser) {
                 const user = window.tgUser;
                 const fullName = [user.first_name, user.last_name].filter(Boolean).join(' ');
                 raw = 'tg:' + [user.id, fullName, user.username || ''].join(',');
@@ -135,10 +125,7 @@ const REPORT = (() => {
         const info = decodeUserInfo(i_val);
         let userInfoText = '';
         if (i_val) {
-            if (info.platform === 'vk') {
-                const thirdPart = info.third ? `, Город: ${info.third}` : '';
-                userInfoText = `ID: ${info.userId}, Имя: ${info.userName}${thirdPart}`;
-            } else if (info.platform === 'tg') {
+            if (info.platform === 'tg') {
                 const thirdPart = info.third ? `, @${info.third}` : '';
                 userInfoText = `ID: ${info.userId}, Имя: ${info.userName}${thirdPart}`;
             } else if (info.platform === 'user') {

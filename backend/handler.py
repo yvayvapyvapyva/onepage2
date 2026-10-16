@@ -327,7 +327,7 @@ def handler(event, context):
     id_val = params.get('id')
     creator_filter = params.get('creator', '')
 
-    # Публичные экшены (без VK подписи)
+    # Публичные экшены (без подписи)
     if action == 'list_routes':
         try:
             result_sets = get_pool().retry_operation_sync(execute_list_routes_public, creator_id=creator_filter)
@@ -433,8 +433,8 @@ def handler(event, context):
         except Exception as e:
             return create_response(500, {'error': 'internal_error'})
 
-    # Определяем платформу и верифицируем
-    platform = params.get('p', 'vk')
+    # Определяем платформу и верифицируем (только tg и web/логин)
+    platform = params.get('p', 'user')
     verified_user_id = None
     err = None
 
@@ -460,7 +460,7 @@ def handler(event, context):
         except Exception as e:
             return create_response(500, {'error': 'auth_error', 'details': str(e)})
     else:
-        verified_user_id = params.get('id')
+        return create_response(401, {'error': 'unknown_platform'})
 
     user_id = verified_user_id
 

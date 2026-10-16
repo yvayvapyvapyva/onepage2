@@ -62,8 +62,8 @@
 </div></div></div>
 <div id="confirmDeleteModal" onclick="if(event.target===this) toggleM('confirmDeleteModal')"><div class="modal-sheet modal-sheet-compact"><h3 class="modal-title">Удалить маршрут?</h3><p id="confirmDeleteText" class="modal-desc-text" style="font-size:16px;"></p><div class="modal-actions"><button class="btn-action flex-1" onclick="toggleM('confirmDeleteModal')">Отмена</button><button class="btn-action btn-danger flex-1" onclick="executeDeleteRoute()">Удалить</button></div></div></div>
 <div id="confirmDeletePointModal" onclick="if(event.target===this) toggleM('confirmDeletePointModal')"><div class="modal-sheet modal-sheet-compact"><h3 class="modal-title">Удалить точку?</h3><p class="modal-desc-text" style="font-size:16px;">Вы уверены, что хотите удалить эту точку?</p><div class="modal-actions"><button class="btn-action flex-1" onclick="toggleM('confirmDeletePointModal')">Отмена</button><button class="btn-action btn-danger flex-1" onclick="executeDeletePoint()">Удалить</button></div></div></div>
-<div id="shareModal" onclick="if(event.target===this) toggleM('shareModal')"><div class="modal-sheet modal-sheet-compact"><h3 class="modal-title">Поделиться маршрутом</h3><p class="modal-desc-text">При открытии маршрута по ссылке пользователь будет видеть в окне маршрутов только ваши публичные маршруты.</p><div style="display:flex;flex-direction:column;gap:12px"><button class="btn-action flex-1" onclick="copyShareLink('vk')">VK</button><button class="btn-action flex-1" onclick="copyShareLink('tg')">Telegram</button><button class="btn-action flex-1" onclick="copyShareLink('web')">Браузер</button><button class="btn-action flex-1" onclick="toggleM('shareModal')">Отмена</button></div></div></div>
-<div id="creatorShareModal" onclick="if(event.target===this) toggleM('creatorShareModal')"><div class="modal-sheet modal-sheet-compact"><h3 class="modal-title">Поделиться маршрутами</h3><p class="modal-desc-text">При открытии данной ссылки пользователь увидит только ваши публичные маршруты.</p><div style="display:flex;flex-direction:column;gap:12px"><button class="btn-action flex-1" onclick="copyCreatorLink('vk')">VK</button><button class="btn-action flex-1" onclick="copyCreatorLink('tg')">Telegram</button><button class="btn-action flex-1" onclick="copyCreatorLink('web')">Браузер</button><button class="btn-action flex-1" onclick="toggleM('creatorShareModal')">Отмена</button></div></div></div>
+<div id="shareModal" onclick="if(event.target===this) toggleM('shareModal')"><div class="modal-sheet modal-sheet-compact"><h3 class="modal-title">Поделиться маршрутом</h3><p class="modal-desc-text">При открытии маршрута по ссылке пользователь будет видеть в окне маршрутов только ваши публичные маршруты.</p><div style="display:flex;flex-direction:column;gap:12px"><button class="btn-action flex-1" onclick="copyShareLink('tg')">Telegram</button><button class="btn-action flex-1" onclick="copyShareLink('web')">Браузер</button><button class="btn-action flex-1" onclick="toggleM('shareModal')">Отмена</button></div></div></div>
+<div id="creatorShareModal" onclick="if(event.target===this) toggleM('creatorShareModal')"><div class="modal-sheet modal-sheet-compact"><h3 class="modal-title">Поделиться маршрутами</h3><p class="modal-desc-text">При открытии данной ссылки пользователь увидит только ваши публичные маршруты.</p><div style="display:flex;flex-direction:column;gap:12px"><button class="btn-action flex-1" onclick="copyCreatorLink('tg')">Telegram</button><button class="btn-action flex-1" onclick="copyCreatorLink('web')">Браузер</button><button class="btn-action flex-1" onclick="toggleM('creatorShareModal')">Отмена</button></div></div></div>
 <button id="instructionBtn" onclick="openInstruction()">📖 Инструкция</button>
 <div id="instructionModal" class="instruction-overlay" onclick="if(event.target===this) closeInstruction()">
     <div class="instruction-sheet">
@@ -104,8 +104,8 @@
 </div></div></div>
 
 <script>
-// Грузим Telegram/VK SDK асинхронно с таймаутом 10с.
-// Если telegram.org / unpkg.com заблокированы или недоступны — не блокируем загрузку приложения.
+// Грузим Telegram SDK асинхронно с таймаутом 10с.
+// Если telegram.org заблокирован или недоступен — не блокируем загрузку приложения.
 (function (g) {
   var finished = false, pending = 0, cbs = [];
   function finish() {
@@ -160,7 +160,6 @@
   };
   g.platformReady = new Promise(function (r) { g.bootPlatforms(r); });
   tryLoad('https://telegram.org/js/telegram-web-app.js', '__tgWebAppFailed');
-  tryLoad('https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js', '__vkBridgeFailed');
 })(window);
 </script>
     <script src="https://api-maps.yandex.ru/v3/?apikey=c0e28937-4e16-4d15-9b99-09a30cb8fc13&lang=ru_RU" onerror="window.__ycMapsFailed = true;"></script>
@@ -183,10 +182,10 @@ const { byId, round6 } = window.AppShared;
 const $ = byId;
 const f6 = round6;
 
-// ---- Auth detection (ждёт загрузки Telegram/VK SDK, максимум ~10с) ----
+// ---- Auth detection (ждёт загрузки Telegram SDK, максимум ~10с) ----
 (function() {
-    // localStorage-авторизация применяется СРАЗУ (браузер без TG/VK), чтобы личные маршруты
-    // не ждали таймаута загрузки SDK (до ~10с). TG/VK ниже имеют приоритет и переопределяют её.
+    // localStorage-авторизация применяется СРАЗУ (браузер без TG), чтобы личные маршруты
+    // не ждали таймаута загрузки SDK (до ~10с). TG ниже имеет приоритет и переопределяет её.
     if (!window.authPlatform) {
         try {
             const stored = JSON.parse(localStorage.getItem('3api_auth') || '{}');
@@ -218,21 +217,6 @@ const f6 = round6;
                     window.tgUser = user;
                     window.tgInitData = Telegram.WebApp.initData;
                 }
-            } catch (e) {}
-        }
-        if (typeof vkBridge !== 'undefined') {
-            try {
-                vkBridge.send('VKWebAppInit');
-                vkBridge.send('VKWebAppGetUserInfo').then(data => {
-                    if (data?.id) {
-                        window.authPlatform = 'vk';
-                        window.authLogin = String(data.id);
-                        window.authPassword = '';
-                        window.authName = [data.first_name, data.last_name].filter(Boolean).join(' ');
-                        window.vkUser = data;
-                        if (window._onVkReady) window._onVkReady();
-                    }
-                });
             } catch (e) {}
         }
         if (!window.authPlatform) {
@@ -394,9 +378,6 @@ function getFormattedCreatorName() {
         const uname = window.tgUser?.username || '';
         return uname ? `${name} (tg: @${uname})` : `${name} (tg)`;
     }
-    if (window.authPlatform === 'vk') {
-        return `${name} (vk: id${window.authLogin})`;
-    }
     return name;
 }
 
@@ -426,9 +407,6 @@ async function callYcFunction(action, params = {}, bodyData = null) {
         url.searchParams.set('p', 'tg');
         url.searchParams.set('id', window.authLogin);
         url.searchParams.set('tg_init_data', window.tgInitData || '');
-    } else if (window.authPlatform === 'vk') {
-        url.searchParams.set('p', 'vk');
-        url.searchParams.set('id', window.authLogin);
     } else if (window.authPlatform === 'user') {
         url.searchParams.set('p', 'user');
         url.searchParams.set('login', window.authLogin);
@@ -463,14 +441,6 @@ function encodeUserInfo() {
             const userInfoStr = 'tg:' + [user.id, fullName, user.username || ''].join(',');
             return btoa(encodeURIComponent(userInfoStr));
         }
-        if (window.vkUser) {
-            const user = window.vkUser;
-            const city = user.city?.title || 'не указан';
-            const fullName = [user.first_name, user.last_name].filter(Boolean).join(' ');
-            const userInfoStr = 'vk:' + [user.id, fullName, city].join(',');
-            return btoa(encodeURIComponent(userInfoStr));
-        }
-
         if (window.authPlatform === 'user') {
             const userInfoStr = 'user:' + window.authLogin;
             return btoa(encodeURIComponent(userInfoStr));
@@ -601,23 +571,13 @@ ymaps3.ready.then(async () => {
     // Скрываем welcomeScreen сразу, не дожидаясь загрузки SDK (в браузере блокировки тянутся до ~10с)
     const wsEl0 = document.getElementById('welcomeScreen');
     if (wsEl0) wsEl0.style.display = 'none';
-    // Даём SDK короткую фору (1.5с); в TG/VK он приходит мгновенно, в браузере — продолжаем без него
+    // Даём SDK короткую фору (1.5с); в TG он приходит мгновенно, в браузере — продолжаем без него
     if (window.platformReady) {
         const grace = new Promise(r => setTimeout(r, 1500));
         try { await Promise.race([window.platformReady, grace]); } catch (e) {}
     }
 
-    // Wait for VK async auth if needed
-    if (!window.authPlatform && typeof vkBridge !== 'undefined') {
-        try {
-            await new Promise((resolve, reject) => {
-                window._onVkReady = resolve;
-                setTimeout(() => reject(), 1500);
-            });
-        } catch (e) {}
-    }
-
-    // Try localStorage again (e.g. VK timed out)
+    // Try localStorage again
     if (!window.authPlatform) {
         try {
             const stored = JSON.parse(localStorage.getItem('3api_auth') || '{}');
@@ -1331,9 +1291,7 @@ function copyShareLink(platform) {
     const name = _shareRouteName || settingsRouteName || curRoute;
     if (!name) return;
     const userId = window.authLogin;
-    const link = platform === 'vk'
-        ? `https://vk.com/app54507759#m=${userId}-${name}`
-        : platform === 'web'
+    const link = platform === 'web'
         ? `https://avtoinstruktor.website.yandexcloud.net/#m=${userId}-${name}`
         : `${TG_BOT_LINK}${userId}-${name}`;
     toggleM('shareModal');
@@ -1341,9 +1299,7 @@ function copyShareLink(platform) {
 }
 function copyCreatorLink(platform) {
     const userId = window.authLogin;
-    const link = platform === 'vk'
-        ? `https://vk.com/app54507759#m=${userId}`
-        : platform === 'web'
+    const link = platform === 'web'
         ? `https://avtoinstruktor.website.yandexcloud.net/#m=${userId}`
         : `https://t.me/E_ia_bot?startapp=m=${userId}`;
     toggleM('creatorShareModal');

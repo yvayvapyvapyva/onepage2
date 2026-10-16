@@ -114,8 +114,8 @@
 <script src="assets/js/don.js?v=1"></script>
 <script src="https://api-maps.yandex.ru/v3/?apikey=c0e28937-4e16-4d15-9b99-09a30cb8fc13&lang=ru_RU" onerror="window.__ycMapsFailed = true;"></script>
 <script>
-// Грузим Telegram/VK SDK асинхронно с таймаутом 10с.
-// Если telegram.org / unpkg.com заблокированы или недоступны — не блокируем загрузку приложения.
+// Грузим Telegram SDK асинхронно с таймаутом 10с.
+// Если telegram.org заблокирован или недоступен — не блокируем загрузку приложения.
 (function (g) {
   var finished = false, pending = 0, cbs = [];
   function finish() {
@@ -170,7 +170,6 @@
   };
   g.platformReady = new Promise(function (r) { g.bootPlatforms(r); });
   tryLoad('https://telegram.org/js/telegram-web-app.js', '__tgWebAppFailed');
-  tryLoad('https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js', '__vkBridgeFailed');
 })(window);
 </script>
 <script src="assets/js/menu-module.js?v=1" defer></script>
@@ -206,10 +205,10 @@ const APP = {
 
 const $ = id => document.getElementById(id);
 
-// Auth detection (ждёт загрузки Telegram/VK SDK, максимум ~10с)
+// Auth detection (ждёт загрузки Telegram SDK, максимум ~10с)
 (function() {
-    // localStorage-авторизация применяется СРАЗУ (браузер без TG/VK), чтобы личные маршруты
-    // не ждали таймаута загрузки SDK (до ~10с). TG/VK ниже имеют приоритет и переопределяют её.
+    // localStorage-авторизация применяется СРАЗУ (браузер без TG), чтобы личные маршруты
+    // не ждали таймаута загрузки SDK (до ~10с). TG ниже имеет приоритет и переопределяет её.
     if (!window.authPlatform) {
         try {
             const stored = JSON.parse(localStorage.getItem('3api_auth') || '{}');
@@ -241,20 +240,6 @@ const $ = id => document.getElementById(id);
                     window.tgUser = user;
                     window.tgInitData = Telegram.WebApp.initData;
                 }
-            } catch (e) {}
-        }
-        if (typeof vkBridge !== 'undefined') {
-            try {
-                vkBridge.send('VKWebAppInit');
-                vkBridge.send('VKWebAppGetUserInfo').then(data => {
-                    if (data?.id) {
-                        window.authPlatform = 'vk';
-                        window.authLogin = String(data.id);
-                        window.authPassword = '';
-                        window.authName = [data.first_name, data.last_name].filter(Boolean).join(' ');
-                        window.vkUser = data;
-                    }
-                });
             } catch (e) {}
         }
         if (!window.authPlatform) {
@@ -1703,7 +1688,7 @@ ymaps3.ready.then(async () => {
 
     // Скрываем оверлей сразу, не дожидаясь загрузки SDK (в браузере блокировки тянутся до ~10с)
     $('loading').classList.add('hidden');
-    // Даём SDK короткую фору (1.5с); в TG/VK он приходит мгновенно, в браузере — продолжаем без него
+    // Даём SDK короткую фору (1.5с); в TG он приходит мгновенно, в браузере — продолжаем без него
     if (window.platformReady) {
         const grace = new Promise(r => setTimeout(r, 1500));
         try { await Promise.race([window.platformReady, grace]); } catch (e) {}
