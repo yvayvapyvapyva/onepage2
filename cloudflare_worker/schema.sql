@@ -15,10 +15,3 @@ CREATE TABLE IF NOT EXISTS roads (
 
 CREATE INDEX IF NOT EXISTS idx_roads_visible ON roads (visible);
 CREATE INDEX IF NOT EXISTS idx_roads_creator ON roads (id);
-
-CREATE TABLE IF NOT EXISTS users (
-  login        TEXT PRIMARY KEY,
-  password     TEXT NOT NULL,
-  creator_name TEXT DEFAULT '',
-  created_at   INTEGER
-);

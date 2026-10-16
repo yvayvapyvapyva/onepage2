@@ -3,16 +3,11 @@ const MenuModule = {
     callback: null,
     isLoaded: false,
     currentRoute: null,
-    routesDescriptions: {}, // { "id-m": { name, description, id, m } }
+    routesDescriptions: {}, // { "m": { name, description, m } }
     _isFetchingRoutes: false,
     _categoryTree: null,
     _starredTree: null,
     _expandedFolders: new Set(),
-    _userRoutes: null,
-    _userId: null,
-    _expandedPersonalFolders: new Set(),
-    _currentIsPersonal: false,
-    _filterCreator: '',
 
     // URL бекенда для загрузки маршрутов: новый API-воркер (D1), фолбэк — старая Яндекс-функция.
     // Задаётся в assets/js/config.js -> API_CONFIG.API_BASE после deploy.
@@ -20,7 +15,7 @@ const MenuModule = {
     
     /**
      * Универсальное получение параметров URL
-     * Поддерживает только формат: #m=id-название
+     * Формат: #m=название (старые ссылки #m=id-название тоже поддерживаются)
      */
     getUrlParam(name) {
         if (name !== 'm') return null;
@@ -29,10 +24,10 @@ const MenuModule = {
         let value = new URLSearchParams(window.location.search).get(name);
         if (value) return value;
 
-        // Проверка hash: #m=id-название
+        // Проверка hash: #m=название
         const hash = window.location.hash.slice(1);
         if (hash) {
-            // Формат: #m=id-название
+            // Формат: #m=название
             const hashParams = new URLSearchParams(hash);
             value = hashParams.get(name);
             if (value) return value;
@@ -51,19 +46,19 @@ const MenuModule = {
     },
 
     /**
-     * Парсинг ввода в формате "id-название"
-     * @returns {{id: string, name: string}}
+     * Нормализация ключа маршрута: новый формат "название",
+     * старый "id-название" -> "название".
      */
-    parseRouteInput(input) {
-        const trimmed = input.trim();
+    resolveRouteKey(input) {
+        const trimmed = (input || '').trim();
+        if (this.routesDescriptions && this.routesDescriptions[trimmed]) return trimmed;
         const dashIndex = trimmed.indexOf('-');
-        
         if (dashIndex > 0) {
-            const id = trimmed.substring(0, dashIndex).trim();
-            const name = trimmed.substring(dashIndex + 1).trim();
-            return { id, name };
+            const tail = trimmed.substring(dashIndex + 1).trim();
+            if (this.routesDescriptions && this.routesDescriptions[tail]) return tail;
+            return tail;
         }
-        return { id: trimmed, name: '' };
+        return trimmed;
     },
 
     // Инициализация
@@ -73,48 +68,8 @@ const MenuModule = {
         this.createButton();
         this.hide();
 
-        // Читаем параметры фильтрации из URL/hash
-        const urlM = new URLSearchParams(window.location.search).get('m')
-            || (() => {
-                const hash = window.location.hash.slice(1);
-                if (hash) return new URLSearchParams(hash).get('m');
-                return '';
-            })() || '';
-        if (urlM && !urlM.includes('-')) {
-            this._filterCreator = urlM.trim();
-        } else {
-            this._filterCreator = new URLSearchParams(window.location.search).get('creator')
-                || (() => {
-                    const hash = window.location.hash.slice(1);
-                    if (hash) return new URLSearchParams(hash).get('creator');
-                    return '';
-                })() || '';
-        }
-
-        // Проверка start_param от Telegram Mini App (ДО загрузки маршрутов)
-        if (typeof Telegram !== 'undefined' && Telegram.WebApp) {
-            try {
-                const startParam = Telegram.WebApp.initDataUnsafe?.start_param;
-                if (startParam) {
-                    if (startParam.startsWith('m=')) {
-                        const val = startParam.substring(2);
-                        if (val && !val.includes('-')) this._filterCreator = val;
-                    } else if (startParam.startsWith('creator=')) {
-                        this._filterCreator = startParam.substring(8);
-                    }
-                }
-            } catch (e) {}
-        }
-
         // Загружаем список маршрутов динамически
         await this._loadRoutesList();
-
-        // Загружаем личные маршруты пользователя
-        const uid = this._detectUserId();
-        if (uid) {
-            this._userId = uid;
-            await this._fetchUserRoutes(uid);
-        }
 
         // Проверяем параметры URL
         this.checkUrlParam();
@@ -124,16 +79,11 @@ const MenuModule = {
             try {
                 const startParam = Telegram.WebApp.initDataUnsafe?.start_param;
                 if (startParam && !this.isLoaded && startParam.startsWith('m=')) {
-                    const mValue = startParam.substring(2);
-                    const { id, name } = this.parseRouteInput(mValue);
-                    if (name) {
+                    const key = this.resolveRouteKey(startParam.substring(2));
+                    if (key) {
                         this.isLoaded = true;
-                        this._filterCreator = id;
                         this.hide();
-                        this.loadRouteByName(name, id);
-                        this._loadRoutesList().then(() => this._buildRoutesList());
-                    } else if (id) {
-                        this.currentRoute = id;
+                        this.loadRouteByName(key);
                     }
                 }
             } catch (e) {}
@@ -188,11 +138,10 @@ const MenuModule = {
     },
 
     /**
-     * Запрос к Яндекс-функции за списком маршрутов
+     * Запрос к API за списком маршрутов
      */
     async _fetchFromAPI() {
-        let url = `${this.API_URL_V2}?action=list_routes`;
-        if (this._filterCreator) url += `&creator=${encodeURIComponent(this._filterCreator)}`;
+        const url = `${this.API_URL_V2}?action=list_routes`;
         const response = await fetch(url);
 
         if (!response.ok) {
@@ -202,13 +151,12 @@ const MenuModule = {
         const data = await response.json();
 
         const routesFlat = {};
-        
+
         for (const route of data) {
-            const key = `${route.id}-${route.m}`;
+            const key = route.m;
             const rawName = route.name || route.m || '';
-            
+
             routesFlat[key] = {
-                id: route.id,
                 m: route.m,
                 name: rawName,
                 description: route.description || '',
@@ -223,49 +171,6 @@ const MenuModule = {
         return;
     },
 
-    _detectUserId() {
-        if (window.authLogin) return window.authLogin;
-        return null;
-    },
-
-    _getUserDisplayName() {
-        if (window.authName) return window.authName;
-        if (window.authLogin) return window.authLogin;
-        return '';
-    },
-
-    _getFormattedDisplayName() {
-        const name = this._getUserDisplayName() || this._detectUserId() || '';
-        if (window.authPlatform === 'tg') {
-            const uname = window.tgUser?.username || '';
-            return uname ? `${name} (tg: @${uname})` : `${name} (tg)`;
-        }
-        return name;
-    },
-
-    async _fetchUserRoutes(userId) {
-        if (!userId) return;
-        try {
-            let url = this.API_URL_V2;
-            const params = ['action=list'];
-
-            if (window.authPlatform === 'tg') {
-                params.push(`p=tg&id=${encodeURIComponent(userId)}&tg_init_data=${encodeURIComponent(window.tgInitData || '')}`);
-            } else {
-                params.push(`p=user&login=${encodeURIComponent(window.authLogin)}&password=${encodeURIComponent(window.authPassword)}`);
-            }
-
-            url += '?' + params.join('&');
-            const resp = await fetch(url);
-            if (!resp.ok) throw new Error('HTTP ' + resp.status);
-            const data = await resp.json();
-            this._userRoutes = data.routes || [];
-        } catch (e) {
-            console.warn('[MenuModule] Не удалось загрузить личные маршруты:', e);
-            this._userRoutes = [];
-        }
-    },
-
     _countTreeRoutes(node) {
         let count = node.routes.length;
         for (const f of Object.values(node.folders)) count += this._countTreeRoutes(f);
@@ -274,35 +179,23 @@ const MenuModule = {
 
     _buildCategoryTree() {
         const root = { folders: {}, routes: [] };
-        const groups = {};
         for (const [key, route] of Object.entries(this.routesDescriptions)) {
             const rawName = route.name || '';
             if (rawName.startsWith('*')) continue;
-            const cid = route.id;
-            if (!groups[cid]) {
-                groups[cid] = { name: route.creator_name || cid, routes: [] };
+            const fullPath = rawName || key;
+            const parts = fullPath.split('/').map(s => s.trim()).filter(Boolean);
+            const leafName = parts.pop() || fullPath;
+            let node = root;
+            for (const part of parts) {
+                if (!node.folders[part]) node.folders[part] = { folders: {}, routes: [] };
+                node = node.folders[part];
             }
-            groups[cid].routes.push({ ...route, key });
+            node.routes.push({ ...route, name: leafName, fullPath, key });
         }
-        for (const group of Object.values(groups)) {
-            const node = { folders: {}, routes: [] };
-            for (const route of group.routes) {
-                const fullPath = route.name || route.key;
-                const parts = fullPath.split('/').map(s => s.trim()).filter(Boolean);
-                const leafName = parts.pop() || fullPath;
-                let n = node;
-                for (const part of parts) {
-                    if (!n.folders[part]) n.folders[part] = { folders: {}, routes: [] };
-                    n = n.folders[part];
-                }
-                n.routes.push({ ...route, name: leafName, fullPath });
-            }
-            if (node.routes.length > 0) {
-                node.folders['Без категории'] = node.folders['Без категории'] || { folders: {}, routes: [] };
-                node.folders['Без категории'].routes.push(...node.routes);
-                node.routes = [];
-            }
-            root.folders[group.name] = node;
+        if (root.routes.length > 0) {
+            root.folders['Без категории'] = root.folders['Без категории'] || { folders: {}, routes: [] };
+            root.folders['Без категории'].routes.push(...root.routes);
+            root.routes = [];
         }
         return root;
     },
@@ -335,94 +228,13 @@ const MenuModule = {
         if (!this.currentRoute) return;
         const route = this.routesDescriptions[this.currentRoute];
         if (!route || !route.name) return;
-        const rawName = route.name;
-        if (rawName.startsWith('*')) {
-            const cleanName = rawName.substring(1);
-            const parts = cleanName.split('/').filter(Boolean);
-            parts.pop();
-            let path = '';
-            for (const part of parts) {
-                path = path ? path + '/' + part : part;
-                this._expandedFolders.add(path);
-            }
-        } else {
-            const creatorName = route.creator_name || route.id;
-            this._expandedFolders.add(creatorName);
-            const parts = rawName.split('/').filter(Boolean);
-            parts.pop();
-            let path = creatorName;
-            for (const part of parts) {
-                path = path + '/' + part;
-                this._expandedFolders.add(path);
-            }
-        }
-    },
-
-    _buildPersonalCategoryTree() {
-        const root = { folders: {}, routes: [] };
-        for (const route of this._userRoutes) {
-            const fullPath = route.name || route.m || '';
-            const parts = fullPath.split('/').map(s => s.trim()).filter(Boolean);
-            const leafName = parts.pop() || fullPath;
-            let node = root;
-            for (const part of parts) {
-                if (!node.folders[part]) node.folders[part] = { folders: {}, routes: [] };
-                node = node.folders[part];
-            }
-            node.routes.push({ m: route.m, name: leafName, fullPath });
-        }
-        return root;
-    },
-
-    _renderPersonalTreeNode(node, container, path) {
-        const folderNames = Object.keys(node.folders).sort((a, b) => a.localeCompare(b));
-        for (const name of folderNames) {
-            const folderPath = path ? path + '/' + name : name;
-            const sub = node.folders[name];
-            const total = this._countTreeRoutes(sub);
-            const isExpanded = this._expandedPersonalFolders.has(folderPath);
-
-            const el = document.createElement('div');
-            el.className = 'category-folder';
-
-            const header = document.createElement('div');
-            header.className = 'category-header' + (isExpanded ? ' expanded' : '');
-            header.innerHTML = `
-                <span class="category-icon">${isExpanded ? '📂' : '📁'}</span>
-                <span class="category-name">${this._escape(name)}</span>
-                <span class="category-count">${total}</span>
-            `;
-            header.addEventListener('click', e => {
-                e.stopPropagation();
-                if (this._expandedPersonalFolders.has(folderPath)) this._expandedPersonalFolders.delete(folderPath);
-                else this._expandedPersonalFolders.add(folderPath);
-                this._buildRoutesList();
-            });
-            el.appendChild(header);
-            container.appendChild(el);
-
-            if (isExpanded) {
-                const childWrap = document.createElement('div');
-                childWrap.style.cssText = 'padding-left:16px;display:flex;flex-direction:column;gap:6px;';
-                this._renderPersonalTreeNode(sub, childWrap, folderPath);
-                container.appendChild(childWrap);
-            }
-        }
-
-        for (const route of node.routes) {
-            const routeKey = `${this._userId}-${route.m}`;
-            const isActive = this._currentIsPersonal && routeKey === this.currentRoute;
-            const btn = document.createElement('button');
-            btn.className = 'route-item' + (isActive ? ' active' : '');
-            if (isActive) btn.style.cssText = 'background:rgba(48,209,88,0.2);border-color:rgba(48,209,88,0.4);';
-            const nameSpan = document.createElement('span');
-            nameSpan.className = 'route-name';
-            nameSpan.textContent = route.name;
-            btn.appendChild(nameSpan);
-            btn.addEventListener('click', () => {
-                this.loadRouteByName(route.m, this._userId, true);
-            });
-            container.appendChild(btn);
+        const rawName = route.name.startsWith('*') ? route.name.substring(1) : route.name;
+        const parts = rawName.split('/').filter(Boolean);
+        parts.pop();
+        let path = '';
+        for (const part of parts) {
+            path = path ? path + '/' + part : part;
+            this._expandedFolders.add(path);
         }
     },
 
@@ -434,17 +246,16 @@ const MenuModule = {
 
         const frag = document.createDocumentFragment();
 
-        // 1. Звёздочки (*) — без папки создателя, в самом верху
+        // 1. Звёздочки (*) — в самом верху
         const starredTree = this._starredTree;
         const hasStarred = starredTree && (Object.keys(starredTree.folders).length > 0 || starredTree.routes.length > 0);
         const hasRegular = this._categoryTree && Object.keys(this._categoryTree.folders).length > 0;
-        const hasPersonal = this._userRoutes && this._userRoutes.length > 0;
 
         if (hasStarred) {
             this._renderTreeNode(starredTree, frag, '', false);
         }
 
-        // 2. Папки создателей (без *)
+        // 2. Остальные маршруты (без *)
         if (hasRegular) {
             if (hasStarred) {
                 const sep = document.createElement('div');
@@ -452,44 +263,6 @@ const MenuModule = {
                 frag.appendChild(sep);
             }
             this._renderTreeNode(this._categoryTree, frag, '', true);
-        }
-
-        // 3. Личные маршруты
-        if (hasPersonal) {
-            const sep = document.createElement('div');
-            sep.style.cssText = 'height:1px;background:rgba(255,255,255,0.1);margin:8px 0;flex-shrink:0;';
-            frag.appendChild(sep);
-
-            const folder = document.createElement('div');
-            folder.className = 'category-folder personal';
-
-            const personalTree = this._buildPersonalCategoryTree();
-            const total = this._countTreeRoutes(personalTree);
-            const isExpanded = this._expandedPersonalFolders.has('__personal__');
-
-            const header = document.createElement('div');
-            header.className = 'category-header personal' + (isExpanded ? ' expanded' : '');
-            header.innerHTML = `
-                <span class="category-icon">👤</span>
-                <span class="category-name">Личные — ${this._getFormattedDisplayName()}, видны только вам.</span>
-                <span class="category-count">${total}</span>
-            `;
-            header.addEventListener('click', e => {
-                e.stopPropagation();
-                if (this._expandedPersonalFolders.has('__personal__')) this._expandedPersonalFolders.delete('__personal__');
-                else this._expandedPersonalFolders.add('__personal__');
-                this._buildRoutesList();
-            });
-            folder.appendChild(header);
-
-            if (isExpanded) {
-                const body = document.createElement('div');
-                body.className = 'personal-routes-body';
-                this._renderPersonalTreeNode(personalTree, body, '');
-                folder.appendChild(body);
-            }
-
-            frag.appendChild(folder);
         }
 
         if (frag.children.length === 0) {
@@ -569,9 +342,9 @@ const MenuModule = {
         }
 
         for (const route of node.routes) {
-            const routeKey = route.key;
+            const routeKey = route.key || route.m;
             const hasDesc = route.description && route.description.trim() !== '';
-            const isActive = !this._currentIsPersonal && routeKey === this.currentRoute;
+            const isActive = routeKey === this.currentRoute;
             const btn = document.createElement('button');
             btn.className = 'route-item' + (isActive ? ' active' : '');
             if (isActive) btn.style.cssText = 'background:rgba(48,209,88,0.2);border-color:rgba(48,209,88,0.4);';
@@ -594,8 +367,7 @@ const MenuModule = {
 
             btn.addEventListener('click', e => {
                 e.stopPropagation();
-                const route = this.routesDescriptions[routeKey];
-                if (route) this.loadRouteByName(route.m, route.id);
+                if (this.routesDescriptions[routeKey]) this.loadRouteByName(routeKey);
             });
             container.appendChild(btn);
         }
@@ -785,62 +557,36 @@ const MenuModule = {
         });
     },
     
-    // Проверка URL параметра
+    // Проверка URL параметра (#m=название, старые #m=id-название тоже ок)
     checkUrlParam() {
         const routeParam = this.getUrlParam('m');
         if (!routeParam) return;
 
-        const { id, name } = this.parseRouteInput(routeParam);
+        const key = this.resolveRouteKey(routeParam);
+        if (!key) return;
 
-        // Только ID, без названия — фильтруем список по создателю
-        if (!name) {
-            this.currentRoute = id;
-            this._filterCreator = id;
-            this._loadRoutesList().then(() => this._buildRoutesList());
-            return;
-        }
-
-        // ID и название — загружаем маршрут
-        this.currentRoute = routeParam;
-        this._filterCreator = id;
+        this.currentRoute = key;
         this.isLoaded = true;
         this.hide();
-        this.loadRouteByName(name, id);
-        this._loadRoutesList().then(() => this._buildRoutesList());
+        this.loadRouteByName(key);
     },
-    
-    // Загрузка маршрута по названию (внутренний метод)
-    async loadRouteByName(routeName, routeId = null, isPersonal = false) {
-        this._currentIsPersonal = isPersonal;
+
+    // Загрузка маршрута по ключу m (внутренний метод)
+    async loadRouteByName(routeName) {
         this.showSpinner();
         try {
-            this.currentRoute = routeId ? `${routeId}-${routeName}` : routeName;
+            this.currentRoute = routeName;
 
             this.hide();
-            
+
             let url = this.API_URL_V2;
-            const params = [];
-            if (routeId) {
-                params.push(`id=${encodeURIComponent(routeId)}`);
-            }
-            if (routeName) {
-                params.push(`m=${encodeURIComponent(routeName)}`);
-            }
+            const params = [`m=${encodeURIComponent(routeName)}`];
 
             if (window.tgUser) {
                 try {
                     const user = window.tgUser;
                     const fullName = [user.first_name, user.last_name].filter(Boolean).join(' ');
                     const userInfoStr = 'tg:' + [user.id, fullName, user.username || ''].join(',');
-                    const userInfoBase64 = btoa(encodeURIComponent(userInfoStr));
-                    params.push(`i=${userInfoBase64}`);
-                } catch (e) {
-                }
-            }
-
-            if (window.authPlatform === 'user') {
-                try {
-                    const userInfoStr = 'user:' + window.authLogin;
                     const userInfoBase64 = btoa(encodeURIComponent(userInfoStr));
                     params.push(`i=${userInfoBase64}`);
                 } catch (e) {
@@ -878,7 +624,6 @@ const MenuModule = {
             try {
                 if (typeof REPORT !== 'undefined') {
                     REPORT.send({
-                        user_id: routeId,
                         m_val: routeName,
                         report_type: 'navigator',
                         route_name: data && data.name ? data.name : ''
@@ -952,14 +697,6 @@ const MenuModule = {
         this._hideRouteDescription();
         this._expandedFolders = new Set();
         this._expandCurrentRoutePath();
-        // Если личные маршруты ещё не загружены, пробуем снова
-        if (this._userRoutes === null && !this._userId) {
-            const uid = this._detectUserId();
-            if (uid) {
-                this._userId = uid;
-                this._fetchUserRoutes(uid).then(() => this._buildRoutesList());
-            }
-        }
         if (!this.routesDescriptions && !this._isFetchingRoutes) {
             this._loadRoutesList();
         } else {

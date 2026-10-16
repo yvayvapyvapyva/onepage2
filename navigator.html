@@ -205,21 +205,8 @@ const APP = {
 
 const $ = id => document.getElementById(id);
 
-// Auth detection (ждёт загрузки Telegram SDK, максимум ~10с)
+// Telegram detection (только для подписи отчётов window.tgUser, авторизации нет)
 (function() {
-    // localStorage-авторизация применяется СРАЗУ (браузер без TG), чтобы личные маршруты
-    // не ждали таймаута загрузки SDK (до ~10с). TG ниже имеет приоритет и переопределяет её.
-    if (!window.authPlatform) {
-        try {
-            const stored = JSON.parse(localStorage.getItem('3api_auth') || '{}');
-            if (stored.platform && stored.login) {
-                window.authPlatform = stored.platform;
-                window.authLogin = stored.login;
-                window.authPassword = stored.password || '';
-                window.authName = stored.name || stored.login;
-            }
-        } catch (e) {}
-    }
     const runAuth = () => {
         if (window._authRan) return;
         window._authRan = true;
@@ -232,28 +219,10 @@ const $ = id => document.getElementById(id);
                     try { Telegram.WebApp.disableVerticalSwipes?.(); } catch (e) {}
                 }
                 const user = Telegram.WebApp.initDataUnsafe?.user;
-                if (user) {
-                    window.authPlatform = 'tg';
-                    window.authLogin = String(user.id);
-                    window.authPassword = '';
-                    window.authName = [user.first_name, user.last_name].filter(Boolean).join(' ');
-                    window.tgUser = user;
-                    window.tgInitData = Telegram.WebApp.initData;
-                }
+                if (user) window.tgUser = user;
             } catch (e) {}
         }
-        if (!window.authPlatform) {
-            try {
-                const stored = JSON.parse(localStorage.getItem('3api_auth') || '{}');
-                if (stored.platform && stored.login) {
-                    window.authPlatform = stored.platform;
-                    window.authLogin = stored.login;
-                    window.authPassword = stored.password || '';
-                    window.authName = stored.name || stored.login;
-                }
-            } catch (e) {}
-        }
-        if (navigator.userAgent.includes('Android') && window.authPlatform === 'tg') {
+        if (navigator.userAgent.includes('Android') && window.tgUser) {
             document.documentElement.classList.add('android-app');
         }
     };
