@@ -1,7 +1,12 @@
 // API конфигурация
 const API_CONFIG = {
   YANDEX_MAPS_V2_KEY: 'YANDEX_API_KEY',
-  YANDEX_MAPS_V3_KEY: 'c0e28937-4e16-4d15-9b99-09a30cb8fc13'
+  YANDEX_MAPS_V3_KEY: 'c0e28937-4e16-4d15-9b99-09a30cb8fc13',
+  // Новый API-воркер на Cloudflare (D1). После deploy вписать URL сюда, например:
+  // 'https://nav-api.<account>.workers.dev'
+  // Новый API-воркер на Cloudflare (D1). TTS всегда остаётся на Yandex.
+  API_BASE: 'https://nav-api.ivan43103.workers.dev',
+  API_BASE_LEGACY: 'https://functions.yandexcloud.net/d4e6qbc1mm9j44h0na3n'
 };
 
 const ROUTE_DATA = {

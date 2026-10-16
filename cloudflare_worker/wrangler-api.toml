@@ -1,0 +1,17 @@
+# Отдельный воркер API (данные на D1). TTS остаётся на Yandex — сюда не входит.
+# Использование:
+#   1. wrangler d1 create nav-db  -> вписать database_id ниже
+#   2. wrangler d1 execute nav-db --file=cloudflare_worker/schema.sql --config=cloudflare_worker/wrangler-api.toml
+#   3. wrangler secret put TELEGRAM_TOKEN --config=cloudflare_worker/wrangler-api.toml
+#      wrangler secret put ADMIN_ACCESS_KEY --config=cloudflare_worker/wrangler-api.toml  (опционально)
+#   4. wrangler deploy --config=cloudflare_worker/wrangler-api.toml
+#   5. URL из вывода deploy вписать в assets/js/config.js -> API_CONFIG.API_BASE
+
+name = "nav-api"
+main = "api.js"
+compatibility_date = "2026-01-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "nav-db"
+database_id = "1c336d50-6fbf-4309-8177-c79881020422"

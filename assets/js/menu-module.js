@@ -14,8 +14,9 @@ const MenuModule = {
     _currentIsPersonal: false,
     _filterCreator: '',
 
-    // URL Яндекс-функции для загрузки маршрутов (общий бекенд)
-    API_URL_V2: 'https://functions.yandexcloud.net/d4e6qbc1mm9j44h0na3n',
+    // URL бекенда для загрузки маршрутов: новый API-воркер (D1), фолбэк — старая Яндекс-функция.
+    // Задаётся в assets/js/config.js -> API_CONFIG.API_BASE после deploy.
+    API_URL_V2: (typeof API_CONFIG !== 'undefined' && API_CONFIG.API_BASE) || 'https://functions.yandexcloud.net/d4e6qbc1mm9j44h0na3n',
     
     /**
      * Универсальное получение параметров URL
