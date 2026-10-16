@@ -10,8 +10,8 @@
 // Клиент шлёт только { text } (без координат) — точно как в рабочем
 // pad-приложении: этот путь проверен и доставляется без VPN.
 const REPORT = (() => {
-    // Адрес Cloudflare Worker для отправки отчётов
-    const REPORT_API_URL = 'https://pad-report.ivan43103.workers.dev/';
+    // Отчёты шлёт основной API-воркер (POST /report)
+    const REPORT_API_URL = 'https://nav-api.ivan43103.workers.dev/report';
     // Если на воркере задан env REPORT_KEY — продублируйте его здесь
     const REPORT_KEY = '';
     // Кол-во попыток и задержка повтора при сетевой ошибке / ok=false
