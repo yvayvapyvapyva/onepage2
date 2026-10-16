@@ -39,6 +39,13 @@
 .toggle-input:checked + .toggle-slider::before {
     transform: translateX(20px);
 }
+/* Донаты (StarsDonate) — адаптация под тёмную тему навигатора */
+#donateNav .sd-root { max-width: none; }
+#donateNav .sd-title { color: #fff; }
+#donateNav .sd-input { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.12); color: #fff; }
+#donateNav .sd-status { color: rgba(255,255,255,0.5); }
+#donateNav .sd-status.sd-error { color: #FF453A; }
+#donateNav .sd-status.sd-ok { color: #30D158; }
 
 </style>
 </head>
@@ -104,6 +111,7 @@
 
 <script src="assets/js/config.js?v=1"></script>
 <script src="assets/js/report.js?v=2"></script>
+<script src="assets/js/don.js?v=1"></script>
 <script src="https://api-maps.yandex.ru/v3/?apikey=c0e28937-4e16-4d15-9b99-09a30cb8fc13&lang=ru_RU" onerror="window.__ycMapsFailed = true;"></script>
 <script>
 // Грузим Telegram/VK SDK асинхронно с таймаутом 10с.
@@ -829,6 +837,17 @@ function openSettings() {
     $('triggerShockVal').textContent = shockOn ? APP.navConfig.SHOCK_THRESHOLD + 'g' : 'Выкл';
     $('commentToggle').checked = APP._commentEnabled;
     $('navSettingsModal').classList.remove('hidden');
+    mountDonateNav();
+}
+
+function mountDonateNav() {
+    try {
+        if (typeof StarsDonate === 'undefined' || !StarsDonate.mount) return;
+        const el = $('donateNav');
+        if (!el || el.dataset.mounted) return;
+        el.dataset.mounted = '1';
+        StarsDonate.mount('#donateNav');
+    } catch (e) {}
 }
 
 function hideSheetModal(modalId, sheetId) {
@@ -1775,6 +1794,11 @@ ymaps3.ready.then(async () => {
                         <span class="label">Включить отображение и озвучивание</span>
                     </div>
                 </div>
+            </div>
+
+            <div class="settings-group">
+                <div class="settings-label">Поддержать проект</div>
+                <div id="donateNav"></div>
             </div>
 
             <div class="settings-group" style="cursor:pointer" onclick="closeSettings(); setTimeout(openInstruction, 350)">
