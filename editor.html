@@ -680,7 +680,7 @@ const toggleFolderLock = async (folderPath) => {
 
 const appendLockButton = (header, folderPath) => {
     const btn = document.createElement('span');
-    btn.className = 'route-info-btn';
+    btn.className = 'folder-lock-btn';
     const price = _folderLocks[folderPath];
     btn.textContent = price ? `🔒 ${price}⭐` : '🔓';
     btn.title = price ? `Платная папка: ${price} ⭐ — нажми чтобы изменить` : 'Сделать папку платной';

@@ -1011,6 +1011,31 @@ input, textarea, select {
     color: #fff;
 }
 
+/* Кнопка замка платной папки в заголовке папки (flex, без absolute) */
+.folder-lock-btn {
+    margin-left: auto;
+    flex-shrink: 0;
+    min-width: 44px;
+    height: 36px;
+    line-height: 34px;
+    padding: 0 10px;
+    border-radius: 10px;
+    border: 1.5px solid rgba(255, 255, 255, 0.4);
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    text-align: center;
+    cursor: pointer;
+    white-space: nowrap;
+    user-select: none;
+}
+.folder-lock-btn:active {
+    transform: scale(0.95);
+    background: rgba(10, 132, 255, 0.35);
+    border-color: rgba(10, 132, 255, 0.7);
+}
+
 .route-name {
     font-size: 16px;
     font-weight: 600;
