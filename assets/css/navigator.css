@@ -858,9 +858,10 @@ html, body {
 }
 
 /* ============================================
-   Модальное окно описания маршрута
+   Модальное окно описания маршрута и paywall
    ============================================ */
-#routeDescModal {
+#routeDescModal,
+#paywallModal {
     display: none;
     position: fixed;
     top: 0;
@@ -882,7 +883,8 @@ html, body {
     z-index: 99999;
 }
 
-#routeDescModal.visible .desc-modal-overlay {
+#routeDescModal.visible .desc-modal-overlay,
+#paywallModal.visible .desc-modal-overlay {
     opacity: 1;
 }
 
@@ -901,7 +903,8 @@ html, body {
     transition: transform 0.2s ease;
 }
 
-#routeDescModal.visible .desc-modal-content {
+#routeDescModal.visible .desc-modal-content,
+#paywallModal.visible .desc-modal-content {
     transform: scale(1);
 }
 
