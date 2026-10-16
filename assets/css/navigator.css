@@ -986,18 +986,18 @@ html, body {
     background: rgba(175, 82, 222, 0.15);
 }
 .category-header.root {
-    background: rgba(255, 159, 10, 0.25);
-    border-color: rgba(255, 159, 10, 0.5);
+    background: rgba(0, 122, 255, 0.25);
+    border-color: rgba(0, 122, 255, 0.5);
 }
 .category-header.root.expanded {
-    background: rgba(255, 159, 10, 0.15);
+    background: rgba(0, 122, 255, 0.15);
 }
 .category-header:active {
     transform: scale(0.98);
     background: rgba(0, 122, 255, 0.25);
 }
 .category-header.root:active {
-    background: rgba(255, 159, 10, 0.25);
+    background: rgba(0, 122, 255, 0.25);
 }
 
 .category-icon {

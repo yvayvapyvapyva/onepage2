@@ -6,7 +6,6 @@ const MenuModule = {
     routesDescriptions: {}, // { "m": { name, description, m } }
     _isFetchingRoutes: false,
     _categoryTree: null,
-    _starredTree: null,
     _expandedFolders: new Set(),
 
     // URL бекенда для загрузки маршрутов: новый API-воркер (D1), фолбэк — старая Яндекс-функция.
@@ -166,8 +165,7 @@ const MenuModule = {
 
         this.routesDescriptions = routesFlat;
         this._categoryTree = this._buildCategoryTree();
-        this._starredTree = this._buildStarredTree();
-        
+
         return;
     },
 
@@ -181,32 +179,7 @@ const MenuModule = {
         const root = { folders: {}, routes: [] };
         for (const [key, route] of Object.entries(this.routesDescriptions)) {
             const rawName = route.name || '';
-            if (rawName.startsWith('*')) continue;
             const fullPath = rawName || key;
-            const parts = fullPath.split('/').map(s => s.trim()).filter(Boolean);
-            const leafName = parts.pop() || fullPath;
-            let node = root;
-            for (const part of parts) {
-                if (!node.folders[part]) node.folders[part] = { folders: {}, routes: [] };
-                node = node.folders[part];
-            }
-            node.routes.push({ ...route, name: leafName, fullPath, key });
-        }
-        if (root.routes.length > 0) {
-            root.folders['Без категории'] = root.folders['Без категории'] || { folders: {}, routes: [] };
-            root.folders['Без категории'].routes.push(...root.routes);
-            root.routes = [];
-        }
-        return root;
-    },
-
-    _buildStarredTree() {
-        const root = { folders: {}, routes: [] };
-        for (const [key, route] of Object.entries(this.routesDescriptions)) {
-            const rawName = route.name || '';
-            if (!rawName.startsWith('*')) continue;
-            const cleanName = rawName.substring(1);
-            const fullPath = cleanName || key;
             const parts = fullPath.split('/').map(s => s.trim()).filter(Boolean);
             const leafName = parts.pop() || fullPath;
             let node = root;
@@ -228,8 +201,7 @@ const MenuModule = {
         if (!this.currentRoute) return;
         const route = this.routesDescriptions[this.currentRoute];
         if (!route || !route.name) return;
-        const rawName = route.name.startsWith('*') ? route.name.substring(1) : route.name;
-        const parts = rawName.split('/').filter(Boolean);
+        const parts = route.name.split('/').filter(Boolean);
         parts.pop();
         let path = '';
         for (const part of parts) {
@@ -246,22 +218,10 @@ const MenuModule = {
 
         const frag = document.createDocumentFragment();
 
-        // 1. Звёздочки (*) — в самом верху
-        const starredTree = this._starredTree;
-        const hasStarred = starredTree && (Object.keys(starredTree.folders).length > 0 || starredTree.routes.length > 0);
+        // Все маршруты одним деревом папок
         const hasRegular = this._categoryTree && Object.keys(this._categoryTree.folders).length > 0;
 
-        if (hasStarred) {
-            this._renderTreeNode(starredTree, frag, '', false);
-        }
-
-        // 2. Остальные маршруты (без *)
         if (hasRegular) {
-            if (hasStarred) {
-                const sep = document.createElement('div');
-                sep.style.cssText = 'height:1px;background:rgba(255,255,255,0.1);margin:8px 0;flex-shrink:0;';
-                frag.appendChild(sep);
-            }
             this._renderTreeNode(this._categoryTree, frag, '', true);
         }
 
