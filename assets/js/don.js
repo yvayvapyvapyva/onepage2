@@ -133,17 +133,27 @@
         setLoading(true);
         setStatus(`Создаём счёт на ${stars} ⭐…`);
         try {
-          const res = await fetch(cfg.backend + "/invoice", {
+          // text/plain вместо application/json — иначе браузер шлёт OPTIONS-префлайт,
+          // а воркер без CORS-обработчика отвечает 404 и Safari/Telegram отдаёт "Load failed".
+          // Воркер всё равно читает тело через request.json(), тип контента ему не важен.
+          const resp = await fetch(cfg.backend + "/invoice", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "text/plain;charset=UTF-8" },
             body: JSON.stringify({
               product_id: "donate",
               amount: stars,
               initData: getInitData(),
             }),
-          }).then((r) => r.json());
+          });
+          const raw = await resp.text();
+          let res = null;
+          try {
+            res = raw ? JSON.parse(raw) : null;
+          } catch {
+            throw new Error("Сервер вернул не JSON (HTTP " + resp.status + "): " + String(raw).slice(0, 120));
+          }
 
-          if (!res.ok) throw new Error(res.error || "invoice failed");
+          if (!resp.ok || !res || res.ok !== true) throw new Error((res && res.error) || ("HTTP " + resp.status));
 
           setStatus("Открываем оплату…");
           tg.openInvoice(res.invoiceLink, (payStatus) => {
