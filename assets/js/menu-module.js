@@ -267,7 +267,7 @@ const MenuModule = {
         body.innerHTML = '';
         const desc = document.createElement('div');
         desc.style.cssText = 'color:rgba(255,255,255,0.7);font-size:14px;';
-        desc.textContent = `Папка «${folder}» доступна после оплаты.`;
+        desc.textContent = `Папка «${folder}» доступна после оплаты. Доступ на 30 дней.`;
         body.appendChild(desc);
         const priceEl = document.createElement('div');
         priceEl.style.cssText = 'font-size:22px;font-weight:800;color:#fff;';

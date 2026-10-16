@@ -175,11 +175,24 @@ async function loadLocks(env) {
   return new Map(rows.map((r) => [r.folder, r.price]));
 }
 
-// Есть ли у пользователя доступ: куплена совпавшая или любая вышележащая папка.
+// Доступ действует 30 дней с момента оплаты.
+const ACCESS_DAYS = 30;
+const accessSince = () => Math.floor(Date.now() / 1000) - ACCESS_DAYS * 24 * 3600;
+
+// Есть ли у пользователя действующий доступ: куплена совпавшая или любая вышележащая папка.
 async function hasAccess(env, uid, lockFolder) {
   const rows = (await env.DB.prepare(
-    'SELECT folder FROM purchases WHERE user_id = ?').bind(uid).all()).results || [];
+    'SELECT folder FROM purchases WHERE user_id = ? AND ts > ?').bind(uid, accessSince()).all()).results || [];
   return rows.some((r) => lockFolder === r.folder || lockFolder.startsWith(r.folder + '/'));
+}
+
+// Карта folder -> unix-ts окончания доступа (для отображения).
+async function accessExpires(env, uid) {
+  const rows = (await env.DB.prepare(
+    'SELECT folder, ts FROM purchases WHERE user_id = ? AND ts > ?').bind(uid, accessSince()).all()).results || [];
+  const out = {};
+  for (const r of rows) out[r.folder] = r.ts + ACCESS_DAYS * 24 * 3600;
+  return out;
 }
 
 function normFolder(f) {
@@ -344,14 +357,13 @@ export default {
         return json({ status: 'ok' });
       }
 
-      // Купленные папки пользователя (Telegram).
+      // Купленные папки пользователя (Telegram). Только действующие (30 дней).
       if (action === 'my_access') {
         const initData = bodyData.initData || url.searchParams.get('tg_init_data') || '';
         const { uid, err } = await verifyTgInitData(initData, env.TELEGRAM_TOKEN);
         if (!uid) return json({ error: 'bad_init_data', message: err }, 401);
-        const rows = (await env.DB.prepare(
-          'SELECT folder FROM purchases WHERE user_id = ?').bind(uid).all()).results || [];
-        return json({ user_id: uid, folders: rows.map((r) => r.folder) });
+        const expires = await accessExpires(env, uid);
+        return json({ user_id: uid, folders: Object.keys(expires), expires });
       }
 
       // Создать счёт на папку (Telegram Stars).
@@ -369,7 +381,7 @@ export default {
         const payload = `folder:${uid}:${lock.folder}:${Date.now()}`;
         const res = await tgApi(env, 'createInvoiceLink', {
           title,
-          description: `Доступ к папке «${lock.folder}» навсегда`.substring(0, 255),
+          description: `Доступ к папке «${lock.folder}» на 30 дней`.substring(0, 255),
           payload,
           currency: 'XTR',
           prices: [{ label: title, amount: lock.price }],
@@ -410,9 +422,8 @@ export default {
           if (txns.length < 100) break;
           offset += 100;
         }
-        const rows = (await env.DB.prepare(
-          'SELECT folder FROM purchases WHERE user_id = ?').bind(uid).all()).results || [];
-        return json({ ok: true, claimed: found.length, folders: rows.map((r) => r.folder) });
+        const expires = await accessExpires(env, uid);
+        return json({ ok: true, claimed: found.length, folders: Object.keys(expires), expires });
       }
 
       return json({ error: 'unknown_action' }, 400);
