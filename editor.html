@@ -11,6 +11,19 @@
 
 <div id="toast">Готово</div>
 <div id="welcomeScreen" style="display:flex;align-items:center;justify-content:center;background:rgba(10,11,15,0.95);"><div style="display:flex;flex-direction:column;align-items:center;gap:16px;"><span style="width:32px;height:32px;border:3px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite;"></span><div style="font-size:16px;font-weight:600;color:#fff;">Загрузка</div></div></div>
+<div id="noAccessScreen" style="display:none;position:fixed;inset:0;z-index:100000;background:rgba(10,11,15,0.97);align-items:center;justify-content:center;padding:24px;">
+    <div style="max-width:360px;width:100%;text-align:center;color:#f5f7fa;font-family:inherit;">
+        <div style="font-size:40px;line-height:1;margin-bottom:10px;">🔒</div>
+        <div style="font-size:18px;font-weight:700;margin-bottom:8px;">Нет доступа к редактору</div>
+        <div style="font-size:14px;color:rgba(245,247,250,0.7);margin-bottom:18px;">Редактировать маршруты могут только выбранные пользователи.</div>
+        <div id="accessKeyBox" style="display:none;flex-direction:column;gap:10px;">
+            <div class="input-wrapper" style="padding:3px;border-radius:12px;">
+                <input type="password" id="accessKeyInput" placeholder="Ключ доступа" style="width:100%;padding:12px;border:none;font-size:16px;outline:none;background:transparent;color:#f5f7fa;font-family:inherit;box-sizing:border-box;">
+            </div>
+            <button class="btn-action btn-primary" onclick="submitAccessKey()">Войти</button>
+        </div>
+    </div>
+</div>
 <div id="map"></div>
 <div class="top-controls" id="uiControls" style="display:none">
     <button id="settingsBtn" onclick="openSettingsModal()">
@@ -362,27 +375,94 @@ const showToast = (text, type = 'info', duration = 2200) => {
         if (isBtn) openInstruction();
     }, { once: true });
 
+// Подпись Telegram Mini App (непусто только внутри Telegram).
+function tgInitData() {
+    try {
+        return (typeof Telegram !== 'undefined' && Telegram.WebApp && Telegram.WebApp.initData) || '';
+    } catch (e) { return ''; }
+}
+
+// Ключ доступа редактора для входа из браузера (вне Telegram).
+function editorKey() {
+    try { return localStorage.getItem('editor_key') || ''; } catch (e) { return ''; }
+}
+function setEditorKey(k) {
+    try { if (k) localStorage.setItem('editor_key', k); else localStorage.removeItem('editor_key'); } catch (e) {}
+}
+
+// Ключ можно передать ссылкой: /editor?key=СЕКРЕТ — запоминаем и убираем из адреса.
+(function captureKeyFromUrl() {
+    try {
+        const u = new URL(location.href);
+        const k = u.searchParams.get('key');
+        if (!k) return;
+        setEditorKey(k);
+        u.searchParams.delete('key');
+        const qs = u.searchParams.toString();
+        history.replaceState(null, '', u.pathname + (qs ? '?' + qs : '') + u.hash);
+    } catch (e) {}
+})();
+
+// Проверка прав на старте: показать редактор или экран «Нет доступа».
+async function ensureAccess() {
+    const ws = document.getElementById('welcomeScreen');
+    if (ws) ws.style.display = 'flex';
+    let allowed = false;
+    try {
+        const r = await callYcFunction('editor_check');
+        allowed = !!(r && r.allowed);
+    } catch (e) {
+        allowed = false;
+    }
+    if (allowed) return true;
+    if (ws) ws.style.display = 'none';
+    const deny = document.getElementById('noAccessScreen');
+    if (deny) {
+        // Поле для ключа — только вне Telegram (внутри доступ даёт подпись)
+        const box = document.getElementById('accessKeyBox');
+        if (box && !tgInitData()) box.style.display = 'flex';
+        deny.style.display = 'flex';
+    } else {
+        showToast('Нет доступа к редактору', 'error', 6000);
+    }
+    return false;
+}
+
+function submitAccessKey() {
+    const inp = document.getElementById('accessKeyInput');
+    const v = inp ? inp.value.trim() : '';
+    if (!v) return;
+    setEditorKey(v);
+    location.reload();
+}
+
 async function callYcFunction(action, params = {}, bodyData = null) {
     const url = new URL(YC_FUNCTION_URL);
     url.searchParams.set('action', action);
 
     Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
-    
+
+    // Удостоверение редактора уходит на сервер в теле каждого запроса.
+    const payload = Object.assign({}, bodyData || {});
+    const initData = tgInitData();
+    if (initData) payload.tg_init_data = initData;
+    const key = editorKey();
+    if (key) payload.editor_key = key;
+
     const options = {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
     };
-    
-    if (bodyData !== null) {
-        options.body = JSON.stringify(bodyData);
-    }
-    
+
     const response = await fetch(url.toString(), options);
-    
+
     if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+        const err = new Error(`HTTP ${response.status}`);
+        err.status = response.status;
+        throw err;
     }
-    
+
     return await response.json();
 }
 
@@ -514,6 +594,9 @@ if (typeof ymaps3 === 'undefined' || !ymaps3.ready) {
     if (wsEl) wsEl.style.display = 'none';
 } else {
 ymaps3.ready.then(async () => {
+    // Никакой редактор без прав: подпись Telegram или ключ доступа.
+    if (!(await ensureAccess())) return;
+
     const { YMap, YMapDefaultSchemeLayer, YMapDefaultSatelliteLayer, YMapDefaultFeaturesLayer, YMapMarker, YMapFeature, YMapListener } = ymaps3;
 
     // Скрываем welcomeScreen сразу, не дожидаясь загрузки SDK (в браузере блокировки тянутся до ~10с)

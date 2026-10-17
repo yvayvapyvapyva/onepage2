@@ -1,7 +1,8 @@
 // Cloudflare Worker — API маршрутов на D1.
 //
-// Упрощённая модель: общий неймспейс, без аккаунтов и создателей.
-// Любой посетитель видит все маршруты и может редактировать.
+// Упрощённая модель: общий неймспейс, без аккаунтов.
+// Читать маршруты может любой посетитель, редактировать — только редакторы
+// (см. EDITOR_IDS / EDITOR_ACCESS_KEY и requireEditor ниже).
 // Ключ маршрута — только `m` (колонка id всегда 'shared', оставлена для совместимости).
 //
 // Роуты:
@@ -23,7 +24,8 @@
 //   POST /?action=shop_invoice {initData, folder} — {invoiceLink, price, folder}
 //   POST /?action=shop_claim {initData}           — сверить оплаты, {folders:[...]}
 //   Маршрут в платной папке через action=get требует tg_init_data покупателя,
-//   иначе 403 {error:'locked', folder, price}. Редактор (get_protected) без ограничений.
+//   иначе 403 {error:'locked', folder, price}. Редакторские экшены доступны
+//   только редакторам (см. requireEditor).
 //
 // Env:
 //   DB               — D1 database binding (см. schema.sql)
@@ -32,12 +34,25 @@
 //   REPORT_KEY       — опциональный ключ в заголовке X-Report-Key (wrangler secret put)
 //   PURCHASE_CHANNEL_ID — канал для уведомлений о покупках и возвратах
 //                         (@username публичного или -100… приватного). Не задан — уведомления не шлются.
+//   EDITOR_IDS       — Telegram user id редакторов через запятую (чтение/правка маршрутов).
+//   EDITOR_ACCESS_KEY — ключ для входа в редактор из браузера (вне Telegram). Не задан — только через Telegram.
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Origin, Accept',
+  'Access-Control-Allow-Headers': 'Content-Type, Origin, Accept, X-Editor-Key',
 };
+
+// Экшены, доступные только редакторам маршрутов (см. requireEditor).
+// Публичные остаются открытыми: catalog, get, list_routes, locks, my_access,
+// shop_invoice, shop_claim, editor_check.
+const EDITOR_ACTIONS = new Set([
+  'list', 'get_protected', 'get_meta',
+  'delete', 'save', 'save_meta',
+  'save_lock', 'del_lock',
+  'folder_list', 'folder_create', 'folder_rename', 'folder_delete',
+  'folder_move', 'folder_settings', 'route_move',
+]);
 
 const SHARED_ID = 'shared';
 
@@ -124,7 +139,8 @@ function parseData(raw) {
 }
 
 // Проверка Telegram Mini App initData (без проверки срока — покупки интерактивные).
-async function verifyTgInitData(initData, botToken) {
+// maxAgeSec > 0 — дополнительно требовать свежесть auth_date (для редактора).
+async function verifyTgInitData(initData, botToken, maxAgeSec = 0) {
   if (!botToken) return { uid: null, err: 'TELEGRAM_TOKEN not configured' };
   if (!initData) return { uid: null, err: 'initData missing' };
   try {
@@ -145,6 +161,13 @@ async function verifyTgInitData(initData, botToken) {
     const sig = await crypto.subtle.sign('HMAC', key, enc.encode(dataCheckString));
     const hex = [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, '0')).join('');
     if (hex !== hash) return { uid: null, err: 'bad signature' };
+    if (maxAgeSec > 0) {
+      const authDate = Number(params.get('auth_date') || 0);
+      const now = Math.floor(Date.now() / 1000);
+      if (!authDate || now - authDate > maxAgeSec) {
+        return { uid: null, err: 'initData expired' };
+      }
+    }
     const user = JSON.parse(params.get('user') || 'null');
     if (!user || !user.id) return { uid: null, err: 'no user' };
     return { uid: String(user.id), err: null };
@@ -160,6 +183,46 @@ async function tgApi(env, method, payload) {
     body: JSON.stringify(payload),
   });
   return r.json().catch(() => ({}));
+}
+
+// ---- Доступ к редактору маршрутов ----
+
+// Среди читаемых/пишущих экшенов только эти требуют прав редактора.
+function editorIds(env) {
+  return String(env.EDITOR_IDS || '').split(',').map((s) => s.trim()).filter(Boolean);
+}
+
+function editorIdAllowed(uid, env) {
+  return uid != null && editorIds(env).includes(String(uid));
+}
+
+// Сравнение строк за постоянное время (для ключа доступа).
+function safeEqual(a, b) {
+  a = String(a); b = String(b);
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+// Доступ редактора к API. Два независимых способа:
+//   1) ключ EDITOR_ACCESS_KEY — для входа из браузера (вне Telegram);
+//   2) подписанный Telegram.WebApp.initData, uid которого есть в EDITOR_IDS.
+// ID берётся из подписи Telegram (подделать нельзя), а не из тела запроса.
+// Возвращает { ok, uid, via } либо { ok:false, err }.
+async function requireEditor(request, bodyData, env) {
+  const url = new URL(request.url);
+  const givenKey = bodyData.editor_key || request.headers.get('X-Editor-Key') ||
+    url.searchParams.get('editor_key') || '';
+  const accessKey = String(env.EDITOR_ACCESS_KEY || '');
+  if (accessKey && givenKey && safeEqual(givenKey, accessKey)) {
+    return { ok: true, uid: null, via: 'key' };
+  }
+
+  const initData = bodyData.tg_init_data || url.searchParams.get('tg_init_data') || '';
+  const { uid } = await verifyTgInitData(initData, env.TELEGRAM_TOKEN, 24 * 3600);
+  if (uid && editorIdAllowed(uid, env)) return { ok: true, uid, via: 'tg' };
+  return { ok: false, err: 'forbidden' };
 }
 
 // Папка маршрута из отображаемого имени "A/B/Имя" -> "A/B".
@@ -334,6 +397,18 @@ export default {
           })),
           locks: Array.from(locks.entries()).map(([folder, price]) => ({ folder, price })),
         }, 200, { 'Cache-Control': 'no-cache, no-store, must-revalidate' });
+      }
+
+      // ---- Проверка прав редактора (без изменений данных) ----
+      if (action === 'editor_check') {
+        const guard = await requireEditor(request, bodyData, env);
+        return json({ allowed: guard.ok, via: guard.via || null, uid: guard.uid || null });
+      }
+
+      // ---- Защита редакторских экшенов ----
+      if (EDITOR_ACTIONS.has(action)) {
+        const guard = await requireEditor(request, bodyData, env);
+        if (!guard.ok) return json({ error: 'forbidden' }, 403);
       }
 
       // ---- Получение маршрута ----
