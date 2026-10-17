@@ -173,10 +173,26 @@ function lockForFolder(folder, locks) {
 async function loadLocks(env) {
   const rows = (await env.DB.prepare(
     'SELECT id, name, parent_id, price FROM folders WHERE price > 0').all()).results || [];
+  // постройка путей в памяти
+  const byId = new Map(rows.map(r => [r.id, r]));
+  const pathCache = new Map();
+  function pathOf(id) {
+    if (pathCache.has(id)) return pathCache.get(id);
+    const parts = [];
+    let cur = id;
+    while (cur !== null && cur !== undefined && byId.has(cur)) {
+      const f = byId.get(cur);
+      parts.unshift(f.name);
+      cur = f.parent_id;
+    }
+    const p = parts.join('/');
+    pathCache.set(id, p);
+    return p;
+  }
   const map = new Map();
   for (const r of rows) {
-    const path = await getFolderPath(env, r.id);
-    if (path) map.set(path, r.price);
+    const p = pathOf(r.id);
+    if (p) map.set(p, r.price);
   }
   return map;
 }

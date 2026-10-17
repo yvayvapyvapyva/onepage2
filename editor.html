@@ -730,7 +730,7 @@ const refreshFileList = async () => {
             _folders = new Map();
         }
 
-        await refreshFolderLocks();
+        await refreshFolderLocks().catch(() => {});
         renderSettingsFileList();
         updateVisibility();
     } catch (e) {
@@ -1898,8 +1898,9 @@ window.handleCreateFolder = async () => {
 let _folderSettingsId = null;
 
 const openFolderSettings = async (folderId) => {
-    _folderSettingsId = folderId;
-    const folder = _folders.get(folderId);
+    const fid = Number(folderId);
+    _folderSettingsId = fid;
+    const folder = _folders.get(fid);
     if (!folder) return;
     $('folderSettingsNameInput').value = folder.name;
     $('folderSettingsPriceInput').value = folder.price || 0;
