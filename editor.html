@@ -709,6 +709,7 @@ function buildRouteTree() {
             id: Number(id),
             name: folder.name,
             parent_id: folder.parent_id,
+            visible: folder.visible !== 0,
             folders: {},
             routes: [],
         };
@@ -760,7 +761,7 @@ function renderTreeLevel(node, container) {
         header.className = 'category-header' + (isExpanded ? ' expanded' : '');
         header.innerHTML = `
             <span class="category-icon">${isExpanded ? '📂' : '📁'}</span>
-            <span class="category-name">${sub.name}</span>
+            <span class="category-name">${sub.visible ? '✅ ' : ''}${sub.name}</span>
             <span class="category-count">${total}</span>
         `;
         header.addEventListener('click', () => {
@@ -773,6 +774,8 @@ function renderTreeLevel(node, container) {
         btnSettings.className = 'route-info-btn';
         btnSettings.textContent = '⚙️';
         btnSettings.title = 'Настройки папки';
+        btnSettings.style.fontStyle = 'normal';
+        btnSettings.style.fontWeight = '400';
         btnSettings.addEventListener('click', (e) => {
             e.stopPropagation();
             openFolderSettings(sub.id);
@@ -838,17 +841,6 @@ function renderTreeLevel(node, container) {
             nameSpan.textContent = route.name;
         }
         el.appendChild(nameSpan);
-
-        const folderBtn = document.createElement('span');
-        folderBtn.className = 'route-info-btn';
-        folderBtn.textContent = route.folder_id ? '📁' : '📂';
-        folderBtn.title = 'Переместить в папку';
-        folderBtn.style.cssText = 'opacity:0.6;margin-left:6px;cursor:pointer;';
-        folderBtn.addEventListener('click', e => {
-            e.stopPropagation();
-            openMoveRouteModal(route.key, route.folder_id);
-        });
-        el.appendChild(folderBtn);
 
         const gear = document.createElement('span');
         gear.className = 'route-info-btn';

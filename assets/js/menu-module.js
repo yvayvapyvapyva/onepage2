@@ -168,7 +168,8 @@ const MenuModule = {
                 m: route.m,
                 name: rawName,
                 description: route.description || '',
-                creator_name: route.creator_name || ''
+                creator_name: route.creator_name || '',
+                folder_id: route.folder_id || null
             };
         }
 
