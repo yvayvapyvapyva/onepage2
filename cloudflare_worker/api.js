@@ -383,9 +383,8 @@ export default {
 
       // ---- Платные папки ----
       if (action === 'locks') {
-        const rows = (await env.DB.prepare(
-          'SELECT folder, price FROM folder_locks ORDER BY folder').all()).results || [];
-        return json({ locks: rows.map((r) => ({ folder: r.folder, price: r.price })) });
+        const locks = await loadLocks(env);
+        return json({ locks: Array.from(locks.entries()).map(([folder, price]) => ({ folder, price })) });
       }
 
       if (action === 'save_lock') {
