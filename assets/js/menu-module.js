@@ -70,14 +70,12 @@ const MenuModule = {
         this.createButton();
         this.hide();
 
-        // Загружаем список маршрутов динамически
+        // Маршруты + папки + замки приходят одним запросом (action=catalog),
+        // поэтому дерево папок строится сразу и не бывает «плоского» списка.
         await this._loadRoutesList();
 
-        // Замки платных папок + купленные доступы (Telegram)
+        // Купленные доступы (Telegram) — нужен initData, поэтому отдельно.
         await this._refreshShop();
-
-        // Реальные папки
-        await this._loadFolders();
 
         // Проверяем параметры URL
         this.checkUrlParam();
@@ -149,7 +147,8 @@ const MenuModule = {
      * Запрос к API за списком маршрутов
      */
     async _fetchFromAPI() {
-        const url = `${this.API_URL_V2}?action=list_routes`;
+        // Один запрос отдаёт всё, что нужно для дерева: маршруты, папки и замки.
+        const url = `${this.API_URL_V2}?action=catalog`;
         const response = await fetch(url);
 
         if (!response.ok) {
@@ -160,7 +159,7 @@ const MenuModule = {
 
         const routesFlat = {};
 
-        for (const route of data) {
+        for (const route of (data.routes || [])) {
             const key = route.m;
             const rawName = route.name || route.m || '';
 
@@ -174,6 +173,14 @@ const MenuModule = {
         }
 
         this.routesDescriptions = routesFlat;
+
+        // Папки приходят в том же ответе — дерево строится сразу, без гонки.
+        this._folders = new Map((data.folders || []).map(f => [f.id, f]));
+
+        // Замки платных папок
+        this._locks = {};
+        for (const l of (data.locks || [])) this._locks[l.folder] = l.price;
+
         return;
     },
 
@@ -240,21 +247,6 @@ const MenuModule = {
         }
         if (typeof this._buildRoutesList === 'function' && document.getElementById('routesListContainer')) {
             try { this._buildRoutesList(); } catch (e) {}
-        }
-    },
-
-    // Загрузка реальных папок из БД
-    async _loadFolders() {
-        try {
-            const res = await fetch(`${this.API_URL_V2}?action=folder_list`);
-            if (res.ok) {
-                const data = await res.json();
-                this._folders = new Map((data.folders || []).map(f => [f.id, f]));
-            } else {
-                this._folders = new Map();
-            }
-        } catch (e) {
-            this._folders = new Map();
         }
     },
 

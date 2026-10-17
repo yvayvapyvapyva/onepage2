@@ -6,6 +6,7 @@
 //
 // Роуты:
 //   GET /?action=list_routes                      — публичный список (visible=1)
+//   GET /?action=catalog                          — маршруты + папки + замки одним ответом (меню)
 //   GET /?action=get&m=NAME                       — маршрут {name, m, data}
 //   GET/POST /?action=list                        — все маршруты (для редактора)
 //   GET/POST /?action=get_protected&m=NAME        — то же, что get (для редактора)
@@ -295,6 +296,30 @@ export default {
           description: r.description || '', creator_name: r.creator_name || '',
           folder_id: r.folder_id || null,
         })), 200, { 'Cache-Control': 'no-cache, no-store, must-revalidate' });
+      }
+
+      // ---- Каталог одним запросом: маршруты + папки + замки ----
+      // Нужен меню навигатора, чтобы дерево папок строилось сразу из одного
+      // ответа. Иначе список успевает отрисоваться «плоским» до прихода
+      // отдельного запроса folder_list.
+      if (action === 'catalog') {
+        const routes = (await env.DB.prepare(
+          'SELECT m, name, description, creator_name, folder_id FROM roads WHERE visible = 1 AND name IS NOT NULL ORDER BY name')
+          .all()).results || [];
+        const folders = (await env.DB.prepare(
+          'SELECT id, name, parent_id, price FROM folders ORDER BY name').all()).results || [];
+        const locks = await loadLocks(env);
+        return json({
+          routes: routes.map((r) => ({
+            m: r.m, name: r.name,
+            description: r.description || '', creator_name: r.creator_name || '',
+            folder_id: r.folder_id || null,
+          })),
+          folders: folders.map((f) => ({
+            id: f.id, name: f.name, parent_id: f.parent_id, price: f.price || 0,
+          })),
+          locks: Array.from(locks.entries()).map(([folder, price]) => ({ folder, price })),
+        }, 200, { 'Cache-Control': 'no-cache, no-store, must-revalidate' });
       }
 
       // ---- Получение маршрута ----
