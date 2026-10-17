@@ -827,32 +827,42 @@ function renderTreeLevel(node, container) {
             openFolderSettings(sub.id);
         });
 
-        const btnAdd = document.createElement('span');
-        btnAdd.className = 'folder-btn';
-        btnAdd.textContent = '➕';
-        btnAdd.title = 'Создать подпапку';
-        btnAdd.addEventListener('click', (e) => {
-            e.stopPropagation();
-            _currentFolderId = sub.id;
-            openCreateFolderModal(sub.id);
-        });
-
         const controls = document.createElement('div');
         controls.style.cssText = 'margin-left:auto;display:flex;gap:6px;';
         controls.appendChild(btnSettings);
-        controls.appendChild(btnAdd);
         header.appendChild(controls);
 
         el.appendChild(header);
-        frag.appendChild(el);
-
+        el.setAttribute('draggable', 'true');
+        el.addEventListener('dragstart', e => {
+            e.stopPropagation();
+            e.dataTransfer.setData('text/plain', 'folder:' + sub.id);
+            e.dataTransfer.effectAllowed = 'move';
+            el.classList.add('dragging');
+        });
+        el.addEventListener('dragend', () => {
+            el.classList.remove('dragging');
+            document.querySelectorAll('.drag-over').forEach(d => d.classList.remove('drag-over'));
+        });
         el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('drag-over'); });
         el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
         el.addEventListener('drop', e => {
             e.preventDefault(); el.classList.remove('drag-over');
-            const routeKey = e.dataTransfer.getData('text/plain');
-            if (routeKey) moveRouteToFolder(routeKey, sub.id);
+            const data = e.dataTransfer.getData('text/plain');
+            if (data && data.startsWith('folder:')) {
+                const movingId = Number(data.substring(7));
+                const targetId = Number(el.getAttribute('data-id'));
+                if (movingId === targetId) return;
+                callYcFunction('folder_move', {}, { id: movingId, parent_id: targetId })
+                    .then(() => { refreshFileList(); showToast('Папка перемещена', 'success'); })
+                    .catch(() => showToast('Ошибка перемещения папки', 'error'));
+            } else if (data) {
+                moveRouteToFolder(data, targetId);
+            }
         });
+
+        el.appendChild(header);
+        frag.appendChild(el);
 
         if (isExpanded) {
             const childWrap = document.createElement('div');
@@ -1047,9 +1057,9 @@ const renderSettingsFileList = () => {
             if (touchDragging) {
                 const folder = document.querySelector('.category-folder.drag-over');
                 if (folder) {
-                    const fp = folder.dataset.path;
-                    if (fp) moveRouteToFolder(touchDragKey, fp);
-                    folder.classList.remove('drag-over');
+                const targetId = Number(folder.dataset.id);
+                if (targetId) moveRouteToFolder(touchDragKey, targetId);
+                folder.classList.remove('drag-over');
                 }
             }
             document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
