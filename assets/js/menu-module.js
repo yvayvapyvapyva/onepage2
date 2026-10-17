@@ -284,7 +284,7 @@ const MenuModule = {
             owned.className = 'route-item';
             owned.style.cssText = 'justify-content:center;opacity:0.8;';
             owned.textContent = 'Я уже оплатил — обновить';
-            owned.addEventListener('click', () => this._claimPurchases(owned));
+            owned.addEventListener('click', () => this._claimPurchases(owned, folder));
             body.appendChild(owned);
         } else {
             const hint = document.createElement('div');
@@ -351,13 +351,17 @@ const MenuModule = {
                 this._access = new Set(data.folders || []);
                 this._buildRoutesList();
                 this._hidePaywall();
-                if (typeof showToast === 'function') showToast('Доступ открыт! 🎉', 'success');
                 if (thenOpen) {
                     const lock = this._lockFor(thenOpen);
-                    if (!lock || this._hasAccess(lock.folder)) {
+                    if (lock && this._hasAccess(lock.folder)) {
+                        if (typeof showToast === 'function') showToast('Доступ открыт! 🎉', 'success');
                         this._expandedFolders.add(thenOpen);
                         this._buildRoutesList();
+                    } else {
+                        if (typeof showToast === 'function') showToast('Оплаты небыло', 'error');
                     }
+                } else {
+                    if (typeof showToast === 'function') showToast('Доступ обновлён', 'success');
                 }
             }
         } catch (e) {
@@ -435,6 +439,7 @@ const MenuModule = {
     _renderFolderHeader(container, folderPath, displayName, total, isExpanded, isRoot) {
         const lock = this._lockFor(folderPath);
         const locked = lock && !this._hasAccess(lock.folder);
+        const paid = !!lock;
 
         const el = document.createElement('div');
         el.className = 'category-folder';
@@ -443,8 +448,10 @@ const MenuModule = {
         header.className = 'category-header' + (isExpanded && !locked ? ' expanded' : '') + (isRoot ? ' root' : '');
         header.innerHTML = `
             <span class="category-icon">${locked ? '🔒' : (isExpanded ? '📂' : '📁')}</span>
-            <span class="category-name">${this._escape(displayName)}</span>
-            <span class="category-count">${locked ? total + ' · ' + lock.price + ' ⭐' : total}</span>
+            <span class="category-name">${this._escape(displayName)}${paid ? ' ⭐' : ''}</span>
+            <span class="category-count">
+                ${locked ? total + ' · ' + lock.price + ' ⭐' : paid ? total + ' · оплачено' : total}
+            </span>
         `;
         header.addEventListener('click', e => {
             e.stopPropagation();
