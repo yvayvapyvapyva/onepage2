@@ -267,6 +267,7 @@ export default {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
 
     const url = new URL(request.url);
+    if (url.pathname === '/webhook') return handleTelegramWebhook(request, env);
     if (url.pathname === '/report') return handleReport(request, env);
 
     if (!env.DB) return json({ error: 'DB not bound' }, 500);
@@ -476,18 +477,7 @@ export default {
                 if (folder) {
                   const now = Math.floor(Date.now() / 1000);
                   const expires_at = now + ACCESS_DAYS * 24 * 3600;
-                  const order_id = `folder:${uid}:${folder}:${now}`;
-
                   found.push({ folder, stars, payload, expires_at });
-
-                  await env.DB.prepare(
-                    `INSERT INTO purchases
-                       (user_id, product_type, product_id, charge_id, order_id, payload,
-                        stars, currency, status, ts, expires_at, raw_response)
-                     VALUES (?, 'folder_access', ?, NULL, ?, ?, ?, 'XTR', 'active', ?, ?, ?)
-                     ON CONFLICT(order_id) DO NOTHING`)
-                    .bind(uid, folder, order_id, payload, stars, now, expires_at, JSON.stringify(t))
-                    .run();
                 }
               }
             }
@@ -604,3 +594,260 @@ export default {
     }
   },
 };
+
+// =====================================================================
+// Telegram Webhook + админ-команды (перенесено из workerdon.js)
+// =====================================================================
+
+function isAdmin(chatId, env) {
+  const adminKey = String(env.ADMIN_ACCESS_KEY || env.ADMIN_IDS || "");
+  return adminKey.split(",").map((s) => s.trim()).filter(Boolean).includes(String(chatId));
+}
+
+async function recordPurchase(env, pay, from) {
+  const chargeId = pay.telegram_payment_charge_id;
+  if (!chargeId) return { duplicate: false };
+
+  // Защита от дублей по charge_id
+  const existing = await env.DB.prepare(
+    'SELECT 1 FROM purchases WHERE charge_id = ? LIMIT 1'
+  ).bind(chargeId).first();
+  if (existing) return { duplicate: true };
+
+  const payload = String(pay.invoice_payload || "");
+  const now = Math.floor(Date.now() / 1000);
+  const stars = Number(pay.total_amount || 0);
+  const currency = pay.currency || 'XTR';
+
+  let productType = 'other';
+  let productId = '';
+  let expiresAt = null;
+
+  if (payload.startsWith('folder:')) {
+    productType = 'folder_access';
+    const parts = payload.split(':');
+    productId = parts.slice(2, -1).join(':');
+    expiresAt = now + ACCESS_DAYS * 24 * 3600;
+  } else if (payload.startsWith('donate:')) {
+    productType = 'donate';
+    productId = 'donate';
+  } else if (payload.startsWith('premium_30d:')) {
+    productType = 'premium';
+    productId = 'premium_30d';
+    expiresAt = now + 30 * 24 * 3600;
+  }
+
+  const orderId = `order:${chargeId}:${now}`;
+
+  await env.DB.prepare(
+    `INSERT INTO purchases
+       (user_id, product_type, product_id, charge_id, order_id, payload,
+        stars, currency, status, ts, expires_at, raw_response)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 'XTR', 'active', ?, ?, ?)`
+  ).bind(
+    from?.id ?? null,
+    productType,
+    productId,
+    chargeId,
+    orderId,
+    payload,
+    stars,
+    now,
+    expiresAt,
+    JSON.stringify(pay)
+  ).run();
+
+  return { duplicate: false, chargeId };
+}
+
+async function getStarsBalanceText(env) {
+  let offset = 0, stars = 0, nanos = 0, count = 0, pages = 0;
+  while (pages < 20) {
+    const res = await tgApi(env, "getStarTransactions", { offset, limit: 100 });
+    if (!res?.ok) return "Не смог получить транзакции: " + (res?.description || "ошибка API");
+    const txns = res.result?.transactions || [];
+    for (const t of txns) {
+      stars += Number(t.amount || 0);
+      nanos += Number(t.nanostar_amount || 0);
+      count++;
+    }
+    if (txns.length < 100) break;
+    offset += 100;
+    pages++;
+  }
+  stars += Math.trunc(nanos / 1_000_000_000);
+  const frac = Math.abs(nanos % 1_000_000_000);
+  const total = frac ? `${stars}.${String(frac).padStart(9, "0").replace(/0+$/, "")}` : `${stars}`;
+  const more = pages >= 20 ? "\n(учтены последние ~2000 операций)" : "";
+  return `⭐ Баланс звёзд бота: ${total}\nОпераций учтено: ${count}${more}`;
+}
+
+async function getStatsText(env) {
+  const now = Math.floor(Date.now() / 1000);
+  const rows = (await env.DB.prepare(
+    `SELECT * FROM purchases WHERE status = 'active' AND ts > ?`
+  ).bind(now - 30 * 24 * 3600).all()).results || [];
+
+  if (!rows.length) return "📊 Оплат пока нет.";
+
+  const sum = (arr) => arr.reduce((a, r) => a + (Number(r.stars) || 0), 0);
+  const total = sum(rows);
+
+  const byType = {};
+  for (const r of rows) {
+    byType[r.product_type] = (byType[r.product_type] || 0) + (Number(r.stars) || 0);
+  }
+
+  const lines = [
+    "📊 Статистика покупок",
+    `💰 Всего: ${total} ⭐ (${rows.length} покупок)`,
+  ];
+  for (const [type, amount] of Object.entries(byType)) {
+    lines.push(`📦 ${type}: ${amount} ⭐`);
+  }
+
+  const byDay = {};
+  for (const r of rows) {
+    const d = new Date((Number(r.ts) || 0) * 1000).toISOString().slice(0, 10);
+    byDay[d] = (byDay[d] || 0) + (Number(r.stars) || 0);
+  }
+  const days = Object.entries(byDay).sort((a, b) => b[0] - a[0]).slice(0, 7);
+  lines.push("", "📅 По дням:");
+  for (const [d, s] of days) lines.push(`${d} — ${s} ⭐`);
+
+  return lines.join("\n");
+}
+
+async function handleRefund(chatId, args, env) {
+  let uid = null, chargeId = null;
+  if (args.length === 1) {
+    chargeId = args[0];
+    const row = await env.DB.prepare(
+      'SELECT user_id, stars FROM purchases WHERE charge_id = ? LIMIT 1'
+    ).bind(chargeId).first();
+    if (!row) {
+      await tgApi(env, 'sendMessage', {
+        chat_id: chatId,
+        text: "Не нашёл оплату по charge_id. Формат: /refund <user_id> <charge_id>",
+      });
+      return;
+    }
+    uid = row.user_id;
+  } else if (args.length >= 2) {
+    uid = Number(args[0]);
+    chargeId = args[1];
+  } else {
+    await tgApi(env, 'sendMessage', {
+      chat_id: chatId,
+      text: "Формат: /refund <charge_id>  или  /refund <user_id> <charge_id>",
+    });
+    return;
+  }
+
+  if (!Number.isFinite(uid) || !chargeId) {
+    await tgApi(env, 'sendMessage', {
+      chat_id: chatId,
+      text: "Формат: /refund <charge_id>  или  /refund <user_id> <charge_id>",
+    });
+    return;
+  }
+
+  const res = await tgApi(env, 'refundStarPayment', {
+    user_id: uid,
+    telegram_payment_charge_id: chargeId,
+  });
+
+  if (!res?.ok) {
+    await tgApi(env, 'sendMessage', {
+      chat_id: chatId,
+      text: "↩️ Возврат не удался: " + (res?.description || "ошибка API"),
+    });
+    return;
+  }
+
+  await env.DB.prepare(
+    `UPDATE purchases SET status = 'refunded', refunded_at = ?, refund_reason = 'admin' WHERE charge_id = ?`
+  ).bind(Math.floor(Date.now() / 1000), chargeId).run();
+
+  const row = await env.DB.prepare('SELECT stars FROM purchases WHERE charge_id = ? LIMIT 1').bind(chargeId).first();
+  const amount = row ? ` ${row.stars} ⭐` : "";
+  await tgApi(env, 'sendMessage', { chat_id: chatId, text: `✅ Возврат${amount} выполнен.` });
+}
+
+async function handleTelegramWebhook(request, env) {
+  if (env.TG_SECRET) {
+    const got = request.headers.get("X-Telegram-Bot-Api-Secret-Token") || "";
+    if (got !== env.TG_SECRET) {
+      return json({ ok: false, error: "unauthorized" }, 401);
+    }
+  }
+
+  let update;
+  try {
+    update = await request.json();
+  } catch {
+    return json({ ok: false, error: "bad json" }, 400);
+  }
+
+  // 1. Подтверждение предварительной оплаты (обязательно ответить за 10 сек)
+  if (update.pre_checkout_query) {
+    const q = update.pre_checkout_query;
+    await tgApi(env, "answerPreCheckoutQuery", {
+      pre_checkout_query_id: q.id,
+      ok: true,
+    });
+    return json({ ok: true });
+  }
+
+  const message = update.message || update.edited_message || {};
+
+  // 2. Успешная оплата — записываем в D1 purchases
+  if (message.successful_payment) {
+    const pay = message.successful_payment;
+    await recordPurchase(env, pay, message.from);
+    return json({ ok: true });
+  }
+
+  const chatId = message.chat?.id;
+  const text = (message.text || "").trim();
+  if (!chatId) return json({ ok: true });
+
+  const cmd = text.split(" ")[0].split("@")[0];
+
+  if (cmd === "/balance") {
+    if (!isAdmin(chatId, env)) return json({ ok: true });
+    const reply = await getStarsBalanceText(env);
+    await tgApi(env, "sendMessage", { chat_id: chatId, text: reply });
+    return json({ ok: true });
+  }
+
+  if (cmd === "/stats") {
+    if (!isAdmin(chatId, env)) return json({ ok: true });
+    const reply = await getStatsText(env);
+    await tgApi(env, "sendMessage", { chat_id: chatId, text: reply });
+    return json({ ok: true });
+  }
+
+  if (cmd === "/refund") {
+    if (!isAdmin(chatId, env)) return json({ ok: true });
+    const args = text.split(/\s+/).slice(1).filter(Boolean);
+    await handleRefund(chatId, args, env);
+    return json({ ok: true });
+  }
+
+  if (cmd === "/start" && isAdmin(chatId, env)) {
+    await tgApi(env, "sendMessage", {
+      chat_id: chatId,
+      text: [
+        "Админ-команды:",
+        "/balance — баланс звёзд",
+        "/stats — статистика оплат",
+        "/refund <charge_id> — возврат",
+        "/refund <user_id> <charge_id> — возврат",
+      ].join("\n"),
+    });
+    return json({ ok: true });
+  }
+
+  return json({ ok: true });
+}
