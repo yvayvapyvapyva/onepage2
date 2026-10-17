@@ -946,6 +946,18 @@ input, textarea, select {
     border-radius: 10px;
 }
 
+.category-price {
+    font-size: 12px;
+    font-weight: 600;
+    color: #FFD700;
+    background: rgba(255, 215, 0, 0.12);
+    border: 1px solid rgba(255, 215, 0, 0.35);
+    padding: 2px 8px;
+    border-radius: 10px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
 .category-folder.drag-over .category-header {
     background: rgba(48, 209, 88, 0.25) !important;
     border: 2px solid rgba(48, 209, 88, 0.7);

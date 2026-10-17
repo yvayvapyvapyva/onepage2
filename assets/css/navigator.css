@@ -1022,6 +1022,33 @@ html, body {
     background: rgba(255, 255, 255, 0.1);
     padding: 2px 8px;
     border-radius: 10px;
+    flex-shrink: 0;
+}
+
+/* Бейдж цены для закрытой платной папки («Купить · N ⭐») */
+.category-price {
+    font-size: 12px;
+    font-weight: 600;
+    color: #FFD700;
+    background: rgba(255, 215, 0, 0.12);
+    border: 1px solid rgba(255, 215, 0, 0.35);
+    padding: 2px 8px;
+    border-radius: 10px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* Бейдж купленной папки («✅ Куплено · N дн.») */
+.category-owned {
+    font-size: 12px;
+    font-weight: 600;
+    color: #30D158;
+    background: rgba(48, 209, 88, 0.15);
+    border: 1px solid rgba(48, 209, 88, 0.4);
+    padding: 2px 8px;
+    border-radius: 10px;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 /* ============================================

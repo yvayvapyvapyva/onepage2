@@ -710,6 +710,7 @@ function buildRouteTree() {
             name: folder.name,
             parent_id: folder.parent_id,
             visible: folder.visible !== 0,
+            price: folder.price || 0,
             folders: {},
             routes: [],
         };
@@ -759,9 +760,11 @@ function renderTreeLevel(node, container) {
 
         const header = document.createElement('div');
         header.className = 'category-header' + (isExpanded ? ' expanded' : '');
+        const price = sub.price || 0;
         header.innerHTML = `
             <span class="category-icon">${isExpanded ? '📂' : '📁'}</span>
             <span class="category-name">${sub.visible ? '✅ ' : ''}${sub.name}</span>
+            ${price ? `<span class="category-price">🔒 ${price} ⭐</span>` : ''}
             <span class="category-count">${total}</span>
         `;
         header.addEventListener('click', () => {
@@ -1163,7 +1166,7 @@ const openRouteSettings = async (routeName) => {
         for (const [id, f] of _folders) {
             const opt = document.createElement('option');
             opt.value = id;
-            opt.textContent = f.name;
+            opt.textContent = f.name + (f.price ? ` — ${f.price} ⭐` : '');
             if (String(id) === String(currentRouteMeta.folder_id)) opt.selected = true;
             folderSelect.appendChild(opt);
         }

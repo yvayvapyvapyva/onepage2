@@ -94,12 +94,12 @@ async function findRoute(env, mRaw) {
   if (!mRaw) return { row: null, m: '' };
   // сначала точное совпадение, затем legacy-формат ID-NAME
   let row = await env.DB.prepare(
-    'SELECT json, name FROM roads WHERE m = ?').bind(mRaw).first();
+    'SELECT json, name, folder_id FROM roads WHERE m = ?').bind(mRaw).first();
   if (row) return { row, m: mRaw };
   if (mRaw.includes('-')) {
     const m = resolveM(mRaw);
     row = await env.DB.prepare(
-      'SELECT json, name FROM roads WHERE m = ?').bind(m).first();
+      'SELECT json, name, folder_id FROM roads WHERE m = ?').bind(m).first();
     if (row) return { row, m };
   }
   return { row: null, m: mRaw };
@@ -172,8 +172,10 @@ function lockForFolder(folder, locks) {
 }
 
 async function loadLocks(env) {
+  // Пути строим по ВСЕМ папкам (не только платным): иначе путь вложенной
+  // платной папки обрежется на первом бесплатном родителе и замок не совпадёт.
   const rows = (await env.DB.prepare(
-    'SELECT id, name, parent_id, price FROM folders WHERE price > 0').all()).results || [];
+    'SELECT id, name, parent_id, price FROM folders').all()).results || [];
   // постройка путей в памяти
   const byId = new Map(rows.map(r => [r.id, r]));
   const pathCache = new Map();
@@ -192,8 +194,10 @@ async function loadLocks(env) {
   }
   const map = new Map();
   for (const r of rows) {
-    const p = pathOf(r.id);
-    if (p) map.set(p, r.price);
+    if (r.price > 0) {
+      const p = pathOf(r.id);
+      if (p) map.set(p, r.price);
+    }
   }
   return map;
 }
@@ -330,7 +334,14 @@ export default {
         const { row, m } = await findRoute(env, mVal);
         if (!row) return json({ error: 'not_found' }, 404);
         if (action === 'get') {
-          const lock = lockForFolder(folderOf(row.name || ''), await loadLocks(env));
+          // Папку маршрута берём из folder_id (реальная иерархия), а не из имени:
+          // имя маршрута может не совпадать с деревом папок.
+          let routeFolder = '';
+          if (row.folder_id !== null && row.folder_id !== undefined) {
+            routeFolder = await getFolderPath(env, row.folder_id);
+          }
+          if (!routeFolder) routeFolder = folderOf(row.name || ''); // фолбэк для старых данных
+          const lock = lockForFolder(routeFolder, await loadLocks(env));
           if (lock) {
             const initData = url.searchParams.get('tg_init_data') || bodyData.tg_init_data || '';
             const { uid, err } = await verifyTgInitData(initData, env.TELEGRAM_TOKEN);

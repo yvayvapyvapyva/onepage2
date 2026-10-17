@@ -9,6 +9,7 @@ const MenuModule = {
     _expandedFolders: new Set(),
     _locks: {}, // {folderPath: price} — платные папки
     _access: new Set(), // купленные папки пользователя
+    _accessExpires: {}, // {folderPath: unix-ts окончания доступа}
     _folders: new Map(), // id -> {id, name, parent_id, owner_id}
 
     // URL бекенда для загрузки маршрутов: новый API-воркер (D1), фолбэк — старая Яндекс-функция.
@@ -219,6 +220,41 @@ const MenuModule = {
         return false;
     },
 
+    // Полный путь папки по её id (через parent_id) — так же, как ключи в _locks.
+    _folderPath(id) {
+        const parts = [];
+        const seen = new Set();
+        let cur = id;
+        while (cur !== null && cur !== undefined && this._folders.has(cur) && !seen.has(cur)) {
+            seen.add(cur);
+            const f = this._folders.get(cur);
+            parts.unshift(f.name);
+            cur = f.parent_id;
+        }
+        return parts.join('/');
+    },
+
+    // Покупка, дающая доступ к папке (сама или предок). Возвращает
+    // { folder, expiresAt } с самым поздним сроком, либо null.
+    _accessFor(lockFolder) {
+        let best = null;
+        for (const owned of this._access) {
+            if (lockFolder === owned || lockFolder.startsWith(owned + '/')) {
+                const exp = (this._accessExpires && this._accessExpires[owned]) || 0;
+                if (!best || exp > best.expiresAt) best = { folder: owned, expiresAt: exp };
+            }
+        }
+        return best;
+    },
+
+    // Сколько дней осталось до конца доступа (0 — истекает сегодня, null — срок неизвестен).
+    _daysLeft(expiresAt) {
+        if (!expiresAt) return null;
+        const ms = expiresAt * 1000 - Date.now();
+        if (ms <= 0) return 0;
+        return Math.ceil(ms / 86400000);
+    },
+
     async _refreshShop() {
         try {
             const res = await fetch(`${this.API_URL_V2}?action=locks`);
@@ -242,6 +278,7 @@ const MenuModule = {
                 if (res.ok) {
                     const data = await res.json();
                     this._access = new Set(data.folders || []);
+                    this._accessExpires = data.expires || {};
                 }
             } catch (e) {}
         }
@@ -287,7 +324,7 @@ const MenuModule = {
             const buy = document.createElement('button');
             buy.className = 'route-item';
             buy.style.cssText = 'justify-content:center;font-weight:700;';
-            buy.textContent = `Купить за ${price} ⭐`;
+            buy.textContent = `Открыть за ${price} ⭐`;
             buy.addEventListener('click', () => this._buyFolder(folder, buy));
             body.appendChild(buy);
             const owned = document.createElement('button');
@@ -299,7 +336,7 @@ const MenuModule = {
         } else {
             const hint = document.createElement('div');
             hint.style.cssText = 'color:rgba(255,255,255,0.7);font-size:14px;';
-            hint.textContent = 'Открой приложение в Telegram, чтобы купить доступ за звёзды.';
+            hint.textContent = 'Открой приложение в Telegram, чтобы открыть доступ за звёзды.';
             body.appendChild(hint);
         }
         m.style.display = 'block';
@@ -333,7 +370,7 @@ const MenuModule = {
             }
             if (!res.ok || !data.invoiceLink) throw new Error((data && data.error) || ('HTTP ' + res.status));
             Telegram.WebApp.openInvoice(data.invoiceLink, (status) => {
-                if (btn) { btn.disabled = false; btn.textContent = `Купить за ${data.price} ⭐`; }
+                if (btn) { btn.disabled = false; btn.textContent = `Открыть за ${data.price} ⭐`; }
                 if (status === 'paid') {
                     this._claimPurchases(null, folder);
                 } else if (typeof showToast === 'function' && status !== 'cancelled') {
@@ -341,7 +378,7 @@ const MenuModule = {
                 }
             });
         } catch (e) {
-            if (btn) { btn.disabled = false; btn.textContent = `Купить за ⭐`; }
+            if (btn) { btn.disabled = false; btn.textContent = `Открыть за ⭐`; }
             if (typeof showToast === 'function') showToast('Ошибка: ' + e.message, 'error', 4000);
         }
     },
@@ -359,6 +396,7 @@ const MenuModule = {
             const data = await res.json();
             if (res.ok) {
                 this._access = new Set(data.folders || []);
+                this._accessExpires = data.expires || {};
                 this._buildRoutesList();
                 this._hidePaywall();
                 if (thenOpen) {
@@ -368,7 +406,7 @@ const MenuModule = {
                         this._expandedFolders.add(thenOpen);
                         this._buildRoutesList();
                     } else {
-                        if (typeof showToast === 'function') showToast('Оплаты небыло', 'error');
+                        if (typeof showToast === 'function') showToast('Оплата не найдена', 'error');
                     }
                 } else {
                     if (typeof showToast === 'function') showToast('Доступ обновлён', 'success');
@@ -462,21 +500,38 @@ const MenuModule = {
 
     // Отрисовка заголовка папки с учётом замка. Возвращает false если папка закрыта.
     _renderFolderHeader(container, folderPath, displayName, total, isExpanded, isRoot, folderId) {
-        const lock = this._lockFor(folderPath);
-        const locked = lock && !this._hasAccess(lock.folder);
-        const paid = !!lock;
+        // Замок ищем по ПОЛНОМУ ПУТИ папки (в _locks ключи — пути),
+        // а folderPath — это id (нужен для раскрытия/сворачивания).
+        const lock = this._lockFor(this._folderPath(folderId));
+        const access = lock ? this._accessFor(lock.folder) : null;
+        const locked = !!lock && !access;
 
         const el = document.createElement('div');
         el.className = 'category-folder';
 
+        // Бейдж статуса: закрыта — цена и призыв открыть; куплена — отметка и срок.
+        let statusBadge = '';
+        let title = '';
+        if (locked) {
+            statusBadge = `<span class="category-price">Открыть · ${lock.price} ⭐</span>`;
+            title = `Доступ откроется после оплаты · ${lock.price} ⭐`;
+        } else if (lock) {
+            const days = this._daysLeft(access.expiresAt);
+            const daysText = days === null ? '' : ` · ${days === 0 ? 'истекает сегодня' : days + ' дн.'}`;
+            statusBadge = `<span class="category-owned">✅ Куплено${daysText}</span>`;
+            if (access.expiresAt) {
+                title = 'Доступ до ' + new Date(access.expiresAt * 1000).toLocaleDateString('ru-RU');
+            }
+        }
+
         const header = document.createElement('div');
         header.className = 'category-header' + (isExpanded && !locked ? ' expanded' : '') + (isRoot ? ' root' : '');
+        if (title) header.title = title;
         header.innerHTML = `
             <span class="category-icon">${locked ? '🔒' : (isExpanded ? '📂' : '📁')}</span>
-            <span class="category-name">${this._escape(displayName)}${paid ? ' ⭐' : ''}</span>
-            <span class="category-count">
-                ${locked ? total + ' · ' + lock.price + ' ⭐' : paid ? total + ' · оплачено' : total}
-            </span>
+            <span class="category-name">${this._escape(displayName)}</span>
+            ${statusBadge}
+            <span class="category-count">${total}</span>
         `;
         header.addEventListener('click', e => {
             e.stopPropagation();
