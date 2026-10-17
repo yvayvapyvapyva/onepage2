@@ -651,41 +651,7 @@ const handleInitialAuth = async () => {
     $('settingsTitle').textContent = `Маршрутов: ${routeCount}`;
 };
 
-const _folderLocks = {}; // path -> price в звёздах
-
-const refreshFolderLocks = async () => {
-    try {
-        const data = await callYcFunction('locks');
-        for (const k of Object.keys(_folderLocks)) delete _folderLocks[k];
-        for (const l of (data.locks || [])) _folderLocks[l.folder] = l.price;
-    } catch (e) {}
-};
-
-const toggleFolderLock = async (folderPath) => {
-    const cur = _folderLocks[folderPath] || '';
-    const input = prompt(`Цена доступа к папке «${folderPath}» в звёздах (1–10000).\nПусто или 0 — убрать замок:`, cur);
-    if (input === null) return;
-    try {
-        if (!input.trim() || Math.floor(Number(input)) === 0) {
-            await callYcFunction('del_lock', {}, { folder: folderPath });
-            showToast('Замок убран', 'success');
-        } else {
-            const price = Math.floor(Number(input));
-            if (!Number.isFinite(price) || price < 1 || price > 10000) {
-                showToast('Цена: от 1 до 10000 ⭐', 'error');
-                return;
-            }
-            await callYcFunction('save_lock', {}, { folder: folderPath, price });
-            showToast(`Папка платная: ${price} ⭐`, 'success');
-        }
-        await refreshFolderLocks();
-        renderSettingsFileList();
-    } catch (e) {
-        showToast('Ошибка сохранения замка', 'error');
-    }
-};
-
-// Путь папки (для папокых замков folder_locks, которые хранятся по путям).
+// Путь папки (восстанавливает полный путь через parent_id).
 const getFolderPath = (folderId) => {
     const parts = [];
     let cur = folderId;
@@ -704,19 +670,6 @@ const getFolderName = (folderId) => {
     return f ? f.name : null;
 };
 
-const appendLockButton = (header, folderPath) => {
-    const btn = document.createElement('span');
-    btn.className = 'folder-lock-btn';
-    const price = _folderLocks[folderPath];
-    btn.textContent = price ? `🔒 ${price}⭐` : '🔓';
-    btn.title = price ? `Платная папка: ${price} ⭐ — нажми чтобы изменить` : 'Сделать папку платной';
-    btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        toggleFolderLock(folderPath);
-    });
-    header.appendChild(btn);
-};
-
 const refreshFileList = async () => {
     try {
         const result = await callYcFunction('list');
@@ -730,7 +683,6 @@ const refreshFileList = async () => {
             _folders = new Map();
         }
 
-        await refreshFolderLocks().catch(() => {});
         renderSettingsFileList();
         updateVisibility();
     } catch (e) {
@@ -816,12 +768,12 @@ function renderTreeLevel(node, container) {
             else _expandedFolders.add(String(sub.id));
             renderSettingsFileList();
         });
-        appendLockButton(header, folderPath);
 
         const btnSettings = document.createElement('span');
         btnSettings.className = 'folder-btn';
         btnSettings.textContent = '⚙️';
         btnSettings.title = 'Настройки папки';
+        btnSettings.style.cssText = 'cursor:pointer;font-size:18px;line-height:1;padding:4px 8px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.25);border-radius:6px;';
         btnSettings.addEventListener('click', (e) => {
             e.stopPropagation();
             e.preventDefault();
@@ -862,7 +814,6 @@ function renderTreeLevel(node, container) {
             }
         });
 
-        el.appendChild(header);
         frag.appendChild(el);
 
         if (isExpanded) {
