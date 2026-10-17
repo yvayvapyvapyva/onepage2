@@ -171,8 +171,14 @@ function lockForFolder(folder, locks) {
 }
 
 async function loadLocks(env) {
-  const rows = (await env.DB.prepare('SELECT folder, price FROM folder_locks').all()).results || [];
-  return new Map(rows.map((r) => [r.folder, r.price]));
+  const rows = (await env.DB.prepare(
+    'SELECT id, name, parent_id, price FROM folders WHERE price > 0').all()).results || [];
+  const map = new Map();
+  for (const r of rows) {
+    const path = await getFolderPath(env, r.id);
+    if (path) map.set(path, r.price);
+  }
+  return map;
 }
 
 // Доступ действует 30 дней с момента оплаты.
@@ -197,6 +203,36 @@ async function accessExpires(env, uid) {
 
 function normFolder(f) {
   return String(f || '').split('/').map((s) => s.trim()).filter(Boolean).join('/');
+}
+
+// Восстановить полный путь папки по её id (через parent_id).
+async function getFolderPath(env, id) {
+  const parts = [];
+  let cur = id;
+  while (cur !== null && cur !== undefined) {
+    const row = await env.DB.prepare('SELECT name, parent_id FROM folders WHERE id = ?').bind(cur).first();
+    if (!row) break;
+    parts.unshift(row.name);
+    cur = row.parent_id;
+  }
+  return parts.join('/');
+}
+
+// Найти id папки по полному пути (например "А/Б/В").
+async function findFolderIdByPath(env, path) {
+  const parts = String(path || '').split('/').map((s) => s.trim()).filter(Boolean);
+  if (parts.length === 0) return null;
+  let parentId = null;
+  let currentId = null;
+  for (const part of parts) {
+    const row = await env.DB.prepare(
+      'SELECT id FROM folders WHERE name = ? AND (parent_id IS NULL OR parent_id = ?)'
+    ).bind(part, parentId).first();
+    if (!row) return null;
+    currentId = row.id;
+    parentId = row.id;
+  }
+  return currentId;
 }
 
 export default {
@@ -343,20 +379,18 @@ export default {
         if (!Number.isFinite(price) || price < 0 || price > 10000) {
           return json({ error: 'bad_price' }, 400);
         }
-        if (price === 0) {
-          await env.DB.prepare('DELETE FROM folder_locks WHERE folder = ?').bind(folder).run();
-        } else {
-          await env.DB.prepare(
-            'INSERT INTO folder_locks (folder, price) VALUES (?, ?) ON CONFLICT(folder) DO UPDATE SET price=excluded.price')
-            .bind(folder, price).run();
-        }
+        const folderId = await findFolderIdByPath(env, folder);
+        if (!folderId) return json({ error: 'folder_not_found' }, 400);
+        await env.DB.prepare('UPDATE folders SET price = ? WHERE id = ?').bind(price, folderId).run();
         return json({ status: 'ok', folder, price });
       }
 
       if (action === 'del_lock') {
         const folder = normFolder(bodyData.folder || url.searchParams.get('folder'));
         if (!folder) return json({ error: 'missing_folder' }, 400);
-        await env.DB.prepare('DELETE FROM folder_locks WHERE folder = ?').bind(folder).run();
+        const folderId = await findFolderIdByPath(env, folder);
+        if (!folderId) return json({ error: 'folder_not_found' }, 400);
+        await env.DB.prepare('UPDATE folders SET price = 0 WHERE id = ?').bind(folderId).run();
         return json({ status: 'ok' });
       }
 
@@ -434,19 +468,24 @@ export default {
       // Список всех папок (плоский)
       if (action === 'folder_list') {
         const rows = (await env.DB.prepare(
-          'SELECT id, name, parent_id, owner_id FROM folders ORDER BY name').all()).results || [];
-        return json({ folders: rows.map((r) => ({ id: r.id, name: r.name, parent_id: r.parent_id, owner_id: r.owner_id })) });
+          'SELECT id, name, parent_id, owner_id, visible, price FROM folders ORDER BY name').all()).results || [];
+        return json({ folders: rows.map((r) => ({ id: r.id, name: r.name, parent_id: r.parent_id, owner_id: r.owner_id, visible: r.visible === 1, price: r.price })) });
       }
 
       // Создать папку
       if (action === 'folder_create') {
         const name = String(bodyData.name || '').trim();
         const parentId = bodyData.parent_id !== undefined ? bodyData.parent_id : null;
+        const visible = bodyData.visible !== false ? 1 : 0;
+        const price = Math.floor(Number(bodyData.price ?? 0));
         if (!name) return json({ error: 'missing_name' }, 400);
+        if (!Number.isFinite(price) || price < 0 || price > 10000) {
+          return json({ error: 'bad_price' }, 400);
+        }
         const res = await env.DB.prepare(
-          'INSERT INTO folders (name, parent_id) VALUES (?, ?)').bind(name, parentId).run();
+          'INSERT INTO folders (name, parent_id, visible, price) VALUES (?, ?, ?, ?)').bind(name, parentId, visible, price).run();
         const id = res.meta && res.meta.last_row_id ? res.meta.last_row_id : null;
-        return json({ status: 'ok', id, name, parent_id: parentId });
+        return json({ status: 'ok', id, name, parent_id: parentId, visible: visible === 1, price });
       }
 
       // Переименовать папку
@@ -487,6 +526,27 @@ export default {
           if (cyclic) return json({ error: 'cyclic_move' }, 400);
         }
         await env.DB.prepare('UPDATE folders SET parent_id = ? WHERE id = ?').bind(parentId, id).run();
+        return json({ status: 'ok' });
+      }
+
+      // Настройки папки: имя, видимость, цена
+      if (action === 'folder_settings') {
+        const id = Number(bodyData.id);
+        const name = bodyData.name !== undefined ? String(bodyData.name).trim() : null;
+        const visible = bodyData.visible !== undefined ? (bodyData.visible ? 1 : 0) : null;
+        const price = bodyData.price !== undefined ? Math.floor(Number(bodyData.price)) : null;
+        if (!Number.isFinite(id)) return json({ error: 'bad_params' }, 400);
+        if (price !== null && (!Number.isFinite(price) || price < 0 || price > 10000)) {
+          return json({ error: 'bad_price' }, 400);
+        }
+        const sets = [];
+        const vals = [];
+        if (name !== null) { sets.push('name = ?'); vals.push(name); }
+        if (visible !== null) { sets.push('visible = ?'); vals.push(visible); }
+        if (price !== null) { sets.push('price = ?'); vals.push(price); }
+        if (sets.length === 0) return json({ error: 'nothing_to_update' }, 400);
+        vals.push(id);
+        await env.DB.prepare(`UPDATE folders SET ${sets.join(', ')} WHERE id = ?`).bind(...vals).run();
         return json({ status: 'ok' });
       }
 

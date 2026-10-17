@@ -17,11 +17,15 @@ CREATE INDEX IF NOT EXISTS idx_roads_visible ON roads (visible);
 CREATE INDEX IF NOT EXISTS idx_roads_creator ON roads (id);
 
 -- Реальные папки (иерархия, parent_id для вложенности).
+-- visible — показывать ли папку в списках (1/0).
+-- price — цена доступа в звёздах Telegram Stars (0 = бесплатно).
 CREATE TABLE IF NOT EXISTS folders (
   id        INTEGER PRIMARY KEY AUTOINCREMENT,
   name      TEXT NOT NULL,
   parent_id INTEGER REFERENCES folders(id),
   owner_id  TEXT DEFAULT '',
+  visible   INTEGER DEFAULT 1,
+  price     INTEGER DEFAULT 0,
   created_at INTEGER DEFAULT (strftime('%s', 'now'))
 );
 
@@ -29,15 +33,7 @@ CREATE TABLE IF NOT EXISTS folders (
 ALTER TABLE roads ADD COLUMN folder_id INTEGER REFERENCES folders(id);
 CREATE INDEX IF NOT EXISTS idx_roads_folder ON roads (folder_id);
 
--- Платные папки: folder — полный путь папки (например "ЭКЗАМЕНАЦИОННЫЕ МАРШРУТЫ/МЕЩЕРА"),
--- price — цена доступа в звёздах Telegram Stars (1..10000).
--- Замок наследуется подпапками. Метки ставятся из редактора.
-CREATE TABLE IF NOT EXISTS folder_locks (
-  folder TEXT PRIMARY KEY,
-  price  INTEGER NOT NULL
-);
-
--- Купленные доступы: user_id — Telegram user id, folder — папка из folder_locks.
+-- Купленные доступы: user_id — Telegram user id, folder — полный путь папки.
 CREATE TABLE IF NOT EXISTS purchases (
   user_id TEXT NOT NULL,
   folder  TEXT NOT NULL,

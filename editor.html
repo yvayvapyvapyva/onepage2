@@ -41,6 +41,7 @@
 <div id="settingsModal" onclick="if(event.target===this) toggleM('settingsModal')"><div class="modal-sheet"><div class="modal-header" style="padding:16px 20px 16px 10px;"><span id="settingsTitle">Маршруты</span><div style="display:flex;gap:6px;margin-left:auto;"><button class="close-circle" onclick="toggleM('settingsModal')">✕</button></div></div><div class="settings-body" id="routesList"></div><div class="modal-actions-sm"><button class="settings-tool-btn settings-tool-btn-green flex-1" onclick="openCreateRouteModal()" style="text-align:center;">Создать маршрут</button><button class="settings-tool-btn flex-1" onclick="window.createFolder()" style="text-align:center;background:rgba(0,122,255,0.25);border-color:rgba(0,122,255,0.4);">Создать папку</button></div></div></div>
 <div id="createRouteModal" onclick="if(event.target===this) toggleM('createRouteModal')"><div class="modal-sheet modal-sheet-compact"><h3 class="modal-title">Новый маршрут</h3><div class="input-wrapper" style="padding:4px;border-radius:14px;"><input type="text" id="newRouteNameInput" placeholder="Название маршрута"></div><div class="modal-actions"><button class="btn-action flex-1" onclick="toggleM('createRouteModal')">Отмена</button><button class="btn-action btn-primary flex-1" onclick="handleCreateNew()">Создать</button></div></div></div>
 <div id="createFolderModal" onclick="if(event.target===this) toggleM('createFolderModal')"><div class="modal-sheet modal-sheet-compact"><h3 class="modal-title">Новая папка</h3><div class="input-wrapper" style="padding:4px;border-radius:14px;"><input type="text" id="newFolderNameInput" placeholder="Название папки"></div><div class="modal-actions"><button class="btn-action flex-1" onclick="toggleM('createFolderModal')">Отмена</button><button class="btn-action btn-primary flex-1" onclick="handleCreateFolder()">Создать</button></div></div></div>
+<div id="folderSettingsModal" onclick="if(event.target===this) toggleM('folderSettingsModal')"><div class="modal-sheet modal-sheet-compact"><h3 class="modal-title">Настройки папки</h3><div class="input-wrapper" style="padding:4px;border-radius:14px;margin-bottom:8px;"><input type="text" id="folderSettingsNameInput" placeholder="Название папки"></div><div class="field-label" style="margin-top:8px;">Цена доступа (⭐)</div><div class="input-wrapper" style="padding:4px;border-radius:14px;margin-bottom:8px;"><input type="number" id="folderSettingsPriceInput" placeholder="0" min="0" max="10000"></div><div style="display:flex;align-items:center;gap:10px;padding:4px;border-radius:12px;margin-bottom:8px;background:rgba(25,25,30,0.7);border:1px solid rgba(255,255,255,0.25);"><label style="display:flex;align-items:center;gap:10px;cursor:pointer;flex:1;"><input type="checkbox" id="folderSettingsVisibleCheckbox" style="width:20px;height:20px;accent-color:#34C759;cursor:pointer;"><span style="font-size:16px;font-weight:600;color:#ffffff;">Отображать в списке</span></label></div><div style="display:flex;flex-direction:column;gap:8px;padding:10px;"><button class="btn-action flex-1" onclick="saveFolderSettings();">💾 Сохранить</button><button class="btn-action btn-danger flex-1" onclick="deleteCurrentFolder();">🗑️ Удалить папку</button><button class="btn-action flex-1" onclick="toggleM('folderSettingsModal');">Закрыть</button></div></div></div>
 <div id="settingsRouteModal" onclick="if(event.target===this) toggleM('settingsRouteModal')"><div class="modal-sheet" style="gap:0;padding:0;"><div class="modal-header"><h3 id="settingsRouteTitle">Настройки маршрута</h3><button class="close-circle" onclick="toggleM('settingsRouteModal')">✕</button></div><div class="modal-body-scroll">
 <div class="field-label">Имя маршрута</div>
 <div class="input-wrapper" style="padding:3px;border-radius:12px;margin-bottom:8px;"><textarea id="routeDisplayName" placeholder="Введите имя маршрута" rows="2" style="width:100%;padding:10px;border:none;font-size:16px;outline:none;background:transparent;color:#f5f7fa;font-family:inherit;resize:none;min-height:56px;box-sizing:border-box;"></textarea></div>
@@ -817,29 +818,13 @@ function renderTreeLevel(node, container) {
         });
         appendLockButton(header, folderPath);
 
-        const btnRename = document.createElement('span');
-        btnRename.className = 'folder-btn';
-        btnRename.textContent = '✏️';
-        btnRename.title = 'Переименовать';
-        btnRename.addEventListener('click', (e) => {
+        const btnSettings = document.createElement('span');
+        btnSettings.className = 'folder-btn';
+        btnSettings.textContent = '⚙️';
+        btnSettings.title = 'Настройки папки';
+        btnSettings.addEventListener('click', (e) => {
             e.stopPropagation();
-            const newName = prompt('Новое название папки:', sub.name);
-            if (!newName || !newName.trim()) return;
-            callYcFunction('folder_rename', {}, { id: sub.id, name: newName.trim() })
-                .then(() => { refreshFileList(); showToast('Переименовано', 'success'); })
-                .catch(() => showToast('Ошибка переименования', 'error'));
-        });
-
-        const btnDel = document.createElement('span');
-        btnDel.className = 'folder-btn';
-        btnDel.textContent = '🗑️';
-        btnDel.title = 'Удалить (если пуста)';
-        btnDel.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (!confirm('Удалить папку?')) return;
-            callYcFunction('folder_delete', {}, { id: sub.id })
-                .then(() => { refreshFileList(); showToast('Удалено', 'success'); })
-                .catch(() => showToast('Ошибка удаления', 'error'));
+            openFolderSettings(sub.id);
         });
 
         const btnAdd = document.createElement('span');
@@ -854,8 +839,7 @@ function renderTreeLevel(node, container) {
 
         const controls = document.createElement('div');
         controls.style.cssText = 'margin-left:auto;display:flex;gap:6px;';
-        controls.appendChild(btnRename);
-        controls.appendChild(btnDel);
+        controls.appendChild(btnSettings);
         controls.appendChild(btnAdd);
         header.appendChild(controls);
 
@@ -1900,6 +1884,48 @@ window.handleCreateFolder = async () => {
     }
 };
 
+let _folderSettingsId = null;
+
+const openFolderSettings = async (folderId) => {
+    _folderSettingsId = folderId;
+    const folder = _folders.get(folderId);
+    if (!folder) return;
+    $('folderSettingsNameInput').value = folder.name;
+    $('folderSettingsPriceInput').value = folder.price || 0;
+    $('folderSettingsVisibleCheckbox').checked = folder.visible !== 0;
+    toggleM('folderSettingsModal');
+};
+
+const saveFolderSettings = async () => {
+    if (!_folderSettingsId) return;
+    const name = $('folderSettingsNameInput').value.trim();
+    const price = Number($('folderSettingsPriceInput').value) || 0;
+    const visible = $('folderSettingsVisibleCheckbox').checked;
+    if (!name) { showToast('Введите имя папки', 'error'); return; }
+    if (!Number.isFinite(price) || price < 0 || price > 10000) { showToast('Цена от 0 до 10000 ⭐', 'error'); return; }
+    try {
+        await callYcFunction('folder_settings', {}, { id: _folderSettingsId, name, visible, price });
+        await refreshFileList();
+        toggleM('folderSettingsModal');
+        showToast('Настройки сохранены', 'success');
+    } catch (e) {
+        showToast('Ошибка сохранения', 'error');
+    }
+};
+
+const deleteCurrentFolder = async () => {
+    if (!_folderSettingsId) return;
+    if (!confirm('Удалить папку? (папка должна быть пуста)')) return;
+    try {
+        await callYcFunction('folder_delete', {}, { id: _folderSettingsId });
+        await refreshFileList();
+        toggleM('folderSettingsModal');
+        showToast('Папка удалена', 'success');
+    } catch (e) {
+        showToast('Ошибка удаления', 'error');
+    }
+};
+
 // Экспорт функций в глобальную область для onclick обработчиков
 window.openPointsOrderModal = openPointsOrderModal;
 window.openSettingsModal = openSettingsModal;
@@ -1925,6 +1951,9 @@ window.closeInstruction = closeInstruction;
 window.closeZnakiSelector = closeZnakiSelector;
 window.selectZnak = selectZnak;
 window.handleCreateFolder = handleCreateFolder;
+window.openFolderSettings = openFolderSettings;
+window.saveFolderSettings = saveFolderSettings;
+window.deleteCurrentFolder = deleteCurrentFolder;
 
 </script>
 </body>
