@@ -770,20 +770,14 @@ function renderTreeLevel(node, container) {
         });
 
         const btnSettings = document.createElement('span');
-        btnSettings.className = 'folder-btn';
+        btnSettings.className = 'route-info-btn';
         btnSettings.textContent = '⚙️';
         btnSettings.title = 'Настройки папки';
-        btnSettings.style.cssText = 'cursor:pointer;font-size:18px;line-height:1;padding:4px 8px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.25);border-radius:6px;';
         btnSettings.addEventListener('click', (e) => {
             e.stopPropagation();
-            e.preventDefault();
             openFolderSettings(sub.id);
         });
-
-        const controls = document.createElement('div');
-        controls.style.cssText = 'margin-left:auto;display:flex;gap:6px;';
-        controls.appendChild(btnSettings);
-        header.appendChild(controls);
+        header.appendChild(btnSettings);
 
         el.appendChild(header);
         el.setAttribute('draggable', 'true');
