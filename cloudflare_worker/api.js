@@ -691,7 +691,7 @@ async function recordPurchase(env, pay, from) {
         stars, currency, status, ts, expires_at, raw_response)
      VALUES (?, ?, ?, ?, ?, ?, ?, 'XTR', 'active', ?, ?, ?)`
   ).bind(
-    from?.id ?? null,
+    from && from.id != null ? String(from.id) : null,
     productType,
     productId,
     chargeId,
