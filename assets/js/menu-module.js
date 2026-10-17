@@ -531,10 +531,20 @@ const MenuModule = {
             btn.className = 'route-item' + (isActive ? ' active' : '');
             if (isActive) btn.style.cssText = 'background:rgba(48,209,88,0.2);border-color:rgba(48,209,88,0.4);';
 
+            const nameWrap = document.createElement('div');
+            nameWrap.style.cssText = 'display:flex;align-items:center;gap:6px;';
+
+            const iconSpan = document.createElement('span');
+            iconSpan.className = 'route-icon';
+            iconSpan.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.65)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>';
+            nameWrap.appendChild(iconSpan);
+
             const nameSpan = document.createElement('span');
             nameSpan.className = 'route-name';
             nameSpan.textContent = route.name;
-            btn.appendChild(nameSpan);
+            nameWrap.appendChild(nameSpan);
+
+            btn.appendChild(nameWrap);
 
             if (hasDesc) {
                 const infoBtn = document.createElement('span');

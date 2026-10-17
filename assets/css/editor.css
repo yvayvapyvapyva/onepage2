@@ -1053,6 +1053,11 @@ input, textarea, select {
     padding-right: 36px;
 }
 
+.route-icon {
+    flex-shrink: 0;
+    opacity: 0.7;
+}
+
 /* -- Уникальные стили редактора -- */
 .color-dropdown {
     position: fixed;
