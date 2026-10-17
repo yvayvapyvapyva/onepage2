@@ -706,26 +706,26 @@ async function recordPurchase(env, pay, from) {
   return { duplicate: false, chargeId, productType, productId, stars };
 }
 
+// Формат числа звёзд из целой части и нанозвёзд (1e-9).
+function formatStars(amount, nanos) {
+  let stars = Number(amount || 0) + Math.trunc(Number(nanos || 0) / 1_000_000_000);
+  const frac = Math.abs(Number(nanos || 0) % 1_000_000_000);
+  return frac ? `${stars}.${String(frac).padStart(9, "0").replace(/0+$/, "")}` : `${stars}`;
+}
+
+// Числовой баланс звёзд бота.
+// Bot API getMyStarBalance — прямой баланс бота.
+// Возвращает { total } либо { error }.
+async function getStarsBalance(env) {
+  const res = await tgApi(env, "getMyStarBalance", {});
+  if (!res?.ok) return { error: res?.description || "ошибка API" };
+  return { total: formatStars(res.result?.amount, res.result?.nanostar_amount) };
+}
+
 async function getStarsBalanceText(env) {
-  let offset = 0, stars = 0, nanos = 0, count = 0, pages = 0;
-  while (pages < 20) {
-    const res = await tgApi(env, "getStarTransactions", { offset, limit: 100 });
-    if (!res?.ok) return "Не смог получить транзакции: " + (res?.description || "ошибка API");
-    const txns = res.result?.transactions || [];
-    for (const t of txns) {
-      stars += Number(t.amount || 0);
-      nanos += Number(t.nanostar_amount || 0);
-      count++;
-    }
-    if (txns.length < 100) break;
-    offset += 100;
-    pages++;
-  }
-  stars += Math.trunc(nanos / 1_000_000_000);
-  const frac = Math.abs(nanos % 1_000_000_000);
-  const total = frac ? `${stars}.${String(frac).padStart(9, "0").replace(/0+$/, "")}` : `${stars}`;
-  const more = pages >= 20 ? "\n(учтены последние ~2000 операций)" : "";
-  return `⭐ Баланс звёзд бота: ${total}\nОпераций учтено: ${count}${more}`;
+  const b = await getStarsBalance(env);
+  if (b.error) return "Не смог получить баланс: " + b.error;
+  return `⭐ Баланс звёзд бота: ${b.total}`;
 }
 
 async function getStatsText(env) {
@@ -821,7 +821,11 @@ async function handleRefund(chatId, args, env, ctx) {
   const amount = info ? ` ${info.stars} ⭐` : "";
 
   // Уведомление о возврате в канал (не блокируя ответ на команду)
-  const job = notifyChannel(env, buildRefundText(info, uid, chargeId));
+  const job = (async () => {
+    const b = await getStarsBalance(env);
+    const balance = b && !b.error ? b.total : null;
+    await notifyChannel(env, buildRefundText(info, uid, chargeId, balance));
+  })();
   if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(job);
   else await job;
 
@@ -870,7 +874,7 @@ async function notifyChannel(env, text) {
 }
 
 // Текст уведомления о покупке.
-function buildPurchaseText(pay, from, record) {
+function buildPurchaseText(pay, from, record, balance) {
   const user = from || {};
   const fullName = [user.first_name, user.last_name].filter(Boolean).join(' ') || '—';
   const username = user.username ? '@' + user.username : 'без username';
@@ -880,16 +884,19 @@ function buildPurchaseText(pay, from, record) {
     '🛒 <b>Новая покупка</b>',
     `💳 ${escapeHtml(label)}`,
     `💰 Сумма: <b>${moneyText(Number(pay.total_amount || 0), pay.currency || 'XTR')}</b>`,
+  ];
+  if (balance) lines.push(`💼 Баланс бота: <b>${escapeHtml(balance)} ⭐</b>`);
+  lines.push(
     `👤 ${escapeHtml(fullName)} · ${escapeHtml(username)}`,
     `🆔 <code>${uid}</code>`,
     `🕒 ${moscowNow()} (МСК)`,
-  ];
+  );
   if (record.chargeId) lines.push(`🧾 <code>${escapeHtml(record.chargeId)}</code>`);
   return lines.join('\n');
 }
 
 // Текст уведомления о возврате.
-function buildRefundText(info, uid, chargeId) {
+function buildRefundText(info, uid, chargeId, balance) {
   const label = productLabel(info && info.product_type, info && info.product_id);
   const amount = info ? Number(info.stars || 0) : 0;
   const u = uid != null ? uid : (info && info.user_id);
@@ -897,9 +904,12 @@ function buildRefundText(info, uid, chargeId) {
     '↩️ <b>Возврат</b>',
     `💳 ${escapeHtml(label)}`,
     `💰 Сумма: <b>${amount} ⭐</b>`,
+  ];
+  if (balance) lines.push(`💼 Баланс бота: <b>${escapeHtml(balance)} ⭐</b>`);
+  lines.push(
     `🆔 <code>${u != null ? u : '—'}</code>`,
     `🕒 ${moscowNow()} (МСК)`,
-  ];
+  );
   if (chargeId) lines.push(`🧾 <code>${escapeHtml(chargeId)}</code>`);
   return lines.join('\n');
 }
@@ -936,7 +946,11 @@ async function handleTelegramWebhook(request, env, ctx) {
     const pay = message.successful_payment;
     const record = await recordPurchase(env, pay, message.from);
     if (!record.duplicate) {
-      const job = notifyChannel(env, buildPurchaseText(pay, message.from, record));
+      const job = (async () => {
+        const b = await getStarsBalance(env);
+        const balance = b && !b.error ? b.total : null;
+        await notifyChannel(env, buildPurchaseText(pay, message.from, record, balance));
+      })();
       if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(job);
       else await job;
     }
