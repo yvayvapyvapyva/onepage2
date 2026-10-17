@@ -224,11 +224,12 @@ export default {
       // ---- Публичный список маршрутов ----
       if (action === 'list_routes') {
         const rows = (await env.DB.prepare(
-          'SELECT m, name, description, creator_name FROM roads WHERE visible = 1 AND name IS NOT NULL ORDER BY name')
+          'SELECT m, name, description, creator_name, folder_id FROM roads WHERE visible = 1 AND name IS NOT NULL ORDER BY name')
           .all()).results || [];
         return json(rows.map((r) => ({
           m: r.m, name: r.name,
           description: r.description || '', creator_name: r.creator_name || '',
+          folder_id: r.folder_id || null,
         })), 200, { 'Cache-Control': 'no-cache, no-store, must-revalidate' });
       }
 
@@ -256,10 +257,10 @@ export default {
       // ---- Полный список (для редактора) ----
       if (action === 'list') {
         const rows = (await env.DB.prepare(
-          'SELECT m, name, visible FROM roads ORDER BY name').all()).results || [];
+          'SELECT m, name, visible, folder_id FROM roads ORDER BY name').all()).results || [];
         return json({
           routes: rows.map((r) => ({
-            m: r.m, name: r.name || '', visible: r.visible === 1,
+            m: r.m, name: r.name || '', visible: r.visible === 1, folder_id: r.folder_id || null,
           })),
         });
       }
@@ -283,12 +284,13 @@ export default {
       if (action === 'get_meta') {
         if (!mVal) return json({ error: 'missing_route_name' }, 400);
         const row = await env.DB.prepare(
-          'SELECT name, description, visible, creator_name FROM roads WHERE m = ?')
+          'SELECT name, description, visible, creator_name, folder_id FROM roads WHERE m = ?')
           .bind(resolveM(mVal)).first();
         if (!row) return json({ error: 'route_not_found' }, 404);
         return json({
           name: row.name || '', description: row.description || '',
           visible: row.visible === 1, creator_name: row.creator_name || '',
+          folder_id: row.folder_id || null,
         });
       }
 
@@ -300,6 +302,7 @@ export default {
         const visible = bodyData.visible ? 1 : 0;
         const newM = bodyData.new_m || '';
         const creatorName = bodyData.creator_name || '';
+        const folderId = bodyData.folder_id !== undefined ? bodyData.folder_id : null;
         if (newM && newM !== m) {
           // Переименование: копируем json + мета под новым m, старый удаляем
           const src = await env.DB.prepare(
@@ -307,21 +310,21 @@ export default {
           if (!src) return json({ error: 'route_not_found' }, 404);
           await env.DB.batch([
             env.DB.prepare(
-              'INSERT INTO roads (id, m, json, name, description, visible, creator_name) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id, m) DO UPDATE SET json=excluded.json, name=excluded.name, description=excluded.description, visible=excluded.visible, creator_name=excluded.creator_name')
+              'INSERT INTO roads (id, m, json, name, description, visible, creator_name, folder_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id, m) DO UPDATE SET json=excluded.json, name=excluded.name, description=excluded.description, visible=excluded.visible, creator_name=excluded.creator_name, folder_id=excluded.folder_id')
               .bind(SHARED_ID, newM, src.json, name, description, visible,
-                creatorName || src.creator_name || ''),
+                creatorName || src.creator_name || '', folderId),
             env.DB.prepare('DELETE FROM roads WHERE m = ?').bind(m),
           ]);
           return json({ status: 'meta_saved', new_m: newM });
         }
         if (creatorName) {
           await env.DB.prepare(
-            'UPDATE roads SET name = ?, description = ?, visible = ?, creator_name = ? WHERE m = ?')
-            .bind(name, description, visible, creatorName, m).run();
+            'UPDATE roads SET name = ?, description = ?, visible = ?, creator_name = ?, folder_id = ? WHERE m = ?')
+            .bind(name, description, visible, creatorName, folderId, m).run();
         } else {
           await env.DB.prepare(
-            'UPDATE roads SET name = ?, description = ?, visible = ? WHERE m = ?')
-            .bind(name, description, visible, m).run();
+            'UPDATE roads SET name = ?, description = ?, visible = ?, folder_id = ? WHERE m = ?')
+            .bind(name, description, visible, folderId, m).run();
         }
         return json({ status: 'meta_saved' });
       }
@@ -424,6 +427,79 @@ export default {
         }
         const expires = await accessExpires(env, uid);
         return json({ ok: true, claimed: found.length, folders: Object.keys(expires), expires });
+      }
+
+      // ---- Папки (реальная иерархия) ----
+
+      // Список всех папок (плоский)
+      if (action === 'folder_list') {
+        const rows = (await env.DB.prepare(
+          'SELECT id, name, parent_id, owner_id FROM folders ORDER BY name').all()).results || [];
+        return json({ folders: rows.map((r) => ({ id: r.id, name: r.name, parent_id: r.parent_id, owner_id: r.owner_id })) });
+      }
+
+      // Создать папку
+      if (action === 'folder_create') {
+        const name = String(bodyData.name || '').trim();
+        const parentId = bodyData.parent_id !== undefined ? bodyData.parent_id : null;
+        if (!name) return json({ error: 'missing_name' }, 400);
+        const res = await env.DB.prepare(
+          'INSERT INTO folders (name, parent_id) VALUES (?, ?)').bind(name, parentId).run();
+        const id = res.meta && res.meta.last_row_id ? res.meta.last_row_id : null;
+        return json({ status: 'ok', id, name, parent_id: parentId });
+      }
+
+      // Переименовать папку
+      if (action === 'folder_rename') {
+        const id = Number(bodyData.id);
+        const name = String(bodyData.name || '').trim();
+        if (!Number.isFinite(id) || !name) return json({ error: 'bad_params' }, 400);
+        await env.DB.prepare('UPDATE folders SET name = ? WHERE id = ?').bind(name, id).run();
+        return json({ status: 'ok' });
+      }
+
+      // Удалить папку (только если пустая: нет подпапок и нет маршрутов)
+      if (action === 'folder_delete') {
+        const id = Number(bodyData.id);
+        if (!Number.isFinite(id)) return json({ error: 'bad_params' }, 400);
+        const children = (await env.DB.prepare('SELECT id FROM folders WHERE parent_id = ?').bind(id).all()).results || [];
+        const routes = (await env.DB.prepare('SELECT m FROM roads WHERE folder_id = ?').bind(id).all()).results || [];
+        if (children.length > 0) return json({ error: 'folder_not_empty' }, 400);
+        if (routes.length > 0) return json({ error: 'folder_has_routes' }, 400);
+        await env.DB.prepare('DELETE FROM folders WHERE id = ?').bind(id).run();
+        return json({ status: 'ok' });
+      }
+
+      // Переместить папку (изменить parent_id). Защита от циклов.
+      if (action === 'folder_move') {
+        const id = Number(bodyData.id);
+        const parentId = bodyData.parent_id !== undefined ? bodyData.parent_id : null;
+        if (!Number.isFinite(id)) return json({ error: 'bad_params' }, 400);
+        if (parentId !== null && parentId === id) return json({ error: 'cyclic_move' }, 400);
+        if (parentId !== null) {
+          let cur = parentId;
+          let cyclic = false;
+          while (cur !== null) {
+            if (cur === id) { cyclic = true; break; }
+            const p = (await env.DB.prepare('SELECT parent_id FROM folders WHERE id = ?').bind(cur).first());
+            cur = p ? p.parent_id : null;
+          }
+          if (cyclic) return json({ error: 'cyclic_move' }, 400);
+        }
+        await env.DB.prepare('UPDATE folders SET parent_id = ? WHERE id = ?').bind(parentId, id).run();
+        return json({ status: 'ok' });
+      }
+
+      // Переместить маршрут в папку (folder_id = null — в корень)
+      if (action === 'route_move') {
+        const mVal = bodyData.m || url.searchParams.get('m');
+        const folderId = bodyData.folder_id !== undefined ? bodyData.folder_id : null;
+        if (!mVal) return json({ error: 'missing_route_name' }, 400);
+        const m = resolveM(mVal);
+        const row = await env.DB.prepare('SELECT id FROM roads WHERE m = ?').bind(m).first();
+        if (!row) return json({ error: 'route_not_found' }, 404);
+        await env.DB.prepare('UPDATE roads SET folder_id = ? WHERE m = ?').bind(folderId, m).run();
+        return json({ status: 'ok' });
       }
 
       return json({ error: 'unknown_action' }, 400);

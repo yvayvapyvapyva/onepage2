@@ -9,6 +9,7 @@ const MenuModule = {
     _expandedFolders: new Set(),
     _locks: {}, // {folderPath: price} — платные папки
     _access: new Set(), // купленные папки пользователя
+    _folders: new Map(), // id -> {id, name, parent_id, owner_id}
 
     // URL бекенда для загрузки маршрутов: новый API-воркер (D1), фолбэк — старая Яндекс-функция.
     // Задаётся в assets/js/config.js -> API_CONFIG.API_BASE после deploy.
@@ -74,6 +75,9 @@ const MenuModule = {
 
         // Замки платных папок + купленные доступы (Telegram)
         await this._refreshShop();
+
+        // Реальные папки
+        await this._loadFolders();
 
         // Проверяем параметры URL
         this.checkUrlParam();
@@ -169,8 +173,6 @@ const MenuModule = {
         }
 
         this.routesDescriptions = routesFlat;
-        this._categoryTree = this._buildCategoryTree();
-
         return;
     },
 
@@ -237,6 +239,21 @@ const MenuModule = {
         }
         if (typeof this._buildRoutesList === 'function' && document.getElementById('routesListContainer')) {
             try { this._buildRoutesList(); } catch (e) {}
+        }
+    },
+
+    // Загрузка реальных папок из БД
+    async _loadFolders() {
+        try {
+            const res = await fetch(`${this.API_URL_V2}?action=folder_list`);
+            if (res.ok) {
+                const data = await res.json();
+                this._folders = new Map((data.folders || []).map(f => [f.id, f]));
+            } else {
+                this._folders = new Map();
+            }
+        } catch (e) {
+            this._folders = new Map();
         }
     },
 
@@ -378,38 +395,56 @@ const MenuModule = {
     },
 
     _buildCategoryTree() {
-        const root = { folders: {}, routes: [] };
-        for (const [key, route] of Object.entries(this.routesDescriptions)) {
-            const rawName = route.name || '';
-            const fullPath = rawName || key;
-            const parts = fullPath.split('/').map(s => s.trim()).filter(Boolean);
-            const leafName = parts.pop() || fullPath;
-            let node = root;
-            for (const part of parts) {
-                if (!node.folders[part]) node.folders[part] = { folders: {}, routes: [] };
-                node = node.folders[part];
+        const root = { folders: {}, routes: [], _isRoot: true };
+        const folderMap = {}; // id -> node
+
+        // Создаём узлы для всех папок
+        for (const [id, folder] of this._folders) {
+            folderMap[id] = {
+                id, name: folder.name, parent_id: folder.parent_id,
+                folders: {}, routes: [],
+            };
+        }
+
+        // Распределяем папки по дереву (подпапки -> родитель, иначе -> корень)
+        for (const id of Object.keys(folderMap)) {
+            const node = folderMap[id];
+            if (node.parent_id && folderMap[node.parent_id]) {
+                folderMap[node.parent_id].folders[id] = node;
+            } else {
+                root.folders[id] = node;
             }
-            node.routes.push({ ...route, name: leafName, fullPath, key });
         }
-        if (root.routes.length > 0) {
-            root.folders['Без категории'] = root.folders['Без категории'] || { folders: {}, routes: [] };
-            root.folders['Без категории'].routes.push(...root.routes);
-            root.routes = [];
+
+        // Распределяем маршруты по папкам (folder_id) или в корень
+        for (const [key, route] of Object.entries(this.routesDescriptions)) {
+            const fid = route.folder_id;
+            if (fid !== null && fid !== undefined && folderMap[fid]) {
+                folderMap[fid].routes.push(route);
+            } else {
+                root.routes.push(route);
+            }
         }
+
         return root;
     },
 
     _expandCurrentRoutePath() {
         if (!this.currentRoute) return;
         const route = this.routesDescriptions[this.currentRoute];
-        if (!route || !route.name) return;
-        const parts = route.name.split('/').filter(Boolean);
-        parts.pop();
-        let path = '';
-        for (const part of parts) {
-            path = path ? path + '/' + part : part;
-            this._expandedFolders.add(path);
+        if (!route) return;
+        const fid = route.folder_id;
+        if (!fid) return;
+        // Собираем цепочку папок от корня к папке маршрута
+        const chain = [];
+        let cur = fid;
+        while (cur !== null && cur !== undefined) {
+            const f = this._folders.get(cur);
+            if (!f) break;
+            chain.unshift(String(cur));
+            cur = f.parent_id;
         }
+        for (const id of chain) this._expandedFolders.add(id);
     },
 
     _buildRoutesList() {
@@ -420,12 +455,20 @@ const MenuModule = {
 
         const frag = document.createDocumentFragment();
 
-        // Все маршруты одним деревом папок
-        const hasRegular = this._categoryTree && Object.keys(this._categoryTree.folders).length > 0;
+        // Кнопка создания папки в корень
+        const addRootBtn = document.createElement('button');
+        addRootBtn.className = 'route-item';
+        addRootBtn.style.cssText = 'justify-content:center;font-weight:700;border:1px dashed rgba(255,255,255,0.4);';
+        addRootBtn.textContent = '+ Создать папку';
+        addRootBtn.addEventListener('click', e => {
+            e.stopPropagation();
+            this._createFolder(null);
+        });
+        frag.appendChild(addRootBtn);
 
-        if (hasRegular) {
-            this._renderTreeNode(this._categoryTree, frag, '', true);
-        }
+        // Все маршруты одним деревом папок
+        const tree = this._buildCategoryTree();
+        this._renderTreeNode(tree, frag, null, true);
 
         if (frag.children.length === 0) {
             container.innerHTML = '<div style="text-align:center;padding:20px;color:rgba(255,255,255,0.5);font-size:14px;">Нет маршрутов</div>';
@@ -436,7 +479,7 @@ const MenuModule = {
     },
 
     // Отрисовка заголовка папки с учётом замка. Возвращает false если папка закрыта.
-    _renderFolderHeader(container, folderPath, displayName, total, isExpanded, isRoot) {
+    _renderFolderHeader(container, folderPath, displayName, total, isExpanded, isRoot, folderId) {
         const lock = this._lockFor(folderPath);
         const locked = lock && !this._hasAccess(lock.folder);
         const paid = !!lock;
@@ -446,12 +489,24 @@ const MenuModule = {
 
         const header = document.createElement('div');
         header.className = 'category-header' + (isExpanded && !locked ? ' expanded' : '') + (isRoot ? ' root' : '');
+
+        // Кнопки управления папкой (только не-корень и не закрыта)
+        let controlsHtml = '';
+        if (!isRoot && !locked) {
+            controlsHtml = `
+                <span class="folder-btn" title="Переименовать" onclick="event.stopPropagation(); window.menuModule._renameFolder(${folderId}, '${this._escape(displayName)}')">✏️</span>
+                <span class="folder-btn" title="Удалить" onclick="event.stopPropagation(); window.menuModule._deleteFolder(${folderId})">🗑️</span>
+                <span class="folder-btn" title="Создать подпапку" onclick="event.stopPropagation(); window.menuModule._createFolder(${folderId})">➕</span>
+            `;
+        }
+
         header.innerHTML = `
             <span class="category-icon">${locked ? '🔒' : (isExpanded ? '📂' : '📁')}</span>
             <span class="category-name">${this._escape(displayName)}${paid ? ' ⭐' : ''}</span>
             <span class="category-count">
                 ${locked ? total + ' · ' + lock.price + ' ⭐' : paid ? total + ' · оплачено' : total}
             </span>
+            ${controlsHtml}
         `;
         header.addEventListener('click', e => {
             e.stopPropagation();
@@ -468,40 +523,28 @@ const MenuModule = {
         return !locked;
     },
 
-    _renderTreeNode(node, container, path, isRoot = !path) {
-        const folderNames = Object.keys(node.folders).sort((a, b) => a.localeCompare(b));
+    _renderTreeNode(node, container, parentId, isRoot = false) {
+        const folderIds = Object.keys(node.folders).sort((a, b) => {
+            return node.folders[a].name.localeCompare(node.folders[b].name);
+        });
 
-        for (const name of folderNames) {
-            if (name === 'Без категории') continue;
-            const folderPath = path ? path + '/' + name : name;
-            const sub = node.folders[name];
-            const total = this._countTreeRoutes(sub);
+        for (const id of folderIds) {
+            const folder = node.folders[id];
+            const folderPath = String(id);
             const isExpanded = this._expandedFolders.has(folderPath);
+            const total = this._countTreeRoutes(folder);
 
-            const open = this._renderFolderHeader(container, folderPath, name, total, isExpanded, isRoot);
+            const open = this._renderFolderHeader(container, folderPath, folder.name, total, isExpanded, isRoot, folder.id);
 
             if (open && isExpanded) {
                 const childWrap = document.createElement('div');
                 childWrap.style.cssText = 'padding-left:16px;display:flex;flex-direction:column;gap:6px;';
-                this._renderTreeNode(sub, childWrap, folderPath, false);
+                this._renderTreeNode(folder, childWrap, id, false);
                 container.appendChild(childWrap);
             }
         }
 
-        const uncat = node.folders['Без категории'];
-        if (uncat) {
-            const fcPath = path ? path + '/' + 'Без категории' : 'Без категории';
-            const fcExpanded = this._expandedFolders.has(fcPath);
-            const fcTotal = this._countTreeRoutes(uncat);
-            const open = this._renderFolderHeader(container, fcPath, 'Без категории', fcTotal, fcExpanded, isRoot);
-            if (open && fcExpanded) {
-                const childWrap = document.createElement('div');
-                childWrap.style.cssText = 'padding-left:16px;display:flex;flex-direction:column;gap:6px;';
-                this._renderTreeNode(uncat, childWrap, fcPath, false);
-                container.appendChild(childWrap);
-            }
-        }
-
+        // Маршруты этого узла
         for (const route of node.routes) {
             const routeKey = route.key || route.m;
             const hasDesc = route.description && route.description.trim() !== '';
@@ -514,6 +557,18 @@ const MenuModule = {
             nameSpan.className = 'route-name';
             nameSpan.textContent = route.name;
             btn.appendChild(nameSpan);
+
+            // Кнопка перемещения маршрута в папку
+            const moveBtn = document.createElement('span');
+            moveBtn.className = 'route-info-btn';
+            moveBtn.title = 'Переместить в папку';
+            moveBtn.textContent = '📁';
+            moveBtn.style.cssText = 'opacity:0.6;margin-left:6px;cursor:pointer;';
+            moveBtn.addEventListener('click', e => {
+                e.stopPropagation();
+                this._moveRouteToFolder(routeKey, route.folder_id);
+            });
+            btn.appendChild(moveBtn);
 
             if (hasDesc) {
                 const infoBtn = document.createElement('span');
@@ -877,7 +932,80 @@ const MenuModule = {
             this._buildRoutesList();
         }
     },
-    
+
+    // ---- Управление папками ----
+
+    _createFolder(parentId) {
+        const name = prompt('Название папки:');
+        if (!name || !name.trim()) return;
+        fetch(`${this.API_URL_V2}?action=folder_create`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: name.trim(), parent_id: parentId }),
+        }).then(async res => {
+            if (!res.ok) { const d = await res.json().catch(() => ({})); showToast && showToast('Ошибка: ' + (d.error || res.status), 'error'); return; }
+            await this._loadFolders();
+            this._buildRoutesList();
+            showToast && showToast('Папка создана', 'success');
+        }).catch(e => { showToast && showToast('Ошибка сети: ' + e.message, 'error'); });
+    },
+
+    _renameFolder(id, currentName) {
+        const name = prompt('Новое название папки:', currentName);
+        if (!name || !name.trim()) return;
+        fetch(`${this.API_URL_V2}?action=folder_rename`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id, name: name.trim() }),
+        }).then(async res => {
+            if (!res.ok) { const d = await res.json().catch(() => ({})); showToast && showToast('Ошибка: ' + (d.error || res.status), 'error'); return; }
+            await this._loadFolders();
+            this._buildRoutesList();
+            showToast && showToast('Переименовано', 'success');
+        }).catch(e => { showToast && showToast('Ошибка сети: ' + e.message, 'error'); });
+    },
+
+    _deleteFolder(id) {
+        if (!confirm('Удалить папку? (папка должна быть пуста)')) return;
+        fetch(`${this.API_URL_V2}?action=folder_delete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id }),
+        }).then(async res => {
+            if (!res.ok) { const d = await res.json().catch(() => ({})); showToast && showToast('Ошибка: ' + (d.error || res.status), 'error'); return; }
+            await this._loadFolders();
+            this._buildRoutesList();
+            showToast && showToast('Удалено', 'success');
+        }).catch(e => { showToast && showToast('Ошибка сети: ' + e.message, 'error'); });
+    },
+
+    _moveRouteToFolder(routeKey, currentFolderId) {
+        const folders = Array.from(this._folders.values());
+        if (folders.length === 0) {
+            showToast && showToast('Нет папок для перемещения', 'error');
+            return;
+        }
+        const list = folders.map(f => `${f.id}: ${f.name}`).join('\n');
+        const input = prompt('Введите ID папки для перемещения (или 0 для корня):\n' + list, currentFolderId || '0');
+        if (input === null) return;
+        const folderId = input === '0' || input === '' ? null : Number(input);
+        if (input !== '0' && input !== '' && !Number.isFinite(folderId)) {
+            showToast && showToast('Неверный ID папки', 'error');
+            return;
+        }
+        fetch(`${this.API_URL_V2}?action=route_move`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ m: routeKey, folder_id: folderId }),
+        }).then(async res => {
+            if (!res.ok) { const d = await res.json().catch(() => ({})); showToast && showToast('Ошибка: ' + (d.error || res.status), 'error'); return; }
+            const route = this.routesDescriptions[routeKey];
+            if (route) route.folder_id = folderId;
+            this._buildRoutesList();
+            showToast && showToast('Перемещено', 'success');
+        }).catch(e => { showToast && showToast('Ошибка сети: ' + e.message, 'error'); });
+    },
+
     showSpinner() {
         const spinner = document.getElementById('loadingSpinner');
         if (spinner) spinner.classList.add('active');
@@ -888,3 +1016,6 @@ const MenuModule = {
         if (spinner) spinner.classList.remove('active');
     }
 };
+
+// Экспон для вызова из onclick-атрибутов
+window.menuModule = MenuModule;

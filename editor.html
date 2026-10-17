@@ -47,6 +47,11 @@
 <div class="field-label">Описание маршрута</div>
 <div class="input-wrapper" style="padding:3px;border-radius:12px;margin-bottom:8px;"><textarea id="routeDescription" placeholder="Введите описание маршрута" rows="2" style="width:100%;padding:10px;border:none;font-size:16px;outline:none;background:transparent;color:#f5f7fa;font-family:inherit;resize:none;min-height:56px;"></textarea></div>
 
+<div class="field-label">Папка</div>
+<div class="input-wrapper" style="padding:3px;border-radius:12px;margin-bottom:8px;">
+<select id="routeFolderSelect" style="width:100%;padding:10px;border-radius:8px;background:rgba(25,25,30,0.7);color:#f5f7fa;border:1px solid rgba(255,255,255,0.25);outline:none;"><option value="">Корень</option></select>
+</div>
+
 <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:14px;background:rgba(25,25,30,0.7);border:1px solid rgba(255,255,255,0.25);">
 <label style="display:flex;align-items:center;gap:10px;cursor:pointer;flex:1;">
 <input type="checkbox" id="routeVisible" style="width:20px;height:20px;accent-color:#34C759;cursor:pointer;">
@@ -200,7 +205,8 @@ const TG_BOT_LINK = 'https://t.me/E_ia_bot?startapp=m=';
 let map, points = [], cur = null, isAdd = false, isDrawing = false, isAddingInfo = false, curRoute = null, activeListPoint = null, modalMode = 'list', tempNewPointData = null, userLocPlacemark = null, activePoint = null, settingsRouteFiles = [];
 let historyStack = [], historyIndex = -1, lastSavedSnapshot = "[]", toastTimer = null;
 let pendingDeletePoint = null;
-let _currentFolderPrefix = null;
+let _currentFolderId = null;
+let _folders = new Map(); // id -> {id, name, parent_id}
 let _emptyFolders = [];
 let _expandedFolders = new Set();
 let pendingInfoImage = null;
@@ -678,6 +684,25 @@ const toggleFolderLock = async (folderPath) => {
     }
 };
 
+// Путь папки (для папокых замков folder_locks, которые хранятся по путям).
+const getFolderPath = (folderId) => {
+    const parts = [];
+    let cur = folderId;
+    while (cur !== null && cur !== undefined) {
+        const f = _folders.get(cur);
+        if (!f) break;
+        parts.unshift(f.name);
+        cur = f.parent_id;
+    }
+    return parts.join('/');
+};
+
+const getFolderName = (folderId) => {
+    if (!folderId) return null;
+    const f = _folders.get(folderId);
+    return f ? f.name : null;
+};
+
 const appendLockButton = (header, folderPath) => {
     const btn = document.createElement('span');
     btn.className = 'folder-lock-btn';
@@ -695,12 +720,21 @@ const refreshFileList = async () => {
     try {
         const result = await callYcFunction('list');
         settingsRouteFiles = result.routes || [];
+
+        // Загружаем реальные папки
+        try {
+            const folderRes = await callYcFunction('folder_list');
+            _folders = new Map((folderRes.folders || []).map(f => [f.id, f]));
+        } catch (e) {
+            _folders = new Map();
+        }
+
         await refreshFolderLocks();
         renderSettingsFileList();
         updateVisibility();
     } catch (e) {
-
         settingsRouteFiles = [];
+        _folders = new Map();
         renderSettingsFileList();
         updateVisibility();
         showToast('Ошибка загрузки маршрутов', 'error');
@@ -713,107 +747,133 @@ function countNodeRoutes(node) {
 }
 
 function buildRouteTree() {
-    const root = { folders: {}, routes: [] };
+    const root = { folders: {}, routes: [], _isRoot: true };
+    const folderNodes = {}; // id -> node
+
+    // Создаём узлы для всех папок
+    for (const [id, folder] of _folders) {
+        folderNodes[id] = {
+            id: Number(id),
+            name: folder.name,
+            parent_id: folder.parent_id,
+            folders: {},
+            routes: [],
+        };
+    }
+
+    // Распределяем папки по дереву
+    for (const id of Object.keys(folderNodes)) {
+        const node = folderNodes[id];
+        if (node.parent_id !== null && node.parent_id !== undefined && folderNodes[node.parent_id]) {
+            folderNodes[node.parent_id].folders[id] = node;
+        } else {
+            root.folders[id] = node;
+        }
+    }
+
+    // Распределяем маршруты по папкам (folder_id) или в корень
     for (const route of settingsRouteFiles) {
         const key = typeof route === 'string' ? route : (route.m || '');
-        const fullPath = typeof route === 'string' ? route : getRouteName(route);
-        const parts = fullPath.split('/').map(s => s.trim()).filter(Boolean);
-        const leafName = parts.pop() || fullPath;
+        const name = typeof route === 'string' ? route : (route.name || route.m || '');
         const visible = !(typeof route === 'string') && route.visible;
-        let node = root;
-        for (const part of parts) {
-            if (!node.folders[part]) node.folders[part] = { folders: {}, routes: [] };
-            node = node.folders[part];
+        const fid = typeof route === 'string' ? null : route.folder_id;
+        if (fid !== null && fid !== undefined && folderNodes[fid]) {
+            folderNodes[fid].routes.push({ key, name, visible, folder_id: fid });
+        } else {
+            root.routes.push({ key, name, visible, folder_id: null });
         }
-        node.routes.push({ key, name: leafName, fullPath, visible });
     }
-    if (root.routes.length > 0) {
-        root.folders['Без категории'] = root.folders['Без категории'] || { folders: {}, routes: [] };
-        root.folders['Без категории'].routes.push(...root.routes);
-        root.routes = [];
-    }
+
     return root;
 }
 
-function renderTreeLevel(node, pathPrefix, container) {
+function renderTreeLevel(node, container) {
     const frag = document.createDocumentFragment();
-    for (const [name, sub] of Object.entries(node.folders).sort(([a], [b]) => a.localeCompare(b))) {
-        if (name === 'Без категории') continue;
-        const folderPath = pathPrefix ? pathPrefix + '/' + name : name;
+    const folderIds = Object.keys(node.folders).sort((a, b) => {
+        return node.folders[a].name.localeCompare(node.folders[b].name);
+    });
+
+    for (const id of folderIds) {
+        const sub = node.folders[id];
+        const folderPath = getFolderPath(sub.id);
         const total = countNodeRoutes(sub);
-        const isExpanded = _expandedFolders.has(folderPath);
+        const isExpanded = _expandedFolders.has(String(sub.id));
 
         const el = document.createElement('div');
         el.className = 'category-folder';
-        el.setAttribute('data-path', folderPath);
+        el.setAttribute('data-id', sub.id);
 
         const header = document.createElement('div');
         header.className = 'category-header' + (isExpanded ? ' expanded' : '');
         header.innerHTML = `
             <span class="category-icon">${isExpanded ? '📂' : '📁'}</span>
-            <span class="category-name">${name}</span>
+            <span class="category-name">${sub.name}</span>
             <span class="category-count">${total}</span>
         `;
         header.addEventListener('click', () => {
-            if (_expandedFolders.has(folderPath)) _expandedFolders.delete(folderPath);
-            else _expandedFolders.add(folderPath);
+            if (_expandedFolders.has(String(sub.id))) _expandedFolders.delete(String(sub.id));
+            else _expandedFolders.add(String(sub.id));
             renderSettingsFileList();
         });
         appendLockButton(header, folderPath);
+
+        const btnRename = document.createElement('span');
+        btnRename.className = 'folder-btn';
+        btnRename.textContent = '✏️';
+        btnRename.title = 'Переименовать';
+        btnRename.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const newName = prompt('Новое название папки:', sub.name);
+            if (!newName || !newName.trim()) return;
+            callYcFunction('folder_rename', {}, { id: sub.id, name: newName.trim() })
+                .then(() => { refreshFileList(); showToast('Переименовано', 'success'); })
+                .catch(() => showToast('Ошибка переименования', 'error'));
+        });
+
+        const btnDel = document.createElement('span');
+        btnDel.className = 'folder-btn';
+        btnDel.textContent = '🗑️';
+        btnDel.title = 'Удалить (если пуста)';
+        btnDel.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (!confirm('Удалить папку?')) return;
+            callYcFunction('folder_delete', {}, { id: sub.id })
+                .then(() => { refreshFileList(); showToast('Удалено', 'success'); })
+                .catch(() => showToast('Ошибка удаления', 'error'));
+        });
+
+        const btnAdd = document.createElement('span');
+        btnAdd.className = 'folder-btn';
+        btnAdd.textContent = '➕';
+        btnAdd.title = 'Создать подпапку';
+        btnAdd.addEventListener('click', (e) => {
+            e.stopPropagation();
+            _currentFolderId = sub.id;
+            openCreateFolderModal(sub.id);
+        });
+
+        const controls = document.createElement('div');
+        controls.style.cssText = 'margin-left:auto;display:flex;gap:6px;';
+        controls.appendChild(btnRename);
+        controls.appendChild(btnDel);
+        controls.appendChild(btnAdd);
+        header.appendChild(controls);
+
         el.appendChild(header);
+        frag.appendChild(el);
 
         el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('drag-over'); });
         el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
         el.addEventListener('drop', e => {
             e.preventDefault(); el.classList.remove('drag-over');
             const routeKey = e.dataTransfer.getData('text/plain');
-            if (routeKey) moveRouteToFolder(routeKey, folderPath);
+            if (routeKey) moveRouteToFolder(routeKey, sub.id);
         });
-
-        frag.appendChild(el);
 
         if (isExpanded) {
             const childWrap = document.createElement('div');
             childWrap.style.cssText = 'padding-left:16px;display:flex;flex-direction:column;gap:6px;';
-            renderTreeLevel(sub, folderPath, childWrap);
-            frag.appendChild(childWrap);
-        }
-    }
-
-    const uncat = node.folders['Без категории'];
-    if (uncat) {
-        const fcPath = pathPrefix ? pathPrefix + '/' + 'Без категории' : 'Без категории';
-        const fcExpanded = _expandedFolders.has(fcPath);
-        const fcTotal = countNodeRoutes(uncat);
-        const fcEl = document.createElement('div');
-        fcEl.className = 'category-folder';
-        fcEl.setAttribute('data-path', fcPath);
-        const fcHdr = document.createElement('div');
-        fcHdr.className = 'category-header' + (fcExpanded ? ' expanded' : '');
-        fcHdr.innerHTML = `
-            <span class="category-icon">${fcExpanded ? '📂' : '📁'}</span>
-            <span class="category-name">Без категории</span>
-            <span class="category-count">${fcTotal}</span>
-        `;
-        fcHdr.addEventListener('click', () => {
-            if (_expandedFolders.has(fcPath)) _expandedFolders.delete(fcPath);
-            else _expandedFolders.add(fcPath);
-            renderSettingsFileList();
-        });
-        appendLockButton(fcHdr, fcPath);
-        fcEl.appendChild(fcHdr);
-        fcEl.addEventListener('dragover', e => { e.preventDefault(); fcEl.classList.add('drag-over'); });
-        fcEl.addEventListener('dragleave', () => fcEl.classList.remove('drag-over'));
-        fcEl.addEventListener('drop', e => {
-            e.preventDefault(); fcEl.classList.remove('drag-over');
-            const routeKey = e.dataTransfer.getData('text/plain');
-            if (routeKey) moveRouteToFolder(routeKey, fcPath);
-        });
-        frag.appendChild(fcEl);
-        if (fcExpanded) {
-            const childWrap = document.createElement('div');
-            childWrap.style.cssText = 'padding-left:16px;display:flex;flex-direction:column;gap:6px;';
-            renderTreeLevel(uncat, fcPath, childWrap);
+            renderTreeLevel(sub, childWrap);
             frag.appendChild(childWrap);
         }
     }
@@ -838,6 +898,17 @@ function renderTreeLevel(node, pathPrefix, container) {
             nameSpan.textContent = route.name;
         }
         el.appendChild(nameSpan);
+
+        const folderBtn = document.createElement('span');
+        folderBtn.className = 'route-info-btn';
+        folderBtn.textContent = route.folder_id ? '📁' : '📂';
+        folderBtn.title = 'Переместить в папку';
+        folderBtn.style.cssText = 'opacity:0.6;margin-left:6px;cursor:pointer;';
+        folderBtn.addEventListener('click', e => {
+            e.stopPropagation();
+            openMoveRouteModal(route.key, route.folder_id);
+        });
+        el.appendChild(folderBtn);
 
         const gear = document.createElement('span');
         gear.className = 'route-info-btn';
@@ -868,17 +939,11 @@ function renderTreeLevel(node, pathPrefix, container) {
     container.appendChild(frag);
 }
 
-async function moveRouteToFolder(routeKey, folderPath) {
+async function moveRouteToFolder(routeKey, folderId) {
     try {
-        const meta = await callYcFunction('get_meta', { m: routeKey });
-        const nm = meta.name || routeKey;
-        const parts = nm.split('/').filter(Boolean);
-        const leafName = parts.pop() || nm;
-        const newName = folderPath + '/' + leafName;
-        await callYcFunction('save_meta', { m: routeKey }, { name: newName, description: meta.description || '', visible: meta.visible !== undefined ? meta.visible : false, creator_name: meta.creator_name || getFormattedCreatorName() });
-        if (curRoute === routeKey) {
-            currentRouteMeta.name = newName;
-        }
+        await callYcFunction('route_move', {}, { m: routeKey, folder_id: folderId });
+        const route = settingsRouteFiles.find(r => r.m === routeKey);
+        if (route) route.folder_id = folderId;
         await refreshFileList();
         showToast('Маршрут перемещён', 'success');
     } catch (e) {
@@ -886,8 +951,25 @@ async function moveRouteToFolder(routeKey, folderPath) {
     }
 }
 
-const openCreateRouteModal = (folderPrefix) => {
-    _currentFolderPrefix = folderPrefix || null;
+const openMoveRouteModal = (routeKey, currentFolderId) => {
+    const folders = Array.from(_folders.values());
+    if (folders.length === 0) {
+        showToast('Нет папок для перемещения', 'error');
+        return;
+    }
+    const list = folders.map(f => `${f.id}: ${f.name}`).join('\n');
+    const input = prompt('Введите ID папки для перемещения (или 0 для корня):\n' + list, currentFolderId || '0');
+    if (input === null) return;
+    const folderId = input === '0' || input === '' ? null : Number(input);
+    if (input !== '0' && input !== '' && !Number.isFinite(folderId)) {
+        showToast('Неверный ID папки', 'error');
+        return;
+    }
+    moveRouteToFolder(routeKey, folderId);
+};
+
+const openCreateRouteModal = (folderId) => {
+    _currentFolderId = folderId || null;
     toggleM('createRouteModal');
     $('newRouteNameInput').value = '';
     setTimeout(() => $('newRouteNameInput').focus(), 100);
@@ -911,48 +993,8 @@ const renderSettingsFileList = () => {
         $('settingsTitle').textContent = `${getFormattedCreatorName()} - маршрутов:0`;
         return;
     }
-    if (curRoute) {
-        const routeName = getRouteName(curRoute);
-        if (!routeName.includes('/')) {
-            _expandedFolders.add('Без категории');
-        }
-    }
     const tree = buildRouteTree();
-    renderTreeLevel(tree, '', list);
-    const existingPaths = new Set();
-    const collectPaths = (node, prefix) => {
-        for (const [name, child] of Object.entries(node.folders)) {
-            const fp = prefix ? prefix + '/' + name : name;
-            existingPaths.add(fp);
-            collectPaths(child, fp);
-        }
-    };
-    collectPaths(tree, '');
-    for (const folderName of _emptyFolders) {
-        if (existingPaths.has(folderName)) continue;
-        const fp = folderName;
-        const el = document.createElement('div');
-        el.className = 'category-folder';
-        el.setAttribute('data-path', fp);
-        const header = document.createElement('div');
-        header.className = 'category-header';
-        header.style.opacity = '0.6';
-        header.style.cursor = 'default';
-        header.innerHTML = `
-            <span class="category-icon">📁</span>
-            <span class="category-name">${folderName}</span>
-            <span style="font-size:12px;color:rgba(255,255,255,0.3);background:rgba(255,255,255,0.06);padding:2px 8px;border-radius:8px;">пусто</span>
-        `;
-        el.appendChild(header);
-        el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('drag-over'); });
-        el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
-        el.addEventListener('drop', e => {
-            e.preventDefault(); el.classList.remove('drag-over');
-            const routeKey = e.dataTransfer.getData('text/plain');
-            if (routeKey) moveRouteToFolder(routeKey, fp);
-        });
-        list.appendChild(el);
-    }
+    renderTreeLevel(tree, list);
     $('settingsTitle').textContent = `Маршрутов: ${settingsRouteFiles.length}`;
     if (!list.dataset.dragScroll) {
         list.dataset.dragScroll = '1';
@@ -1075,10 +1117,6 @@ const getRouteName = (route) => {
 const handleCreateNew = async () => {
     let name = $('newRouteNameInput').value.trim();
     if(!name) return;
-
-    if (_currentFolderPrefix) {
-        name = _currentFolderPrefix + '/' + name;
-    }
     
     const id = generateId();
     
@@ -1086,7 +1124,7 @@ const handleCreateNew = async () => {
     
     try {
         await callYcFunction('save', { m: id }, { data: [] });
-        await callYcFunction('save_meta', { m: id }, { name, description: '', visible: false, creator_name: getFormattedCreatorName() });
+        await callYcFunction('save_meta', { m: id }, { name, description: '', visible: false, creator_name: getFormattedCreatorName(), folder_id: _currentFolderId });
         await refreshFileList(); 
         await loadRoute(id); 
         showToast("Маршрут создан", 'success'); 
@@ -1169,15 +1207,27 @@ const openRouteSettings = async (routeName) => {
             name: meta.name || routeName,
             description: meta.description || '',
             visible: meta.visible !== undefined ? meta.visible : false,
-            creator_name: meta.creator_name || ''
+            creator_name: meta.creator_name || '',
+            folder_id: meta.folder_id || null
         };
         $('settingsRouteTitle').textContent = currentRouteMeta.name;
         $('routeDisplayName').value = currentRouteMeta.name;
         $('routeDescription').value = currentRouteMeta.description;
         $('routeVisible').checked = currentRouteMeta.visible;
+
+        // Селект папки
+        const folderSelect = $('routeFolderSelect');
+        folderSelect.innerHTML = '<option value="">Корень</option>';
+        for (const [id, f] of _folders) {
+            const opt = document.createElement('option');
+            opt.value = id;
+            opt.textContent = f.name;
+            if (String(id) === String(currentRouteMeta.folder_id)) opt.selected = true;
+            folderSelect.appendChild(opt);
+        }
     } catch (e) {
         $('loadingSpinner').classList.remove('active');
-        currentRouteMeta = { name: '', description: '', visible: false };
+        currentRouteMeta = { name: '', description: '', visible: false, folder_id: null };
         $('routeDisplayName').value = '';
         $('routeDescription').value = '';
         $('routeVisible').checked = false;
@@ -1190,14 +1240,15 @@ const saveRouteMeta = async () => {
     const name = $('routeDisplayName').value.trim();
     const description = $('routeDescription').value.trim();
     const visible = $('routeVisible').checked;
+    const folderSel = $('routeFolderSelect');
+    const folderId = folderSel.value ? Number(folderSel.value) : null;
 
     if (!name) { showToast('Введите имя маршрута', 'error'); return; }
 
     try {
         const creatorName = (currentRouteMeta && currentRouteMeta.creator_name) || getFormattedCreatorName();
-        await callYcFunction('save_meta', { m: settingsRouteName }, { name, description, visible, creator_name: creatorName });
-        
-        currentRouteMeta = { name, description, visible, creator_name: creatorName };
+        await callYcFunction('save_meta', { m: settingsRouteName }, { name, description, visible, creator_name: creatorName, folder_id: folderId });
+        currentRouteMeta = { name, description, visible, creator_name: creatorName, folder_id: folderId };
         
         if (curRoute === settingsRouteName) {
             const rnd = $('routeNameDisplay');
@@ -1823,18 +1874,30 @@ function closeZnakiSelector() {
 }
 
 window.createFolder = () => {
+    _currentFolderId = null;
     $('newFolderNameInput').value = '';
     toggleM('createFolderModal');
     setTimeout(() => $('newFolderNameInput').focus(), 100);
 };
 
-window.handleCreateFolder = () => {
+window.openCreateFolderModal = (parentId) => {
+    _currentFolderId = parentId || null;
+    $('newFolderNameInput').value = '';
+    toggleM('createFolderModal');
+    setTimeout(() => $('newFolderNameInput').focus(), 100);
+};
+
+window.handleCreateFolder = async () => {
     const name = $('newFolderNameInput').value.trim();
     if (!name) return;
-    _emptyFolders.push(name);
-    renderSettingsFileList();
-    toggleM('createFolderModal');
-    showToast('Папка создана', 'success');
+    try {
+        await callYcFunction('folder_create', {}, { name, parent_id: _currentFolderId });
+        await refreshFileList();
+        toggleM('createFolderModal');
+        showToast('Папка создана', 'success');
+    } catch (e) {
+        showToast('Ошибка создания папки', 'error');
+    }
 };
 
 // Экспорт функций в глобальную область для onclick обработчиков
