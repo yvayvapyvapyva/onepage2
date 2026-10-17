@@ -30,6 +30,8 @@
 //   TELEGRAM_TOKEN   — токен бота (wrangler secret put, для /report)
 //   REPORT_CHAT_ID   — чат для отчётов (wrangler secret put)
 //   REPORT_KEY       — опциональный ключ в заголовке X-Report-Key (wrangler secret put)
+//   PURCHASE_CHANNEL_ID — канал для уведомлений о покупках и возвратах
+//                         (@username публичного или -100… приватного). Не задан — уведомления не шлются.
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -44,6 +46,14 @@ function json(body, status = 200, extraHeaders = {}) {
     status,
     headers: { 'Content-Type': 'application/json', ...CORS, ...extraHeaders },
   });
+}
+
+// Экранирование для parse_mode: 'HTML'.
+function escapeHtml(str) {
+  return String(str == null ? '' : str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
 // Прокси отчётов в Telegram Bot API (токен бота скрыт от клиента).
@@ -268,11 +278,11 @@ async function findFolderIdByPath(env, path) {
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
 
     const url = new URL(request.url);
-    if (url.pathname === '/webhook') return handleTelegramWebhook(request, env);
+    if (url.pathname === '/webhook') return handleTelegramWebhook(request, env, ctx);
     if (url.pathname === '/report') return handleReport(request, env);
 
     if (!env.DB) return json({ error: 'DB not bound' }, 500);
@@ -693,7 +703,7 @@ async function recordPurchase(env, pay, from) {
     JSON.stringify(pay)
   ).run();
 
-  return { duplicate: false, chargeId };
+  return { duplicate: false, chargeId, productType, productId, stars };
 }
 
 async function getStarsBalanceText(env) {
@@ -754,7 +764,7 @@ async function getStatsText(env) {
   return lines.join("\n");
 }
 
-async function handleRefund(chatId, args, env) {
+async function handleRefund(chatId, args, env, ctx) {
   let uid = null, chargeId = null;
   if (args.length === 1) {
     chargeId = args[0];
@@ -805,12 +815,96 @@ async function handleRefund(chatId, args, env) {
     `UPDATE purchases SET status = 'refunded', refunded_at = ?, refund_reason = 'admin' WHERE charge_id = ?`
   ).bind(Math.floor(Date.now() / 1000), chargeId).run();
 
-  const row = await env.DB.prepare('SELECT stars FROM purchases WHERE charge_id = ? LIMIT 1').bind(chargeId).first();
-  const amount = row ? ` ${row.stars} ⭐` : "";
+  const info = await env.DB.prepare(
+    'SELECT user_id, stars, product_type, product_id FROM purchases WHERE charge_id = ? LIMIT 1'
+  ).bind(chargeId).first();
+  const amount = info ? ` ${info.stars} ⭐` : "";
+
+  // Уведомление о возврате в канал (не блокируя ответ на команду)
+  const job = notifyChannel(env, buildRefundText(info, uid, chargeId));
+  if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(job);
+  else await job;
+
   await tgApi(env, 'sendMessage', { chat_id: chatId, text: `✅ Возврат${amount} выполнен.` });
 }
 
-async function handleTelegramWebhook(request, env) {
+// =====================================================================
+// Уведомления в канал (env.PURCHASE_CHANNEL_ID)
+// =====================================================================
+
+// Человекочитаемое название продукта.
+function productLabel(productType, productId) {
+  const id = String(productId || '');
+  if (productType === 'folder_access') return `Доступ к папке «${id}»`;
+  if (productType === 'premium') return 'Premium на 30 дней';
+  if (productType === 'donate') return 'Донат';
+  return id ? `Покупка «${id}»` : 'Покупка';
+}
+
+// Сумма в звёздах либо в валюте.
+function moneyText(amount, currency) {
+  return currency === 'XTR' ? `${amount} ⭐` : `${amount} ${currency}`;
+}
+
+// Дата/время по Москве (+03:00), без зависимости от tz-данных рантайма.
+function moscowNow() {
+  const m = new Date(Date.now() + 3 * 3600 * 1000);
+  const p = (n) => String(n).padStart(2, '0');
+  return `${p(m.getUTCDate())}.${p(m.getUTCMonth() + 1)}.${m.getUTCFullYear()} ` +
+    `${p(m.getUTCHours())}:${p(m.getUTCMinutes())}`;
+}
+
+// Отправка в канал. Без PURCHASE_CHANNEL_ID — тихо ничего не делать; ошибки не пробрасывать.
+async function notifyChannel(env, text) {
+  if (!env.PURCHASE_CHANNEL_ID || !text) return;
+  try {
+    await tgApi(env, 'sendMessage', {
+      chat_id: env.PURCHASE_CHANNEL_ID,
+      text,
+      parse_mode: 'HTML',
+      disable_web_page_preview: true,
+    });
+  } catch (e) {
+    console.error('notifyChannel error:', (e && e.message) || e);
+  }
+}
+
+// Текст уведомления о покупке.
+function buildPurchaseText(pay, from, record) {
+  const user = from || {};
+  const fullName = [user.first_name, user.last_name].filter(Boolean).join(' ') || '—';
+  const username = user.username ? '@' + user.username : 'без username';
+  const uid = user.id != null ? user.id : '—';
+  const label = productLabel(record.productType, record.productId);
+  const lines = [
+    '🛒 <b>Новая покупка</b>',
+    `💳 ${escapeHtml(label)}`,
+    `💰 Сумма: <b>${moneyText(Number(pay.total_amount || 0), pay.currency || 'XTR')}</b>`,
+    `👤 ${escapeHtml(fullName)} · ${escapeHtml(username)}`,
+    `🆔 <code>${uid}</code>`,
+    `🕒 ${moscowNow()} (МСК)`,
+  ];
+  if (record.chargeId) lines.push(`🧾 <code>${escapeHtml(record.chargeId)}</code>`);
+  return lines.join('\n');
+}
+
+// Текст уведомления о возврате.
+function buildRefundText(info, uid, chargeId) {
+  const label = productLabel(info && info.product_type, info && info.product_id);
+  const amount = info ? Number(info.stars || 0) : 0;
+  const u = uid != null ? uid : (info && info.user_id);
+  const lines = [
+    '↩️ <b>Возврат</b>',
+    `💳 ${escapeHtml(label)}`,
+    `💰 Сумма: <b>${amount} ⭐</b>`,
+    `🆔 <code>${u != null ? u : '—'}</code>`,
+    `🕒 ${moscowNow()} (МСК)`,
+  ];
+  if (chargeId) lines.push(`🧾 <code>${escapeHtml(chargeId)}</code>`);
+  return lines.join('\n');
+}
+
+async function handleTelegramWebhook(request, env, ctx) {
   if (env.TG_SECRET) {
     const got = request.headers.get("X-Telegram-Bot-Api-Secret-Token") || "";
     if (got !== env.TG_SECRET) {
@@ -837,10 +931,15 @@ async function handleTelegramWebhook(request, env) {
 
   const message = update.message || update.edited_message || {};
 
-  // 2. Успешная оплата — записываем в D1 purchases
+  // 2. Успешная оплата — записываем в D1 purchases и уведомляем канал
   if (message.successful_payment) {
     const pay = message.successful_payment;
-    await recordPurchase(env, pay, message.from);
+    const record = await recordPurchase(env, pay, message.from);
+    if (!record.duplicate) {
+      const job = notifyChannel(env, buildPurchaseText(pay, message.from, record));
+      if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(job);
+      else await job;
+    }
     return json({ ok: true });
   }
 
@@ -867,7 +966,7 @@ async function handleTelegramWebhook(request, env) {
   if (cmd === "/refund") {
     if (!isAdmin(chatId, env)) return json({ ok: true });
     const args = text.split(/\s+/).slice(1).filter(Boolean);
-    await handleRefund(chatId, args, env);
+    await handleRefund(chatId, args, env, ctx);
     return json({ ok: true });
   }
 
