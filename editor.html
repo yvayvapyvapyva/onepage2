@@ -824,6 +824,7 @@ function renderTreeLevel(node, container) {
         btnSettings.title = 'Настройки папки';
         btnSettings.addEventListener('click', (e) => {
             e.stopPropagation();
+            e.preventDefault();
             openFolderSettings(sub.id);
         });
 
