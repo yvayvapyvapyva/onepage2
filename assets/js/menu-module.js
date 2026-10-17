@@ -455,17 +455,6 @@ const MenuModule = {
 
         const frag = document.createDocumentFragment();
 
-        // Кнопка создания папки в корень
-        const addRootBtn = document.createElement('button');
-        addRootBtn.className = 'route-item';
-        addRootBtn.style.cssText = 'justify-content:center;font-weight:700;border:1px dashed rgba(255,255,255,0.4);';
-        addRootBtn.textContent = '+ Создать папку';
-        addRootBtn.addEventListener('click', e => {
-            e.stopPropagation();
-            this._createFolder(null);
-        });
-        frag.appendChild(addRootBtn);
-
         // Все маршруты одним деревом папок
         const tree = this._buildCategoryTree();
         this._renderTreeNode(tree, frag, null, true);
@@ -489,24 +478,12 @@ const MenuModule = {
 
         const header = document.createElement('div');
         header.className = 'category-header' + (isExpanded && !locked ? ' expanded' : '') + (isRoot ? ' root' : '');
-
-        // Кнопки управления папкой (только не-корень и не закрыта)
-        let controlsHtml = '';
-        if (!isRoot && !locked) {
-            controlsHtml = `
-                <span class="folder-btn" title="Переименовать" onclick="event.stopPropagation(); window.menuModule._renameFolder(${folderId}, '${this._escape(displayName)}')">✏️</span>
-                <span class="folder-btn" title="Удалить" onclick="event.stopPropagation(); window.menuModule._deleteFolder(${folderId})">🗑️</span>
-                <span class="folder-btn" title="Создать подпапку" onclick="event.stopPropagation(); window.menuModule._createFolder(${folderId})">➕</span>
-            `;
-        }
-
         header.innerHTML = `
             <span class="category-icon">${locked ? '🔒' : (isExpanded ? '📂' : '📁')}</span>
             <span class="category-name">${this._escape(displayName)}${paid ? ' ⭐' : ''}</span>
             <span class="category-count">
                 ${locked ? total + ' · ' + lock.price + ' ⭐' : paid ? total + ' · оплачено' : total}
             </span>
-            ${controlsHtml}
         `;
         header.addEventListener('click', e => {
             e.stopPropagation();
@@ -557,18 +534,6 @@ const MenuModule = {
             nameSpan.className = 'route-name';
             nameSpan.textContent = route.name;
             btn.appendChild(nameSpan);
-
-            // Кнопка перемещения маршрута в папку
-            const moveBtn = document.createElement('span');
-            moveBtn.className = 'route-info-btn';
-            moveBtn.title = 'Переместить в папку';
-            moveBtn.textContent = '📁';
-            moveBtn.style.cssText = 'opacity:0.6;margin-left:6px;cursor:pointer;';
-            moveBtn.addEventListener('click', e => {
-                e.stopPropagation();
-                this._moveRouteToFolder(routeKey, route.folder_id);
-            });
-            btn.appendChild(moveBtn);
 
             if (hasDesc) {
                 const infoBtn = document.createElement('span');
@@ -931,79 +896,6 @@ const MenuModule = {
         } else {
             this._buildRoutesList();
         }
-    },
-
-    // ---- Управление папками ----
-
-    _createFolder(parentId) {
-        const name = prompt('Название папки:');
-        if (!name || !name.trim()) return;
-        fetch(`${this.API_URL_V2}?action=folder_create`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: name.trim(), parent_id: parentId }),
-        }).then(async res => {
-            if (!res.ok) { const d = await res.json().catch(() => ({})); showToast && showToast('Ошибка: ' + (d.error || res.status), 'error'); return; }
-            await this._loadFolders();
-            this._buildRoutesList();
-            showToast && showToast('Папка создана', 'success');
-        }).catch(e => { showToast && showToast('Ошибка сети: ' + e.message, 'error'); });
-    },
-
-    _renameFolder(id, currentName) {
-        const name = prompt('Новое название папки:', currentName);
-        if (!name || !name.trim()) return;
-        fetch(`${this.API_URL_V2}?action=folder_rename`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id, name: name.trim() }),
-        }).then(async res => {
-            if (!res.ok) { const d = await res.json().catch(() => ({})); showToast && showToast('Ошибка: ' + (d.error || res.status), 'error'); return; }
-            await this._loadFolders();
-            this._buildRoutesList();
-            showToast && showToast('Переименовано', 'success');
-        }).catch(e => { showToast && showToast('Ошибка сети: ' + e.message, 'error'); });
-    },
-
-    _deleteFolder(id) {
-        if (!confirm('Удалить папку? (папка должна быть пуста)')) return;
-        fetch(`${this.API_URL_V2}?action=folder_delete`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id }),
-        }).then(async res => {
-            if (!res.ok) { const d = await res.json().catch(() => ({})); showToast && showToast('Ошибка: ' + (d.error || res.status), 'error'); return; }
-            await this._loadFolders();
-            this._buildRoutesList();
-            showToast && showToast('Удалено', 'success');
-        }).catch(e => { showToast && showToast('Ошибка сети: ' + e.message, 'error'); });
-    },
-
-    _moveRouteToFolder(routeKey, currentFolderId) {
-        const folders = Array.from(this._folders.values());
-        if (folders.length === 0) {
-            showToast && showToast('Нет папок для перемещения', 'error');
-            return;
-        }
-        const list = folders.map(f => `${f.id}: ${f.name}`).join('\n');
-        const input = prompt('Введите ID папки для перемещения (или 0 для корня):\n' + list, currentFolderId || '0');
-        if (input === null) return;
-        const folderId = input === '0' || input === '' ? null : Number(input);
-        if (input !== '0' && input !== '' && !Number.isFinite(folderId)) {
-            showToast && showToast('Неверный ID папки', 'error');
-            return;
-        }
-        fetch(`${this.API_URL_V2}?action=route_move`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ m: routeKey, folder_id: folderId }),
-        }).then(async res => {
-            if (!res.ok) { const d = await res.json().catch(() => ({})); showToast && showToast('Ошибка: ' + (d.error || res.status), 'error'); return; }
-            const route = this.routesDescriptions[routeKey];
-            if (route) route.folder_id = folderId;
-            this._buildRoutesList();
-            showToast && showToast('Перемещено', 'success');
-        }).catch(e => { showToast && showToast('Ошибка сети: ' + e.message, 'error'); });
     },
 
     showSpinner() {
