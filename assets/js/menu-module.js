@@ -387,29 +387,37 @@ const MenuModule = {
         const initData = this._tgInitData();
         if (!initData) return;
         if (btn) { btn.disabled = true; btn.textContent = 'Проверяем оплату…'; }
+        // Запись о покупке создаёт вебхук Telegram и он может опоздать, поэтому
+        // в авторежиме (после оплаты) проверяем несколько раз с паузами.
+        const delays = btn ? [0] : [0, 1500, 3000, 5000];
+        let answered = false;
         try {
-            const res = await fetch(`${this.API_URL_V2}?action=shop_claim`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ initData })
-            });
-            const data = await res.json();
-            if (res.ok) {
+            for (let i = 0; i < delays.length; i++) {
+                if (delays[i]) await new Promise((r) => setTimeout(r, delays[i]));
+                const res = await fetch(`${this.API_URL_V2}?action=shop_claim`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ initData })
+                });
+                if (!res.ok) continue;
+                const data = await res.json();
+                answered = true;
                 this._access = new Set(data.folders || []);
                 this._accessExpires = data.expires || {};
+                const lock = thenOpen ? this._lockFor(thenOpen) : null;
+                if (lock && this._hasAccess(lock.folder)) {
+                    this._hidePaywall();
+                    this._expandedFolders.add(thenOpen);
+                    this._buildRoutesList();
+                    if (typeof showToast === 'function') showToast('Доступ открыт! 🎉', 'success');
+                    return;
+                }
+            }
+            if (answered) {
                 this._buildRoutesList();
                 this._hidePaywall();
-                if (thenOpen) {
-                    const lock = this._lockFor(thenOpen);
-                    if (lock && this._hasAccess(lock.folder)) {
-                        if (typeof showToast === 'function') showToast('Доступ открыт! 🎉', 'success');
-                        this._expandedFolders.add(thenOpen);
-                        this._buildRoutesList();
-                    } else {
-                        if (typeof showToast === 'function') showToast('Оплата не найдена', 'error');
-                    }
-                } else {
-                    if (typeof showToast === 'function') showToast('Доступ обновлён', 'success');
+                if (typeof showToast === 'function') {
+                    showToast(thenOpen ? 'Оплата не найдена' : 'Доступ обновлён', thenOpen ? 'error' : 'success');
                 }
             }
         } catch (e) {

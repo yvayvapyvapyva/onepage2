@@ -577,28 +577,27 @@ export default {
         return json({ ok: true, invoiceLink: res.result, price: lock.price, folder: lock.folder });
       }
 
-      // Подтвердить оплаты: сверяем getStarTransactions по payload, пишем в purchases.
+      // Подтвердить оплаты: сверяем getStarTransactions по payload и, если вебхук
+      // ещё не записал покупку, записываем её сами (подстраховка от задержки).
       if (action === 'shop_claim') {
         const initData = bodyData.initData || '';
         const { uid, err } = await verifyTgInitData(initData, env.TELEGRAM_TOKEN);
         if (!uid) return json({ error: 'bad_init_data', message: err }, 401);
-        const found = [];
+        let claimed = 0;
         let offset = 0;
         for (let page = 0; page < 5; page++) {
           const res = await tgApi(env, 'getStarTransactions', { offset, limit: 100 });
           if (!res || !res.ok) break;
           const txns = (res.result && res.result.transactions) || [];
           for (const t of txns) {
+            const stars = Math.trunc(Number(t.amount || 0));
+            if (!(stars > 0)) continue; // возвраты и списания пропускаем
             for (const p of [t.source, t.receiver]) {
               const payload = p && p.invoice_payload;
               if (typeof payload === 'string' && payload.startsWith(`folder:${uid}:`)) {
-                const parts = payload.split(':');
-                const folder = parts.slice(2, -1).join(':');
-                const stars = Math.trunc(Number(t.amount || 0));
-                if (folder) {
-                  const now = Math.floor(Date.now() / 1000);
-                  const expires_at = now + ACCESS_DAYS * 24 * 3600;
-                  found.push({ folder, stars, payload, expires_at });
+                const folder = payload.split(':').slice(2, -1).join(':');
+                if (folder && await recordClaimedPurchase(env, uid, folder, stars, t.id, t.date)) {
+                  claimed++;
                 }
               }
             }
@@ -607,7 +606,7 @@ export default {
           offset += 100;
         }
         const expires = await accessExpires(env, uid);
-        return json({ ok: true, claimed: found.length, folders: Object.keys(expires), expires });
+        return json({ ok: true, claimed, folders: Object.keys(expires), expires });
       }
 
       // ---- Папки (реальная иерархия) ----
@@ -779,6 +778,25 @@ async function recordPurchase(env, pay, from) {
   ).run();
 
   return { duplicate: false, chargeId, productType, productId, stars };
+}
+
+// Подстраховка к вебхуку: записать покупку папки, найденную в getStarTransactions.
+// charge_id = id транзакции = telegram_payment_charge_id, поэтому повторная запись
+// (и запись вебхуком) не создаёт дублей — INSERT OR IGNORE по UNIQUE(charge_id).
+async function recordClaimedPurchase(env, uid, folder, stars, chargeId, ts) {
+  if (!chargeId || !folder || !(stars > 0)) return false;
+  const now = Math.floor(Date.now() / 1000);
+  const base = Number(ts) > 0 ? Number(ts) : now;
+  const res = await env.DB.prepare(
+    `INSERT OR IGNORE INTO purchases
+       (user_id, product_type, product_id, charge_id, order_id, payload,
+        stars, currency, status, ts, expires_at)
+     VALUES (?, 'folder_access', ?, ?, NULL, ?, ?, 'XTR', 'active', ?, ?)`
+  ).bind(
+    uid, folder, chargeId, `folder:${uid}:${folder}`, stars, base,
+    base + ACCESS_DAYS * 24 * 3600
+  ).run();
+  return !!(res.meta && res.meta.changes);
 }
 
 // Формат числа звёзд из целой части и нанозвёзд (1e-9).
