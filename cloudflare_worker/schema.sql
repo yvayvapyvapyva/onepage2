@@ -33,13 +33,30 @@ CREATE TABLE IF NOT EXISTS folders (
 ALTER TABLE roads ADD COLUMN folder_id INTEGER REFERENCES folders(id);
 CREATE INDEX IF NOT EXISTS idx_roads_folder ON roads (folder_id);
 
--- Купленные доступы: user_id — Telegram user id, folder — полный путь папки.
+-- Купленные доступы: user_id — Telegram user id, product_id — путь к папке/продукту.
+-- Поддерживает разные типы продуктов (folder_access, premium, donate) и полную историю покупок.
 CREATE TABLE IF NOT EXISTS purchases (
-  user_id TEXT NOT NULL,
-  folder  TEXT NOT NULL,
-  stars   INTEGER DEFAULT 0,
-  ts      INTEGER,
-  payload TEXT,
-  PRIMARY KEY (user_id, folder)
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id         TEXT NOT NULL,
+  product_type    TEXT NOT NULL DEFAULT 'folder_access',
+  product_id      TEXT NOT NULL,
+  charge_id       TEXT UNIQUE,
+  order_id        TEXT UNIQUE,
+  payload         TEXT,
+  stars           INTEGER NOT NULL DEFAULT 0,
+  currency        TEXT DEFAULT 'XTR',
+  status          TEXT NOT NULL DEFAULT 'active',
+  ts              INTEGER NOT NULL,
+  expires_at      INTEGER,
+  refunded_at     INTEGER,
+  refund_reason   TEXT,
+  platform        TEXT,
+  promo_code      TEXT,
+  referrer_user_id TEXT,
+  raw_response    TEXT
 );
-CREATE UNIQUE INDEX IF NOT EXISTS idx_purchases_payload ON purchases (payload);
+CREATE INDEX IF NOT EXISTS idx_purchases_user_status ON purchases (user_id, status);
+CREATE INDEX IF NOT EXISTS idx_purchases_expires ON purchases (expires_at);
+CREATE INDEX IF NOT EXISTS idx_purchases_user_product ON purchases (user_id, product_type, product_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_purchases_charge ON purchases (charge_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_purchases_order ON purchases (order_id);

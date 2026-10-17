@@ -201,19 +201,30 @@ async function loadLocks(env) {
 const ACCESS_DAYS = 30;
 const accessSince = () => Math.floor(Date.now() / 1000) - ACCESS_DAYS * 24 * 3600;
 
-// Есть ли у пользователя действующий доступ: куплена совпавшая или любая вышележащая папка.
+// Есть ли у пользователя действующий доступ к папке (покупка активна и не истекла)
 async function hasAccess(env, uid, lockFolder) {
+  const now = Math.floor(Date.now() / 1000);
   const rows = (await env.DB.prepare(
-    'SELECT folder FROM purchases WHERE user_id = ? AND ts > ?').bind(uid, accessSince()).all()).results || [];
-  return rows.some((r) => lockFolder === r.folder || lockFolder.startsWith(r.folder + '/'));
+    `SELECT 1 FROM purchases
+     WHERE user_id = ? AND product_type = 'folder_access' AND product_id = ?
+       AND status = 'active' AND expires_at > ?
+     LIMIT 1`)
+    .bind(uid, lockFolder, now)
+    .all()).results || [];
+  return rows.length > 0;
 }
 
 // Карта folder -> unix-ts окончания доступа (для отображения).
 async function accessExpires(env, uid) {
+  const now = Math.floor(Date.now() / 1000);
   const rows = (await env.DB.prepare(
-    'SELECT folder, ts FROM purchases WHERE user_id = ? AND ts > ?').bind(uid, accessSince()).all()).results || [];
+    `SELECT product_id AS folder, expires_at FROM purchases
+     WHERE user_id = ? AND product_type = 'folder_access'
+       AND status = 'active' AND expires_at > ?`)
+    .bind(uid, now)
+    .all()).results || [];
   const out = {};
-  for (const r of rows) out[r.folder] = r.ts + ACCESS_DAYS * 24 * 3600;
+  for (const r of rows) out[r.folder] = r.expires_at;
   return out;
 }
 
@@ -463,10 +474,20 @@ export default {
                 const folder = parts.slice(2, -1).join(':');
                 const stars = Math.trunc(Number(t.amount || 0));
                 if (folder) {
-                  found.push({ folder, stars, payload });
+                  const now = Math.floor(Date.now() / 1000);
+                  const expires_at = now + ACCESS_DAYS * 24 * 3600;
+                  const order_id = `folder:${uid}:${folder}:${now}`;
+
+                  found.push({ folder, stars, payload, expires_at });
+
                   await env.DB.prepare(
-                    'INSERT INTO purchases (user_id, folder, stars, ts, payload) VALUES (?, ?, ?, ?, ?) ON CONFLICT(user_id, folder) DO UPDATE SET stars=excluded.stars, ts=excluded.ts, payload=excluded.payload')
-                    .bind(uid, folder, stars, Math.floor(Date.now() / 1000), payload).run();
+                    `INSERT INTO purchases
+                       (user_id, product_type, product_id, charge_id, order_id, payload,
+                        stars, currency, status, ts, expires_at, raw_response)
+                     VALUES (?, 'folder_access', ?, NULL, ?, ?, ?, 'XTR', 'active', ?, ?, ?)
+                     ON CONFLICT(order_id) DO NOTHING`)
+                    .bind(uid, folder, order_id, payload, stars, now, expires_at, JSON.stringify(t))
+                    .run();
                 }
               }
             }
