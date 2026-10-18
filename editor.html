@@ -790,7 +790,7 @@ function buildRouteTree() {
             id: Number(id),
             name: folder.name,
             parent_id: folder.parent_id,
-            visible: folder.visible !== 0,
+            visible: !!folder.visible,
             price: folder.price || 0,
             folders: {},
             routes: [],
@@ -1935,7 +1935,9 @@ const openFolderSettings = async (folderId) => {
     if (!folder) return;
     $('folderSettingsNameInput').value = folder.name;
     $('folderSettingsPriceInput').value = folder.price || 0;
-    $('folderSettingsVisibleCheckbox').checked = folder.visible !== 0;
+    // folder_list отдаёт видимость булевым, поэтому приводим к булеву виду
+    // (сравнение с числом 0 здесь не сработало бы: false !== 0 — это true).
+    $('folderSettingsVisibleCheckbox').checked = !!folder.visible;
     toggleM('folderSettingsModal');
 };
 
