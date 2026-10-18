@@ -14,7 +14,10 @@ rsync -a \
   --exclude="cloudflare_worker" \
   --exclude=".git" \
   --exclude=".gitignore" \
+  --exclude=".env" \
+  --exclude=".env.*" \
   --exclude=".DS_Store" \
+  --exclude=".wrangler" \
   --exclude="deploy-pages.sh" \
   ./ "$STAGE/"
 
