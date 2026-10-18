@@ -30,7 +30,7 @@
 // Env:
 //   DB               — D1 database binding (см. schema.sql)
 //   TELEGRAM_TOKEN   — токен бота (wrangler secret put, для /report)
-//   REPORT_CHAT_ID   — чат для отчётов (wrangler secret put)
+//   REPORT_CHAT_ID   — чат для отчётов (переменная [vars])
 //   PURCHASE_CHANNEL_ID — канал для уведомлений о покупках и возвратах
 //                         (@username публичного или -100… приватного). Не задан — уведомления не шлются.
 //   EDITOR_IDS       — Telegram user id редакторов через запятую (чтение/правка маршрутов).
