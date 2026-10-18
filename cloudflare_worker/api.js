@@ -17,6 +17,8 @@
 // Роуты:
 //   GET /?action=list_routes                      — публичный список (visible=1)
 //   GET /?action=catalog                          — маршруты + папки + замки одним ответом (меню)
+// Оба публичных списка не показывают скрытые папки (visible=0 в редакторе) и то,
+// что внутри них. В редакторе такие папки видны и доступны как обычно.
 //   GET /?action=get&m=NAME                       — маршрут {name, m, data}
 //   GET/POST /?action=list                        — все маршруты (для редактора)
 //   GET/POST /?action=get_protected&m=NAME        — то же, что get (для редактора)
@@ -53,7 +55,7 @@ import { verifyTgInitData, tgApi } from './lib/telegram.js';
 import {
   SHARED_ID, resolveM, findRoute, parseData, normFolder,
   lockForFolder, loadFolderIndex, folderPathIn, findFolderIdByPath,
-  hasAccess, accessExpires,
+  hasAccess, accessExpires, hiddenFolderIds,
 } from './lib/db.js';
 import { EDITOR_ACTIONS, requireEditor } from './lib/editor.js';
 import { handleReport } from './lib/report.js';
@@ -70,6 +72,14 @@ function locksFromIndex(index) {
     }
   }
   return out;
+}
+
+// Попадает ли маршрут в публичные списки (catalog, list_routes). Маршрут в
+// скрытой папке — не попадает; папка задаётся по id. Маршрут с несуществующей
+// папкой считается корневым и показывается как раньше.
+function isPublicRoute(route, hidden) {
+  const fid = route.folder_id;
+  return fid === null || fid === undefined || !hidden.has(fid);
 }
 
 export default {
@@ -100,11 +110,16 @@ export default {
         const rows = (await env.DB.prepare(
           'SELECT m, name, description, creator_name, folder_id FROM roads WHERE visible = 1 AND name IS NOT NULL ORDER BY name')
           .all()).results || [];
-        return json(rows.map((r) => ({
-          m: r.m, name: r.name,
-          description: r.description || '', creator_name: r.creator_name || '',
-          folder_id: r.folder_id || null,
-        })), 200, { 'Cache-Control': 'no-cache, no-store, must-revalidate' });
+        const folders = (await env.DB.prepare(
+          'SELECT id, parent_id, visible FROM folders').all()).results || [];
+        const hidden = hiddenFolderIds(folders);
+        return json(rows
+          .filter((r) => isPublicRoute(r, hidden))
+          .map((r) => ({
+            m: r.m, name: r.name,
+            description: r.description || '', creator_name: r.creator_name || '',
+            folder_id: r.folder_id || null,
+          })), 200, { 'Cache-Control': 'no-cache, no-store, must-revalidate' });
       }
 
       // ---- Каталог одним запросом: маршруты + папки + замки ----
@@ -116,17 +131,24 @@ export default {
           'SELECT m, name, description, creator_name, folder_id FROM roads WHERE visible = 1 AND name IS NOT NULL ORDER BY name')
           .all()).results || [];
         const folders = (await env.DB.prepare(
-          'SELECT id, name, parent_id, price FROM folders ORDER BY name').all()).results || [];
+          'SELECT id, name, parent_id, price, visible FROM folders ORDER BY name').all()).results || [];
+        // Скрытые в редакторе папки в приложение не попадают — ни сама папка,
+        // ни маршруты внутри неё (скрытие наследуется вниз, см. hiddenFolderIds).
+        const hidden = hiddenFolderIds(folders);
         const locks = locksFromIndex(await loadFolderIndex(env));
         return json({
-          routes: routes.map((r) => ({
-            m: r.m, name: r.name,
-            description: r.description || '', creator_name: r.creator_name || '',
-            folder_id: r.folder_id || null,
-          })),
-          folders: folders.map((f) => ({
-            id: f.id, name: f.name, parent_id: f.parent_id, price: f.price || 0,
-          })),
+          routes: routes
+            .filter((r) => isPublicRoute(r, hidden))
+            .map((r) => ({
+              m: r.m, name: r.name,
+              description: r.description || '', creator_name: r.creator_name || '',
+              folder_id: r.folder_id || null,
+            })),
+          folders: folders
+            .filter((f) => !hidden.has(f.id))
+            .map((f) => ({
+              id: f.id, name: f.name, parent_id: f.parent_id, price: f.price || 0,
+            })),
           locks,
         }, 200, { 'Cache-Control': 'no-cache, no-store, must-revalidate' });
       }

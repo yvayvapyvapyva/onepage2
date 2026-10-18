@@ -76,6 +76,26 @@ export async function loadFolderIndex(env) {
   return byId;
 }
 
+// id папок, скрытых из приложения: сама папка с visible != 1 и все её потомки.
+// Скрытие наследуется вниз, поэтому у скрытой папки не может остаться
+// видимый потомок — иначе маршрут показывался бы без замка родителя.
+// В редакторе такие папки видны как обычно (там другой список — folder_list).
+export function hiddenFolderIds(folders) {
+  const byId = new Map((folders || []).map((f) => [f.id, f]));
+  const hidden = new Set();
+  for (const f of byId.values()) {
+    const seen = new Set();
+    let cur = f.id;
+    while (cur !== null && cur !== undefined && byId.has(cur) && !seen.has(cur)) {
+      seen.add(cur);
+      const node = byId.get(cur);
+      if (node.visible !== 1) { hidden.add(f.id); break; }
+      cur = node.parent_id;
+    }
+  }
+  return hidden;
+}
+
 // Полный путь папки по её id внутри загруженного индекса. Только для показа
 // человеку: ключом доступа путь не является (см. lockForFolder).
 export function folderPathIn(index, id) {
