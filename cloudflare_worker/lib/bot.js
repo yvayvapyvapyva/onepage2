@@ -13,6 +13,11 @@ import {
   buildPurchaseText,
 } from './shop.js';
 
+// Кнопка запуска Mini App в ответ на /start.
+// «nav» — это short name приложения из BotFather (Bot Settings → Configure Mini App).
+// Меняли short name — поправьте и здесь.
+const MINIAPP_URL = 'https://t.me/A152Bot/nav';
+
 export async function handleTelegramWebhook(request, env, ctx) {
   if (env.TG_SECRET) {
     const got = request.headers.get("X-Telegram-Bot-Api-Secret-Token") || "";
@@ -89,17 +94,33 @@ export async function handleTelegramWebhook(request, env, ctx) {
     return json({ ok: true });
   }
 
-  if (cmd === "/start" && isAdmin(chatId, env)) {
+  // /start — приветствие с кнопкой запуска Mini App. Отвечаем ЛЮБОМУ пользователю.
+  if (cmd === "/start") {
     await tgApi(env, "sendMessage", {
       chat_id: chatId,
       text: [
-        "Админ-команды:",
-        "/balance — баланс звёзд",
-        "/stats — статистика оплат",
-        "/refund <charge_id> — возврат",
-        "/refund <user_id> <charge_id> — возврат",
+        "👋 Привет!",
+        "",
+        "Здесь можно смотреть маршруты и открыть навигатор.",
+        "Нажмите кнопку ниже 👇",
       ].join("\n"),
+      reply_markup: {
+        inline_keyboard: [[{ text: "🚗 Открыть навигатор", url: MINIAPP_URL }]],
+      },
     });
+    // Админам дополнительно список команд (обычным пользователям не показываем).
+    if (isAdmin(chatId, env)) {
+      await tgApi(env, "sendMessage", {
+        chat_id: chatId,
+        text: [
+          "Админ-команды:",
+          "/balance — баланс звёзд",
+          "/stats — статистика оплат",
+          "/refund <charge_id> — возврат",
+          "/refund <user_id> <charge_id> — возврат",
+        ].join("\n"),
+      });
+    }
     return json({ ok: true });
   }
 
