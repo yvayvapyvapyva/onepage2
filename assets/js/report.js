@@ -12,8 +12,6 @@
 const REPORT = (() => {
     // Отчёты шлёт основной API-воркер (POST /report)
     const REPORT_API_URL = 'https://nav-api.ivan43103.workers.dev/report';
-    // Если на воркере задан env REPORT_KEY — продублируйте его здесь
-    const REPORT_KEY = '';
     // Кол-во попыток и задержка повтора при сетевой ошибке / ok=false
     const MAX_ATTEMPTS = 2;
     const RETRY_DELAY_MS = 2000;
@@ -163,7 +161,6 @@ const REPORT = (() => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' }
         };
-        if (REPORT_KEY) init.headers['X-Report-Key'] = REPORT_KEY;
         init.body = JSON.stringify({ text });
 
         let attempt = 0;

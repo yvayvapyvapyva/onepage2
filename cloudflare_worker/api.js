@@ -31,11 +31,11 @@
 //   DB               — D1 database binding (см. schema.sql)
 //   TELEGRAM_TOKEN   — токен бота (wrangler secret put, для /report)
 //   REPORT_CHAT_ID   — чат для отчётов (wrangler secret put)
-//   REPORT_KEY       — опциональный ключ в заголовке X-Report-Key (wrangler secret put)
 //   PURCHASE_CHANNEL_ID — канал для уведомлений о покупках и возвратах
 //                         (@username публичного или -100… приватного). Не задан — уведомления не шлются.
 //   EDITOR_IDS       — Telegram user id редакторов через запятую (чтение/правка маршрутов).
 //   EDITOR_ACCESS_KEY — ключ для входа в редактор из браузера (вне Telegram). Не задан — только через Telegram.
+//   ADMIN_IDS        — Telegram user id админов бота (команды /balance, /stats, /refund), через запятую.
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -75,10 +75,6 @@ function escapeHtml(str) {
 async function handleReport(request, env) {
   if (request.method !== 'POST') return json({ ok: false, error: 'method' }, 405);
   try {
-    if (env.REPORT_KEY) {
-      const key = request.headers.get('X-Report-Key');
-      if (key !== env.REPORT_KEY) return json({ ok: false, error: 'forbidden' }, 403);
-    }
     const body = await request.json();
     const text = String(body.text || '').trim();
     const hasLocation = Number.isFinite(body.lat) && Number.isFinite(body.lon);

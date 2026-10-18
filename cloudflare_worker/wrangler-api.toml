@@ -3,13 +3,31 @@
 #   1. wrangler d1 create nav-db  -> вписать database_id ниже
 #   2. wrangler d1 execute nav-db --file=cloudflare_worker/schema.sql --config=cloudflare_worker/wrangler-api.toml
 #   3. wrangler secret put TELEGRAM_TOKEN --config=cloudflare_worker/wrangler-api.toml
-#      wrangler secret put ADMIN_ACCESS_KEY --config=cloudflare_worker/wrangler-api.toml  (опционально)
+#      wrangler secret put ADMIN_IDS --config=cloudflare_worker/wrangler-api.toml  (ID админов бота, через запятую)
 #   4. wrangler deploy --config=cloudflare_worker/wrangler-api.toml
 #   5. URL из вывода deploy вписать в assets/js/config.js -> API_CONFIG.API_BASE
 
 name = "nav-api"
 main = "api.js"
 compatibility_date = "2026-01-01"
+
+# Не удалять переменные, заданные не в этом файле (например, из дашборда),
+# при деплое. Секретов не касается.
+keep_vars = true
+
+# Обычные (не секретные) переменные.
+# ВНИМАНИЕ: файл лежит в ПУБЛИЧНОМ репозитории, поэтому секреты
+# (EDITOR_ACCESS_KEY, TELEGRAM_TOKEN, TG_SECRET и т.п.) здесь хранить нельзя —
+# только значения, которые не страшно показать.
+[vars]
+# Telegram user id редакторов маршрутов, через запятую.
+EDITOR_IDS = "7292595756"
+
+# Канал для отчётов о покупках и возвратах: "@username" или "-100…" (приватный).
+# Пусто ("") — уведомления не отправляются.
+# Значение вписывать ЗДЕСЬ, а не в дашборде: если имя есть в конфиге,
+# деплой перезапишет значение из дашборда этим.
+PURCHASE_CHANNEL_ID = ""
 
 [[d1_databases]]
 binding = "DB"
