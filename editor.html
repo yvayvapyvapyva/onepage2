@@ -214,7 +214,7 @@ const f6 = round6;
 
 const YC_FUNCTION_URL = (typeof API_CONFIG !== 'undefined' && API_CONFIG.API_BASE) || 'https://functions.yandexcloud.net/d4e6qbc1mm9j44h0na3n';
 const TTS_API_URL = 'https://functions.yandexcloud.net/d4erngid6s4rf5oinnp1';
-const TG_BOT_LINK = 'https://t.me/E_ia_bot?startapp=m=';
+const TG_BOT_LINK = 'https://t.me/A152Bot?startapp=m=';
 
 let map, points = [], cur = null, isAdd = false, isDrawing = false, isAddingInfo = false, curRoute = null, activeListPoint = null, modalMode = 'list', tempNewPointData = null, userLocPlacemark = null, activePoint = null, settingsRouteFiles = [];
 let historyStack = [], historyIndex = -1, lastSavedSnapshot = "[]", toastTimer = null;
@@ -1338,7 +1338,7 @@ function copyShareLink(platform) {
     const name = _shareRouteName || settingsRouteName || curRoute;
     if (!name) return;
     const link = platform === 'web'
-        ? `https://avtoinstruktor.website.yandexcloud.net/#m=${name}`
+        ? `https://avtoinstruktor.pages.dev/#m=${name}`
         : `${TG_BOT_LINK}${name}`;
     toggleM('shareModal');
     copyToClipboard(link, "Ссылка скопирована в буфер обмена");
