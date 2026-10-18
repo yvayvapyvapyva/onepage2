@@ -322,13 +322,13 @@ const MenuModule = {
         if (this._isTg()) {
             const buy = document.createElement('button');
             buy.className = 'route-item';
-            buy.style.cssText = 'justify-content:center;font-weight:700;';
+            buy.style.cssText = 'justify-content:center;font-weight:700;font-size:18px;color:#fff;background:rgba(48,209,88,0.22);border-color:rgba(48,209,88,0.65);box-shadow:0 0 18px rgba(48,209,88,0.4);';
             buy.textContent = `Открыть за ${price} ⭐`;
             buy.addEventListener('click', () => this._buyFolder(folderId, buy));
             body.appendChild(buy);
             const owned = document.createElement('button');
             owned.className = 'route-item';
-            owned.style.cssText = 'justify-content:center;opacity:0.8;';
+            owned.style.cssText = 'justify-content:center;color:#fff;';
             owned.textContent = 'Я уже оплатил — обновить';
             owned.addEventListener('click', () => this._claimPurchases(owned, folderId));
             body.appendChild(owned);
@@ -353,6 +353,7 @@ const MenuModule = {
     async _buyFolder(folderId, btn) {
         const initData = this._tgInitData();
         if (!initData) return;
+        const label = btn ? btn.textContent : '';
         if (btn) { btn.disabled = true; btn.textContent = 'Создаём счёт…'; }
         try {
             const res = await fetch(`${this.API_URL}?action=shop_invoice`, {
@@ -369,7 +370,7 @@ const MenuModule = {
             }
             if (!res.ok || !data.invoiceLink) throw new Error((data && data.error) || ('HTTP ' + res.status));
             Telegram.WebApp.openInvoice(data.invoiceLink, (status) => {
-                if (btn) { btn.disabled = false; btn.textContent = `Открыть за ${data.price} ⭐`; }
+                if (btn) { btn.disabled = false; btn.textContent = label; }
                 if (status === 'paid') {
                     this._claimPurchases(null, folderId);
                 } else if (typeof showToast === 'function' && status !== 'cancelled') {
@@ -377,7 +378,7 @@ const MenuModule = {
                 }
             });
         } catch (e) {
-            if (btn) { btn.disabled = false; btn.textContent = `Открыть за ⭐`; }
+            if (btn) { btn.disabled = false; btn.textContent = label; }
             if (typeof showToast === 'function') showToast('Ошибка: ' + e.message, 'error', 4000);
         }
     },
@@ -385,6 +386,7 @@ const MenuModule = {
     async _claimPurchases(btn, folderId) {
         const initData = this._tgInitData();
         if (!initData) return;
+        const label = btn ? btn.textContent : '';
         if (btn) { btn.disabled = true; btn.textContent = 'Проверяем оплату…'; }
         // Запись о покупке создаёт вебхук Telegram и он может опоздать, поэтому
         // в авторежиме (после оплаты) проверяем несколько раз с паузами.
@@ -422,7 +424,7 @@ const MenuModule = {
         } catch (e) {
             if (typeof showToast === 'function') showToast('Не удалось подтвердить оплату', 'error');
         } finally {
-            if (btn) { btn.disabled = false; }
+            if (btn) { btn.disabled = false; btn.textContent = label; }
         }
     },
 
