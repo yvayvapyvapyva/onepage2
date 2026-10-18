@@ -2,7 +2,7 @@
 
 import { tgApi } from './telegram.js';
 import { escapeHtml } from './http.js';
-import { ACCESS_DAYS } from './db.js';
+import { ACCESS_DAYS, getFolderPath } from './db.js';
 
 // Админ бота: ADMIN_IDS — Telegram user id через запятую (команды /balance, /stats, /refund).
 export function isAdmin(chatId, env) {
@@ -30,8 +30,10 @@ export async function recordPurchase(env, pay) {
 
   if (payload.startsWith('folder:')) {
     productType = 'folder_access';
-    // payload = folder:<uid>:<путь папки>:<timestamp>
-    productId = payload.split(':').slice(2, -1).join(':');
+    // payload = folder:<uid>:id=<id папки>:<timestamp>
+    // Доступ считается по id папки, путь в payload не участвует.
+    const tag = payload.split(':')[2] || '';
+    productId = tag.startsWith('id=') ? tag.slice(3) : '';
     expiresAt = ts + ACCESS_DAYS * 24 * 3600;
   } else if (payload.startsWith('donate:')) {
     productType = 'donate';
@@ -183,7 +185,7 @@ export async function handleRefund(chatId, args, env, ctx) {
   const job = (async () => {
     const b = await getStarsBalance(env);
     const balance = b && !b.error ? b.total : null;
-    await notifyChannel(env, buildRefundText(info, uid, chargeId, balance));
+    await notifyChannel(env, await buildRefundText(env, info, uid, chargeId, balance));
   })();
   if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(job);
   else await job;
@@ -194,6 +196,18 @@ export async function handleRefund(chatId, args, env, ctx) {
 // =====================================================================
 // Уведомления в канал (env.PURCHASE_CHANNEL_ID)
 // =====================================================================
+
+// Как показать продукт человеку. Для доступа к папке в базе лежит id папки,
+// а в сообщении нужен путь, поэтому разворачиваем id → путь (папки может уже не быть).
+export async function productDisplayId(env, productType, productId) {
+  if (productType !== 'folder_access') return String(productId || '');
+  const raw = String(productId == null ? '' : productId);
+  // В product_id лежит числовой id папки. Если он не распознан — показываем
+  // как есть, чтобы это было видно в уведомлении, а не пряталось за «#0».
+  if (!/^\d+$/.test(raw)) return raw || '—';
+  const path = await getFolderPath(env, Number(raw));
+  return path || `#${raw}`;
+}
 
 // Человекочитаемое название продукта.
 export function productLabel(productType, productId) {
@@ -233,12 +247,13 @@ export async function notifyChannel(env, text) {
 }
 
 // Текст уведомления о покупке.
-export function buildPurchaseText(pay, from, record, balance) {
+export async function buildPurchaseText(env, pay, from, record, balance) {
   const user = from || {};
   const fullName = [user.first_name, user.last_name].filter(Boolean).join(' ') || '—';
   const username = user.username ? '@' + user.username : 'без username';
   const uid = user.id != null ? user.id : '—';
-  const label = productLabel(record.productType, record.productId);
+  const label = productLabel(record.productType,
+    await productDisplayId(env, record.productType, record.productId));
   const lines = [
     '🛒 <b>Новая покупка</b>',
     `💳 ${escapeHtml(label)}`,
@@ -255,8 +270,9 @@ export function buildPurchaseText(pay, from, record, balance) {
 }
 
 // Текст уведомления о возврате.
-export function buildRefundText(info, uid, chargeId, balance) {
-  const label = productLabel(info && info.product_type, info && info.product_id);
+export async function buildRefundText(env, info, uid, chargeId, balance) {
+  const label = productLabel(info && info.product_type,
+    await productDisplayId(env, info && info.product_type, info && info.product_id));
   const amount = info ? Number(info.stars || 0) : 0;
   const u = uid != null ? uid : (info && info.user_id);
   const lines = [

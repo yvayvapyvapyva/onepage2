@@ -32,13 +32,6 @@ export function parseData(raw) {
   }
 }
 
-// Папка маршрута из отображаемого имени "A/B/Имя" -> "A/B".
-export function folderOf(routeName) {
-  const parts = String(routeName || '').split('/').map((s) => s.trim()).filter(Boolean);
-  parts.pop();
-  return parts.join('/');
-}
-
 export function normFolder(f) {
   return String(f || '').split('/').map((s) => s.trim()).filter(Boolean).join('/');
 }
@@ -73,75 +66,77 @@ export async function findFolderIdByPath(env, path) {
   return currentId;
 }
 
-// Ближайший замок для папки (сама папка или предок). locks: Map(folder->price).
-export function lockForFolder(folder, locks) {
-  let cur = folder;
-  for (;;) {
-    if (locks.has(cur)) return { folder: cur, price: locks.get(cur) };
-    const i = cur.lastIndexOf('/');
-    if (i < 0) break;
-    cur = cur.substring(0, i);
-  }
-  return null;
-}
-
-export async function loadLocks(env) {
-  // Пути строим по ВСЕМ папкам (не только платным): иначе путь вложенной
-  // платной папки обрежется на первом бесплатном родителе и замок не совпадёт.
+// Индекс всех папок в памяти: id -> {id, name, parent_id, price}.
+// Один запрос вместо обхода дерева на каждый маршрут.
+export async function loadFolderIndex(env) {
   const rows = (await env.DB.prepare(
     'SELECT id, name, parent_id, price FROM folders').all()).results || [];
-  // постройка путей в памяти
-  const byId = new Map(rows.map(r => [r.id, r]));
-  const pathCache = new Map();
-  function pathOf(id) {
-    if (pathCache.has(id)) return pathCache.get(id);
-    const parts = [];
-    let cur = id;
-    while (cur !== null && cur !== undefined && byId.has(cur)) {
-      const f = byId.get(cur);
-      parts.unshift(f.name);
-      cur = f.parent_id;
-    }
-    const p = parts.join('/');
-    pathCache.set(id, p);
-    return p;
+  const byId = new Map();
+  for (const r of rows) byId.set(r.id, r);
+  return byId;
+}
+
+// Полный путь папки по её id внутри загруженного индекса. Только для показа
+// человеку: ключом доступа путь не является (см. lockForFolder).
+export function folderPathIn(index, id) {
+  const parts = [];
+  const seen = new Set();
+  let cur = id;
+  while (cur !== null && cur !== undefined && index.has(cur) && !seen.has(cur)) {
+    seen.add(cur);
+    const f = index.get(cur);
+    parts.unshift(f.name);
+    cur = f.parent_id;
   }
-  const map = new Map();
-  for (const r of rows) {
-    if (r.price > 0) {
-      const p = pathOf(r.id);
-      if (p) map.set(p, r.price);
+  return parts.join('/');
+}
+
+// Ближайший платный предок (включая саму папку) — по id, а не по пути из имён.
+// Путь ключом быть не может: у двух папок-соседей может быть одинаковое имя,
+// и тогда они слились бы в один «замок».
+// Возвращает { id, folder, price } либо null.
+export function lockForFolder(index, folderId) {
+  const seen = new Set();
+  let cur = folderId;
+  while (cur !== null && cur !== undefined && index.has(cur) && !seen.has(cur)) {
+    seen.add(cur);
+    const f = index.get(cur);
+    if ((f.price || 0) > 0) {
+      return { id: f.id, folder: folderPathIn(index, f.id), price: f.price };
     }
+    cur = f.parent_id;
   }
-  return map;
+  return null;
 }
 
 // Доступ действует 30 дней с момента оплаты.
 export const ACCESS_DAYS = 30;
 
-// Есть ли у пользователя действующий доступ к папке (покупка активна и не истекла)
-export async function hasAccess(env, uid, lockFolder) {
+// Есть ли у пользователя действующий доступ к папке (покупка активна и не истекла).
+// product_id покупки — это id папки, поэтому переименование и переезд папки
+// доступ не отбирают.
+export async function hasAccess(env, uid, folderId) {
   const now = Math.floor(Date.now() / 1000);
   const rows = (await env.DB.prepare(
     `SELECT 1 FROM purchases
      WHERE user_id = ? AND product_type = 'folder_access' AND product_id = ?
        AND status = 'active' AND expires_at > ?
      LIMIT 1`)
-    .bind(uid, lockFolder, now)
+    .bind(uid, String(folderId), now)
     .all()).results || [];
   return rows.length > 0;
 }
 
-// Карта folder -> unix-ts окончания доступа (для отображения).
+// Карта id папки -> unix-ts окончания доступа (для отображения).
 export async function accessExpires(env, uid) {
   const now = Math.floor(Date.now() / 1000);
   const rows = (await env.DB.prepare(
-    `SELECT product_id AS folder, expires_at FROM purchases
+    `SELECT product_id AS pid, expires_at FROM purchases
      WHERE user_id = ? AND product_type = 'folder_access'
        AND status = 'active' AND expires_at > ?`)
     .bind(uid, now)
     .all()).results || [];
   const out = {};
-  for (const r of rows) out[r.folder] = r.expires_at;
+  for (const r of rows) out[r.pid] = r.expires_at;
   return out;
 }

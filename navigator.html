@@ -163,7 +163,7 @@
   tryLoad('https://telegram.org/js/telegram-web-app.js', '__tgWebAppFailed');
 })(window);
 </script>
-<script src="assets/js/menu-module.js?v=2" defer></script>
+<script src="assets/js/menu-module.js?v=4" defer></script>
 <script>
 const APP = {
     map: null, userMarker: null, lastPos: null, lastAz: 0, rawAz: 0, lastTilt: 0, autoCenter: false, currentSpeed: 0,
@@ -838,7 +838,7 @@ function updateRouteNameDisplay() {
             const cr = MenuModule.currentRoute;
             if (cr && MenuModule.routesDescriptions && MenuModule.routesDescriptions[cr]) {
                 const fullName = MenuModule.routesDescriptions[cr].name || '';
-                name = fullName.split('/').pop() || fullName;
+                name = fullName;
             }
             if (!name && cr) {
                 const dashIndex = cr.indexOf('-');

@@ -7,9 +7,9 @@ const MenuModule = {
     _isFetchingRoutes: false,
     _categoryTree: null,
     _expandedFolders: new Set(),
-    _locks: {}, // {folderPath: price} — платные папки
-    _access: new Set(), // купленные папки пользователя
-    _accessExpires: {}, // {folderPath: unix-ts окончания доступа}
+    _locks: {}, // {folderId: price} — платные папки (по id, не по пути)
+    _access: new Set(), // купленные папки пользователя (id папок)
+    _accessExpires: {}, // {folderId: unix-ts окончания доступа}
     _folders: new Map(), // id -> {id, name, parent_id, owner_id}
 
     // URL бекенда (API-воркер на Cloudflare, D1).
@@ -178,9 +178,9 @@ const MenuModule = {
         // Папки приходят в том же ответе — дерево строится сразу, без гонки.
         this._folders = new Map((data.folders || []).map(f => [f.id, f]));
 
-        // Замки платных папок
+        // Замки платных папок (ключ — id папки).
         this._locks = {};
-        for (const l of (data.locks || [])) this._locks[l.folder] = l.price;
+        for (const l of (data.locks || [])) this._locks[String(l.id)] = l.price;
 
         return;
     },
@@ -198,29 +198,32 @@ const MenuModule = {
         return !!this._tgInitData();
     },
 
-    // Ближайший замок для пути папки (сама или предок). _locks: {folder: price}.
-    _lockFor(folderPath) {
-        let cur = folderPath;
-        for (;;) {
-            if (cur && Object.prototype.hasOwnProperty.call(this._locks, cur)) {
-                return { folder: cur, price: this._locks[cur] };
+    // Ближайший замок для папки (сама или предок) — по id, поднимаясь по parent_id.
+    // Именно по id, а не по пути: у двух папок-соседей может совпасть имя.
+    // _locks: {folderId: price}.
+    _lockFor(folderId) {
+        const seen = new Set();
+        let cur = folderId !== null && folderId !== undefined ? String(folderId) : null;
+        while (cur !== null && !seen.has(cur)) {
+            seen.add(cur);
+            if (Object.prototype.hasOwnProperty.call(this._locks, cur)) {
+                return { id: Number(cur), price: this._locks[cur] };
             }
-            const i = cur.lastIndexOf('/');
-            if (i < 0) break;
-            cur = cur.substring(0, i);
+            const f = this._folders.get(Number(cur));
+            cur = f && f.parent_id !== null && f.parent_id !== undefined ? String(f.parent_id) : null;
         }
         return null;
     },
 
-    _hasAccess(lockFolder) {
-        if (!lockFolder) return true;
-        for (const owned of this._access) {
-            if (lockFolder === owned || lockFolder.startsWith(owned + '/')) return true;
-        }
-        return false;
+    // Куплен ли доступ именно к этой папке. Покупка оформляется на конкретную
+    // папку и распространяется на всё внутри неё, поэтому ближайшего замка
+    // достаточно — сравнивать с предками не нужно.
+    _hasAccess(lockId) {
+        if (lockId === null || lockId === undefined) return true;
+        return this._access.has(String(lockId));
     },
 
-    // Полный путь папки по её id (через parent_id) — так же, как ключи в _locks.
+    // Полный путь папки по её id (через parent_id) — только для показа человеку.
     _folderPath(id) {
         const parts = [];
         const seen = new Set();
@@ -234,17 +237,13 @@ const MenuModule = {
         return parts.join('/');
     },
 
-    // Покупка, дающая доступ к папке (сама или предок). Возвращает
-    // { folder, expiresAt } с самым поздним сроком, либо null.
-    _accessFor(lockFolder) {
-        let best = null;
-        for (const owned of this._access) {
-            if (lockFolder === owned || lockFolder.startsWith(owned + '/')) {
-                const exp = (this._accessExpires && this._accessExpires[owned]) || 0;
-                if (!best || exp > best.expiresAt) best = { folder: owned, expiresAt: exp };
-            }
-        }
-        return best;
+    // Доступ к замку, если он куплен: { id, expiresAt } либо null.
+    _accessFor(lockId) {
+        if (lockId === null || lockId === undefined) return null;
+        const key = String(lockId);
+        if (!this._access.has(key)) return null;
+        const exp = (this._accessExpires && this._accessExpires[key]) || 0;
+        return { id: Number(lockId), expiresAt: exp };
     },
 
     // Сколько дней осталось до конца доступа (0 — истекает сегодня, null — срок неизвестен).
@@ -261,7 +260,7 @@ const MenuModule = {
             if (res.ok) {
                 const data = await res.json();
                 this._locks = {};
-                for (const l of (data.locks || [])) this._locks[l.folder] = l.price;
+                for (const l of (data.locks || [])) this._locks[String(l.id)] = l.price;
             }
         } catch (e) {
             this._locks = this._locks || {};
@@ -277,7 +276,7 @@ const MenuModule = {
                 });
                 if (res.ok) {
                     const data = await res.json();
-                    this._access = new Set(data.folders || []);
+                    this._access = new Set((data.ids || []).map(String));
                     this._accessExpires = data.expires || {};
                 }
             } catch (e) {}
@@ -287,7 +286,7 @@ const MenuModule = {
         }
     },
 
-    _openPaywall(folder, price) {
+    _openPaywall(folderId, price, displayPath) {
         let m = document.getElementById('paywallModal');
         if (!m) {
             m = document.createElement('div');
@@ -309,12 +308,12 @@ const MenuModule = {
             });
             document.getElementById('paywallCloseBtn').addEventListener('click', () => this._hidePaywall());
         }
-        document.getElementById('paywallTitle').textContent = '🔒 ' + folder.split('/').pop();
+        document.getElementById('paywallTitle').textContent = '🔒 ' + (displayPath || '').split('/').pop();
         const body = document.getElementById('paywallBody');
         body.innerHTML = '';
         const desc = document.createElement('div');
         desc.style.cssText = 'color:rgba(255,255,255,0.7);font-size:14px;';
-        desc.textContent = `Папка «${folder}» доступна после оплаты. Доступ на 30 дней.`;
+        desc.textContent = `Папка «${displayPath}» доступна после оплаты. Доступ на 30 дней.`;
         body.appendChild(desc);
         const priceEl = document.createElement('div');
         priceEl.style.cssText = 'font-size:22px;font-weight:800;color:#fff;';
@@ -325,13 +324,13 @@ const MenuModule = {
             buy.className = 'route-item';
             buy.style.cssText = 'justify-content:center;font-weight:700;';
             buy.textContent = `Открыть за ${price} ⭐`;
-            buy.addEventListener('click', () => this._buyFolder(folder, buy));
+            buy.addEventListener('click', () => this._buyFolder(folderId, buy));
             body.appendChild(buy);
             const owned = document.createElement('button');
             owned.className = 'route-item';
             owned.style.cssText = 'justify-content:center;opacity:0.8;';
             owned.textContent = 'Я уже оплатил — обновить';
-            owned.addEventListener('click', () => this._claimPurchases(owned, folder));
+            owned.addEventListener('click', () => this._claimPurchases(owned, folderId));
             body.appendChild(owned);
         } else {
             const hint = document.createElement('div');
@@ -351,7 +350,7 @@ const MenuModule = {
         }
     },
 
-    async _buyFolder(folder, btn) {
+    async _buyFolder(folderId, btn) {
         const initData = this._tgInitData();
         if (!initData) return;
         if (btn) { btn.disabled = true; btn.textContent = 'Создаём счёт…'; }
@@ -359,7 +358,7 @@ const MenuModule = {
             const res = await fetch(`${this.API_URL}?action=shop_invoice`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ initData, folder })
+                body: JSON.stringify({ initData, folder_id: folderId })
             });
             const data = await res.json();
             if (data.owned) {
@@ -372,7 +371,7 @@ const MenuModule = {
             Telegram.WebApp.openInvoice(data.invoiceLink, (status) => {
                 if (btn) { btn.disabled = false; btn.textContent = `Открыть за ${data.price} ⭐`; }
                 if (status === 'paid') {
-                    this._claimPurchases(null, folder);
+                    this._claimPurchases(null, folderId);
                 } else if (typeof showToast === 'function' && status !== 'cancelled') {
                     showToast('Не оплачено: ' + status, 'error');
                 }
@@ -383,7 +382,7 @@ const MenuModule = {
         }
     },
 
-    async _claimPurchases(btn, thenOpen) {
+    async _claimPurchases(btn, folderId) {
         const initData = this._tgInitData();
         if (!initData) return;
         if (btn) { btn.disabled = true; btn.textContent = 'Проверяем оплату…'; }
@@ -402,12 +401,12 @@ const MenuModule = {
                 if (!res.ok) continue;
                 const data = await res.json();
                 answered = true;
-                this._access = new Set(data.folders || []);
+                this._access = new Set((data.ids || []).map(String));
                 this._accessExpires = data.expires || {};
-                const lock = thenOpen ? this._lockFor(thenOpen) : null;
-                if (lock && this._hasAccess(lock.folder)) {
+                const lock = folderId ? this._lockFor(folderId) : null;
+                if (lock && this._hasAccess(lock.id)) {
                     this._hidePaywall();
-                    this._expandedFolders.add(thenOpen);
+                    this._expandedFolders.add(String(folderId));
                     this._buildRoutesList();
                     if (typeof showToast === 'function') showToast('Доступ открыт! 🎉', 'success');
                     return;
@@ -417,7 +416,7 @@ const MenuModule = {
                 this._buildRoutesList();
                 this._hidePaywall();
                 if (typeof showToast === 'function') {
-                    showToast(thenOpen ? 'Оплата не найдена' : 'Доступ обновлён', thenOpen ? 'error' : 'success');
+                    showToast(folderId ? 'Оплата не найдена' : 'Доступ обновлён', folderId ? 'error' : 'success');
                 }
             }
         } catch (e) {
@@ -508,10 +507,10 @@ const MenuModule = {
 
     // Отрисовка заголовка папки с учётом замка. Возвращает false если папка закрыта.
     _renderFolderHeader(container, folderPath, displayName, total, isExpanded, isRoot, folderId) {
-        // Замок ищем по ПОЛНОМУ ПУТИ папки (в _locks ключи — пути),
-        // а folderPath — это id (нужен для раскрытия/сворачивания).
-        const lock = this._lockFor(this._folderPath(folderId));
-        const access = lock ? this._accessFor(lock.folder) : null;
+        // Замок ищем по id папки; folderPath — это String(id), он нужен только
+        // для раскрытия/сворачивания.
+        const lock = this._lockFor(folderId);
+        const access = lock ? this._accessFor(lock.id) : null;
         const locked = !!lock && !access;
 
         const el = document.createElement('div');
@@ -544,7 +543,7 @@ const MenuModule = {
         header.addEventListener('click', e => {
             e.stopPropagation();
             if (locked) {
-                this._openPaywall(lock.folder, lock.price);
+                this._openPaywall(lock.id, lock.price, this._folderPath(folderId));
                 return;
             }
             if (this._expandedFolders.has(folderPath)) this._expandedFolders.delete(folderPath);
@@ -663,7 +662,7 @@ const MenuModule = {
         }
 
         const routeData2 = this.routesDescriptions[routeKey];
-        const titleName = routeData2.name ? routeData2.name.split('/').pop() : routeData2.name;
+        const titleName = routeData2.name || '';
         document.getElementById('routeDescTitle').textContent = titleName;
         document.getElementById('routeDescText').textContent = routeData2.description;
         descModal.style.display = 'block';
@@ -870,7 +869,7 @@ const MenuModule = {
                 try { info = await res.json(); } catch (e) {}
                 if (info && info.error === 'locked') {
                     this.hideSpinner();
-                    this._openPaywall(info.folder, info.price);
+                    this._openPaywall(info.id, info.price, info.folder);
                     return;
                 }
                 throw new Error('HTTP ' + res.status);

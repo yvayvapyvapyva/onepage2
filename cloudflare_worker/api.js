@@ -26,15 +26,16 @@
 //   POST /?action=save_meta&m=NAME {name, description, visible, creator_name, new_m?}
 //   POST /report { text, lat?, lon? }             — прокси отчётов в Telegram Bot API
 //   Платные папки (Telegram Stars):
-//   GET  /?action=locks                            — {locks:[{folder, price}]} (публично)
+//   GET  /?action=locks                            — {locks:[{id, folder, price}]} (публично)
 //   POST /?action=save_lock {folder, price}        — пометить папку платной (price 0 — снять)
 //   POST /?action=del_lock {folder}               — снять замок
-//   POST /?action=my_access {initData}            — {user_id, folders:[купленные]} (Telegram)
-//   POST /?action=shop_invoice {initData, folder} — {invoiceLink, price, folder}
-//   POST /?action=shop_claim {initData}           — сверить оплаты, {folders:[...]}
-//   Маршрут в платной папке через action=get требует tg_init_data покупателя,
-//   иначе 403 {error:'locked', folder, price}. Редакторские экшены доступны
-//   только редакторам (см. requireEditor).
+//   POST /?action=my_access {initData}            — {user_id, ids:[...], expires:{id:ts}} (Telegram)
+//   POST /?action=shop_invoice {initData, folder_id} — {invoiceLink, price, folder, folder_id}
+//   POST /?action=shop_claim {initData}           — сверить оплаты, {ids:[...], expires}
+//   Замки и доступ считаются по id папки, а не по пути из имён: у двух папок
+//   может быть одинаковое имя. Маршрут в платной папке через action=get требует
+//   tg_init_data покупателя, иначе 403 {error:'locked', id, folder, price}.
+//   Редакторские экшены доступны только редакторам (см. requireEditor).
 //
 // Env:
 //   DB               — D1 database binding (см. schema.sql)
@@ -50,14 +51,26 @@
 import { CORS, json } from './lib/http.js';
 import { verifyTgInitData, tgApi } from './lib/telegram.js';
 import {
-  SHARED_ID, resolveM, findRoute, parseData, normFolder, folderOf,
-  lockForFolder, loadLocks, getFolderPath, findFolderIdByPath,
+  SHARED_ID, resolveM, findRoute, parseData, normFolder,
+  lockForFolder, loadFolderIndex, folderPathIn, findFolderIdByPath,
   hasAccess, accessExpires,
 } from './lib/db.js';
 import { EDITOR_ACTIONS, requireEditor } from './lib/editor.js';
 import { handleReport } from './lib/report.js';
 import { recordPurchase } from './lib/shop.js';
 import { handleTelegramWebhook } from './lib/bot.js';
+
+// Список платных папок для клиента: id — для сопоставления, folder — для показа.
+// Путь в ответе справочный: у двух папок может быть одинаковое имя, различает их id.
+function locksFromIndex(index) {
+  const out = [];
+  for (const f of index.values()) {
+    if ((f.price || 0) > 0) {
+      out.push({ id: f.id, folder: folderPathIn(index, f.id), price: f.price });
+    }
+  }
+  return out;
+}
 
 export default {
   async fetch(request, env, ctx) {
@@ -104,7 +117,7 @@ export default {
           .all()).results || [];
         const folders = (await env.DB.prepare(
           'SELECT id, name, parent_id, price FROM folders ORDER BY name').all()).results || [];
-        const locks = await loadLocks(env);
+        const locks = locksFromIndex(await loadFolderIndex(env));
         return json({
           routes: routes.map((r) => ({
             m: r.m, name: r.name,
@@ -114,7 +127,7 @@ export default {
           folders: folders.map((f) => ({
             id: f.id, name: f.name, parent_id: f.parent_id, price: f.price || 0,
           })),
-          locks: Array.from(locks.entries()).map(([folder, price]) => ({ folder, price })),
+          locks,
         }, 200, { 'Cache-Control': 'no-cache, no-store, must-revalidate' });
       }
 
@@ -138,20 +151,19 @@ export default {
         const { row, m } = await findRoute(env, mVal);
         if (!row) return json({ error: 'not_found' }, 404);
         if (action === 'get') {
-          // Папку маршрута берём из folder_id (реальная иерархия), а не из имени:
-          // имя маршрута может не совпадать с деревом папок.
-          let routeFolder = '';
-          if (row.folder_id !== null && row.folder_id !== undefined) {
-            routeFolder = await getFolderPath(env, row.folder_id);
-          }
-          if (!routeFolder) routeFolder = folderOf(row.name || ''); // фолбэк для старых данных
-          const lock = lockForFolder(routeFolder, await loadLocks(env));
+          // Папка маршрута — только folder_id (реальная иерархия). Замок ищем
+          // по id, а не по пути из имён: у двух папок-соседей имя может совпадать.
+          const index = await loadFolderIndex(env);
+          const folderId = row.folder_id;
+          const lock = folderId !== null && folderId !== undefined
+            ? lockForFolder(index, folderId)
+            : null;
           if (lock) {
             const initData = url.searchParams.get('tg_init_data') || bodyData.tg_init_data || '';
             const { uid, err } = await verifyTgInitData(initData, env.TELEGRAM_TOKEN);
-            if (!uid) return json({ error: 'locked', folder: lock.folder, price: lock.price }, 403);
-            if (!(await hasAccess(env, uid, lock.folder))) {
-              return json({ error: 'locked', folder: lock.folder, price: lock.price }, 403);
+            if (!uid) return json({ error: 'locked', id: lock.id, folder: lock.folder, price: lock.price }, 403);
+            if (!(await hasAccess(env, uid, lock.id))) {
+              return json({ error: 'locked', id: lock.id, folder: lock.folder, price: lock.price }, 403);
             }
           }
         }
@@ -235,8 +247,7 @@ export default {
 
       // ---- Платные папки ----
       if (action === 'locks') {
-        const locks = await loadLocks(env);
-        return json({ locks: Array.from(locks.entries()).map(([folder, price]) => ({ folder, price })) });
+        return json({ locks: locksFromIndex(await loadFolderIndex(env)) });
       }
 
       if (action === 'save_lock') {
@@ -267,7 +278,7 @@ export default {
         const { uid, err } = await verifyTgInitData(initData, env.TELEGRAM_TOKEN);
         if (!uid) return json({ error: 'bad_init_data', message: err }, 401);
         const expires = await accessExpires(env, uid);
-        return json({ user_id: uid, folders: Object.keys(expires), expires });
+        return json({ user_id: uid, ids: Object.keys(expires), expires });
       }
 
       // Создать счёт на папку (Telegram Stars).
@@ -275,14 +286,21 @@ export default {
         const initData = bodyData.initData || '';
         const { uid, err } = await verifyTgInitData(initData, env.TELEGRAM_TOKEN);
         if (!uid) return json({ error: 'bad_init_data', message: err }, 401);
-        const locks = await loadLocks(env);
-        const lock = lockForFolder(normFolder(bodyData.folder), locks);
+        // Папка задаётся по id: клиент присылает folder_id.
+        const index = await loadFolderIndex(env);
+        const rawId = bodyData.folder_id;
+        const folderId = rawId === null || rawId === undefined || rawId === '' ? NaN : Number(rawId);
+        if (!Number.isFinite(folderId)) {
+          return json({ error: 'missing_folder' }, 400);
+        }
+        const lock = lockForFolder(index, folderId);
         if (!lock) return json({ error: 'not_locked' }, 400);
-        if (await hasAccess(env, uid, lock.folder)) {
-          return json({ ok: true, owned: true, folder: lock.folder });
+        if (await hasAccess(env, uid, lock.id)) {
+          return json({ ok: true, owned: true, folder: lock.folder, folder_id: lock.id });
         }
         const title = (`Доступ: ${lock.folder}`).substring(0, 32);
-        const payload = `folder:${uid}:${lock.folder}:${Date.now()}`;
+        // В payload — id папки: путь не годится, у двух папок может совпасть имя.
+        const payload = `folder:${uid}:id=${lock.id}:${Date.now()}`;
         const res = await tgApi(env, 'createInvoiceLink', {
           title,
           description: `Доступ к папке «${lock.folder}» на 30 дней`.substring(0, 255),
@@ -293,7 +311,7 @@ export default {
         if (!res || !res.ok) {
           return json({ ok: false, error: 'invoice_failed', details: res && res.description }, 500);
         }
-        return json({ ok: true, invoiceLink: res.result, price: lock.price, folder: lock.folder });
+        return json({ ok: true, invoiceLink: res.result, price: lock.price, folder: lock.folder, folder_id: lock.id });
       }
 
       // Подтвердить оплаты: сверяем getStarTransactions по payload и, если вебхук
@@ -314,12 +332,12 @@ export default {
             for (const p of [t.source, t.receiver]) {
               const payload = p && p.invoice_payload;
               if (typeof payload === 'string' && payload.startsWith(`folder:${uid}:`)) {
-                const folder = payload.split(':').slice(2, -1).join(':');
-                if (!folder || !t.id) continue;
+                if (!t.id) continue;
+                // payload передаём как есть: разбор формата (id/старый путь) — в recordPurchase.
                 const rec = await recordPurchase(env, {
                   chargeId: t.id,
                   userId: uid,
-                  payload: `folder:${uid}:${folder}`,
+                  payload,
                   stars,
                   ts: t.date,
                 });
@@ -331,7 +349,7 @@ export default {
           offset += 100;
         }
         const expires = await accessExpires(env, uid);
-        return json({ ok: true, claimed, folders: Object.keys(expires), expires });
+        return json({ ok: true, claimed, ids: Object.keys(expires), expires });
       }
 
       // ---- Папки (реальная иерархия) ----

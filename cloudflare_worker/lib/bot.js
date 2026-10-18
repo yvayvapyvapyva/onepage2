@@ -59,7 +59,7 @@ export async function handleTelegramWebhook(request, env, ctx) {
       const job = (async () => {
         const b = await getStarsBalance(env);
         const balance = b && !b.error ? b.total : null;
-        await notifyChannel(env, buildPurchaseText(pay, message.from, record, balance));
+        await notifyChannel(env, await buildPurchaseText(env, pay, message.from, record, balance));
       })();
       if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(job);
       else await job;
