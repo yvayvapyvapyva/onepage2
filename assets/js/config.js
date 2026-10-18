@@ -1,12 +1,14 @@
-// API конфигурация
+// Единая конфигурация адресов и ключей — правки только здесь.
 const API_CONFIG = {
-  YANDEX_MAPS_V2_KEY: 'YANDEX_API_KEY',
-  YANDEX_MAPS_V3_KEY: 'c0e28937-4e16-4d15-9b99-09a30cb8fc13',
-  // Новый API-воркер на Cloudflare (D1). После deploy вписать URL сюда, например:
-  // 'https://nav-api.<account>.workers.dev'
-  // Новый API-воркер на Cloudflare (D1). TTS всегда остаётся на Yandex.
+  // API-воркер на Cloudflare (D1): каталог, маршруты, оплата, отчёты.
   API_BASE: 'https://nav-api.ivan43103.workers.dev',
-  API_BASE_LEGACY: 'https://functions.yandexcloud.net/d4e6qbc1mm9j44h0na3n'
+  // TTS остаётся на Yandex-функции (не на воркере).
+  TTS_URL: 'https://functions.yandexcloud.net/d4erngid6s4rf5oinnp1',
+  // Бот и веб-версия — для ссылок «поделиться».
+  BOT_URL: 'https://t.me/A152Bot',
+  APP_URL: 'https://avtoinstruktor.pages.dev',
+  // Ключ Яндекс.Карт (вставляется в <script src> страниц вручную).
+  YANDEX_MAPS_V3_KEY: 'c0e28937-4e16-4d15-9b99-09a30cb8fc13'
 };
 
 const ROUTE_DATA = {

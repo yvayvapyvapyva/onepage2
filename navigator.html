@@ -101,8 +101,8 @@
 
 <div id="toast"></div>
 
-<script src="assets/js/config.js?v=1"></script>
-<script src="assets/js/report.js?v=2"></script>
+<script src="assets/js/config.js?v=3"></script>
+<script src="assets/js/report.js?v=4"></script>
 <script src="https://api-maps.yandex.ru/v3/?apikey=c0e28937-4e16-4d15-9b99-09a30cb8fc13&lang=ru_RU" onerror="window.__ycMapsFailed = true;"></script>
 <script>
 // Грузим Telegram SDK асинхронно с таймаутом 10с.
@@ -163,10 +163,8 @@
   tryLoad('https://telegram.org/js/telegram-web-app.js', '__tgWebAppFailed');
 })(window);
 </script>
-<script src="assets/js/menu-module.js?v=1" defer></script>
+<script src="assets/js/menu-module.js?v=2" defer></script>
 <script>
-const TTS_API_URL = 'https://functions.yandexcloud.net/d4erngid6s4rf5oinnp1';
-
 const APP = {
     map: null, userMarker: null, lastPos: null, lastAz: 0, rawAz: 0, lastTilt: 0, autoCenter: false, currentSpeed: 0,
     navPoints: [],     navCurrentIndex: 0, navPreviewIndex: -1, _routeTotalDistance: 0,
@@ -1208,7 +1206,7 @@ async function playTTS(text, voice_type = 'command') {
             return;
         }
         try {
-            const resp = await fetch(TTS_API_URL, {
+            const resp = await fetch(API_CONFIG.TTS_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ batches: [{ voice_type, texts: [text] }] })
@@ -1374,7 +1372,7 @@ async function precacheRouteAudio(data) {
     const uncachedComm = commTexts.filter(t => !APP._audioCache.has(t));
     if (uncachedCmd.length + uncachedComm.length === 0) return;
     try {
-        const resp = await fetch(TTS_API_URL, {
+        const resp = await fetch(API_CONFIG.TTS_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

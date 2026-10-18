@@ -169,8 +169,8 @@
 </script>
     <script src="https://api-maps.yandex.ru/v3/?apikey=c0e28937-4e16-4d15-9b99-09a30cb8fc13&lang=ru_RU" onerror="window.__ycMapsFailed = true;"></script>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js" defer onerror="window.__sortableFailed = true;"></script>
-<script src="assets/js/config.js?v=1"></script>
-<script src="assets/js/report.js?v=2"></script>
+<script src="assets/js/config.js?v=3"></script>
+<script src="assets/js/report.js?v=4"></script>
 <script>
 (function (global) {
   const byId = (id) => document.getElementById(id);
@@ -212,9 +212,7 @@ const f6 = round6;
 })();
 // -------------------------
 
-const YC_FUNCTION_URL = (typeof API_CONFIG !== 'undefined' && API_CONFIG.API_BASE) || 'https://functions.yandexcloud.net/d4e6qbc1mm9j44h0na3n';
-const TTS_API_URL = 'https://functions.yandexcloud.net/d4erngid6s4rf5oinnp1';
-const TG_BOT_LINK = 'https://t.me/A152Bot?startapp=m=';
+const API_URL = API_CONFIG.API_BASE;
 
 let map, points = [], cur = null, isAdd = false, isDrawing = false, isAddingInfo = false, curRoute = null, activeListPoint = null, modalMode = 'list', tempNewPointData = null, userLocPlacemark = null, activePoint = null, settingsRouteFiles = [];
 let historyStack = [], historyIndex = -1, lastSavedSnapshot = "[]", toastTimer = null;
@@ -409,7 +407,7 @@ async function ensureAccess() {
     if (ws) ws.style.display = 'flex';
     let allowed = false;
     try {
-        const r = await callYcFunction('editor_check');
+        const r = await callApi('editor_check');
         allowed = !!(r && r.allowed);
     } catch (e) {
         allowed = false;
@@ -436,8 +434,8 @@ function submitAccessKey() {
     location.reload();
 }
 
-async function callYcFunction(action, params = {}, bodyData = null) {
-    const url = new URL(YC_FUNCTION_URL);
+async function callApi(action, params = {}, bodyData = null) {
+    const url = new URL(API_URL);
     url.searchParams.set('action', action);
 
     Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
@@ -755,12 +753,12 @@ const getFolderName = (folderId) => {
 
 const refreshFileList = async () => {
     try {
-        const result = await callYcFunction('list');
+        const result = await callApi('list');
         settingsRouteFiles = result.routes || [];
 
         // Загружаем реальные папки
         try {
-            const folderRes = await callYcFunction('folder_list');
+            const folderRes = await callApi('folder_list');
             _folders = new Map((folderRes.folders || []).map(f => [f.id, f]));
         } catch (e) {
             _folders = new Map();
@@ -889,7 +887,7 @@ function renderTreeLevel(node, container) {
             if (data && data.startsWith('folder:')) {
                 const movingId = Number(data.substring(7));
                 if (movingId === targetId) return;
-                callYcFunction('folder_move', {}, { id: movingId, parent_id: targetId })
+                callApi('folder_move', {}, { id: movingId, parent_id: targetId })
                     .then(() => { refreshFileList(); showToast('Папка перемещена', 'success'); })
                     .catch(() => showToast('Ошибка перемещения папки', 'error'));
             } else if (data) {
@@ -969,7 +967,7 @@ function renderTreeLevel(node, container) {
 
 async function moveRouteToFolder(routeKey, folderId) {
     try {
-        await callYcFunction('route_move', {}, { m: routeKey, folder_id: folderId });
+        await callApi('route_move', {}, { m: routeKey, folder_id: folderId });
         const route = settingsRouteFiles.find(r => r.m === routeKey);
         if (route) route.folder_id = folderId;
         await refreshFileList();
@@ -1151,8 +1149,8 @@ const handleCreateNew = async () => {
     toggleM('createRouteModal');
     
     try {
-        await callYcFunction('save', { m: id }, { data: [] });
-        await callYcFunction('save_meta', { m: id }, { name, description: '', visible: false, creator_name: getFormattedCreatorName(), folder_id: _currentFolderId });
+        await callApi('save', { m: id }, { data: [] });
+        await callApi('save_meta', { m: id }, { name, description: '', visible: false, creator_name: getFormattedCreatorName(), folder_id: _currentFolderId });
         await refreshFileList(); 
         await loadRoute(id); 
         showToast("Маршрут создан", 'success'); 
@@ -1169,7 +1167,7 @@ const loadRoute = async (routeName) => {
         const params = { m: routeName };
         if (userInfo) params.i = userInfo;
         params.ua = navigator.userAgent.match(/^[^)]+\)/)?.[0] || navigator.userAgent;
-        const result = await callYcFunction('get_protected', params);
+        const result = await callApi('get_protected', params);
         if (result.error) {
             showToast(result.error, 'error');
             return;
@@ -1184,7 +1182,7 @@ const loadRoute = async (routeName) => {
         lastSavedSnapshot = serializePoints();
         
         try {
-            const meta = await callYcFunction('get_meta', { m: routeName });
+            const meta = await callApi('get_meta', { m: routeName });
             currentRouteMeta = {
                 name: meta.name || routeName,
                 description: meta.description || '',
@@ -1229,7 +1227,7 @@ const openRouteSettings = async (routeName) => {
     settingsRouteName = routeName;
     $('loadingSpinner').classList.add('active');
     try {
-        const meta = await callYcFunction('get_meta', { m: routeName });
+        const meta = await callApi('get_meta', { m: routeName });
         $('loadingSpinner').classList.remove('active');
         currentRouteMeta = {
             name: meta.name || routeName,
@@ -1275,7 +1273,7 @@ const saveRouteMeta = async () => {
 
     try {
         const creatorName = (currentRouteMeta && currentRouteMeta.creator_name) || getFormattedCreatorName();
-        await callYcFunction('save_meta', { m: settingsRouteName }, { name, description, visible, creator_name: creatorName, folder_id: folderId });
+        await callApi('save_meta', { m: settingsRouteName }, { name, description, visible, creator_name: creatorName, folder_id: folderId });
         currentRouteMeta = { name, description, visible, creator_name: creatorName, folder_id: folderId };
         
         if (curRoute === settingsRouteName) {
@@ -1302,7 +1300,7 @@ const executeDeleteRoute = async () => {
     if (!settingsRouteName) return;
     toggleM('confirmDeleteModal');
     try {
-        await callYcFunction('delete', { m: settingsRouteName });
+        await callApi('delete', { m: settingsRouteName });
         if (curRoute === settingsRouteName) {
             clearRouteObjects();
             curRoute = null;
@@ -1338,8 +1336,8 @@ function copyShareLink(platform) {
     const name = _shareRouteName || settingsRouteName || curRoute;
     if (!name) return;
     const link = platform === 'web'
-        ? `https://avtoinstruktor.pages.dev/#m=${name}`
-        : `${TG_BOT_LINK}${name}`;
+        ? `${API_CONFIG.APP_URL}/#m=${name}`
+        : `${API_CONFIG.BOT_URL}?startapp=m=${name}`;
     toggleM('shareModal');
     copyToClipboard(link, "Ссылка скопирована в буфер обмена");
 }
@@ -1357,7 +1355,7 @@ async function playText(text, voice_type = 'command', btn = null) {
     if (!text || !text.trim()) return;
     if (btn) btn.classList.add('loading');
     try {
-        const resp = await fetch(TTS_API_URL, {
+        const resp = await fetch(API_CONFIG.TTS_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ batches: [{ voice_type, texts: [text] }] })
@@ -1853,7 +1851,7 @@ async function saveGist() {
     if (topSaveBtn) { topSaveBtn.disabled = true; topSaveBtn.textContent = 'Сохраняем...'; }
     try {
         const data = points.map(p => ({ id: p.id, color: p.color, pts: p.pts, cmd: p.cmd, comm: p.comm, info: p.info }));
-        const result = await callYcFunction('save', { m: curRoute }, { data });
+        const result = await callApi('save', { m: curRoute }, { data });
         if(result && !result.error) {
             lastSavedSnapshot = serializePoints();
             btn.classList.remove('loading');
@@ -1919,7 +1917,7 @@ window.handleCreateFolder = async () => {
     const name = $('newFolderNameInput').value.trim();
     if (!name) return;
     try {
-        await callYcFunction('folder_create', {}, { name, parent_id: _currentFolderId });
+        await callApi('folder_create', {}, { name, parent_id: _currentFolderId });
         await refreshFileList();
         toggleM('createFolderModal');
         showToast('Папка создана', 'success');
@@ -1949,7 +1947,7 @@ const saveFolderSettings = async () => {
     if (!name) { showToast('Введите имя папки', 'error'); return; }
     if (!Number.isFinite(price) || price < 0 || price > 10000) { showToast('Цена от 0 до 10000 ⭐', 'error'); return; }
     try {
-        await callYcFunction('folder_settings', {}, { id: _folderSettingsId, name, visible, price });
+        await callApi('folder_settings', {}, { id: _folderSettingsId, name, visible, price });
         await refreshFileList();
         toggleM('folderSettingsModal');
         showToast('Настройки сохранены', 'success');
@@ -1962,7 +1960,7 @@ const deleteCurrentFolder = async () => {
     if (!_folderSettingsId) return;
     if (!confirm('Удалить папку? (папка должна быть пуста)')) return;
     try {
-        await callYcFunction('folder_delete', {}, { id: _folderSettingsId });
+        await callApi('folder_delete', {}, { id: _folderSettingsId });
         await refreshFileList();
         toggleM('folderSettingsModal');
         showToast('Папка удалена', 'success');

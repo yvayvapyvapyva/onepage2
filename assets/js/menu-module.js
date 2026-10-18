@@ -12,9 +12,9 @@ const MenuModule = {
     _accessExpires: {}, // {folderPath: unix-ts окончания доступа}
     _folders: new Map(), // id -> {id, name, parent_id, owner_id}
 
-    // URL бекенда для загрузки маршрутов: новый API-воркер (D1), фолбэк — старая Яндекс-функция.
-    // Задаётся в assets/js/config.js -> API_CONFIG.API_BASE после deploy.
-    API_URL_V2: (typeof API_CONFIG !== 'undefined' && API_CONFIG.API_BASE) || 'https://functions.yandexcloud.net/d4e6qbc1mm9j44h0na3n',
+    // URL бекенда (API-воркер на Cloudflare, D1).
+    // Задаётся в assets/js/config.js -> API_CONFIG.API_BASE.
+    API_URL: API_CONFIG.API_BASE,
     
     /**
      * Универсальное получение параметров URL
@@ -149,7 +149,7 @@ const MenuModule = {
      */
     async _fetchFromAPI() {
         // Один запрос отдаёт всё, что нужно для дерева: маршруты, папки и замки.
-        const url = `${this.API_URL_V2}?action=catalog`;
+        const url = `${this.API_URL}?action=catalog`;
         const response = await fetch(url);
 
         if (!response.ok) {
@@ -257,7 +257,7 @@ const MenuModule = {
 
     async _refreshShop() {
         try {
-            const res = await fetch(`${this.API_URL_V2}?action=locks`);
+            const res = await fetch(`${this.API_URL}?action=locks`);
             if (res.ok) {
                 const data = await res.json();
                 this._locks = {};
@@ -270,7 +270,7 @@ const MenuModule = {
         const initData = this._tgInitData();
         if (initData) {
             try {
-                const res = await fetch(`${this.API_URL_V2}?action=my_access`, {
+                const res = await fetch(`${this.API_URL}?action=my_access`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ initData })
@@ -356,7 +356,7 @@ const MenuModule = {
         if (!initData) return;
         if (btn) { btn.disabled = true; btn.textContent = 'Создаём счёт…'; }
         try {
-            const res = await fetch(`${this.API_URL_V2}?action=shop_invoice`, {
+            const res = await fetch(`${this.API_URL}?action=shop_invoice`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ initData, folder })
@@ -394,7 +394,7 @@ const MenuModule = {
         try {
             for (let i = 0; i < delays.length; i++) {
                 if (delays[i]) await new Promise((r) => setTimeout(r, delays[i]));
-                const res = await fetch(`${this.API_URL_V2}?action=shop_claim`, {
+                const res = await fetch(`${this.API_URL}?action=shop_claim`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ initData })
@@ -826,7 +826,7 @@ const MenuModule = {
 
             this.hide();
 
-            let url = this.API_URL_V2;
+            let url = this.API_URL;
             const params = [`m=${encodeURIComponent(routeName)}`];
 
             // tg_init_data — для платных папок (сервер проверяет покупку)

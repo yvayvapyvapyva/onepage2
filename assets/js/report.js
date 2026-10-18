@@ -11,7 +11,7 @@
 // pad-приложении: этот путь проверен и доставляется без VPN.
 const REPORT = (() => {
     // Отчёты шлёт основной API-воркер (POST /report)
-    const REPORT_API_URL = 'https://nav-api.ivan43103.workers.dev/report';
+    const REPORT_API_URL = `${API_CONFIG.API_BASE}/report`;
     // Кол-во попыток и задержка повтора при сетевой ошибке / ok=false
     const MAX_ATTEMPTS = 2;
     const RETRY_DELAY_MS = 2000;
@@ -124,7 +124,7 @@ const REPORT = (() => {
             }
         }
 
-        const tgLink = `https://t.me/A152Bot?startapp=m=${m_val}`;
+        const tgLink = `${API_CONFIG.BOT_URL}?startapp=m=${m_val}`;
         const display = escapeHtml(route_name || `${m_val}`);
         const routeLineEditor = `Ⓜ️ Маршрут: <a href="${tgLink}">${display}</a>`;
         const routeLineNav = `🆔 Маршрут: <a href="${tgLink}">${display}</a>`;
