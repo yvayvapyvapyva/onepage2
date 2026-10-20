@@ -1353,16 +1353,19 @@ const toggleD = id => { const d = $(id), vis = d.style.display === 'flex'; close
 const initColorDropdown = (id, cb) => Object.entries(COLORS).forEach(([n, d]) => { const r = Object.assign(document.createElement('div'), { className: 'color-row', onclick: (e) => { e.stopPropagation(); cb(d.hex, n); closeD(); }, innerHTML: `<div class="swatch" style="background:${d.hex}"></div><div style="font-weight:600;">${d.label}</div>` }); $(id).appendChild(r); });
 async function playText(text, voice_type = 'command', btn = null) {
     if (!text || !text.trim()) return;
+    // TTS-функция обрезает пробелы в тексте и возвращает ключи уже без них.
+    const key = String(text).trim();
     if (btn) btn.classList.add('loading');
     try {
         const resp = await fetch(API_CONFIG.TTS_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ batches: [{ voice_type, texts: [text] }] })
+            body: JSON.stringify({ batches: [{ voice_type, texts: [key] }] })
         });
         const data = await resp.json();
-        if (data.audios && data.audios[text]) {
-            const binaryStr = atob(data.audios[text]);
+        const audioB64 = data.audios && (data.audios[key] || data.audios[text]);
+        if (audioB64) {
+            const binaryStr = atob(audioB64);
             const bytes = new Uint8Array(binaryStr.length);
             for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
             const blob = new Blob([bytes], { type: 'audio/mp3' });

@@ -1196,10 +1196,16 @@ async function playCommand(text) {
 }
 
 async function playTTS(text, voice_type = 'command') {
+    if (!text) return;
+    // TTS-функция обрезает пробелы и возвращает аудио по обрезанному тексту,
+    // поэтому ключ кэша всегда нормализуем — иначе комментарий с пробелом
+    // на конце не находится в кэше и ответ сервера не совпадает по ключу.
+    const key = String(text).trim();
+    if (!key) return;
     APP._audioPending++;
     try {
         APP.navAudio.pause();
-        const cached = APP._audioCache.get(text);
+        const cached = APP._audioCache.get(key);
         if (cached) {
             APP.navAudio.src = cached;
             await APP.navAudio.play().catch(() => {});
@@ -1209,16 +1215,17 @@ async function playTTS(text, voice_type = 'command') {
             const resp = await fetch(API_CONFIG.TTS_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ batches: [{ voice_type, texts: [text] }] })
+                body: JSON.stringify({ batches: [{ voice_type, texts: [key] }] })
             });
             const data = await resp.json();
-            if (data.audios && data.audios[text]) {
-                const binaryStr = atob(data.audios[text]);
+            const audioB64 = data.audios && (data.audios[key] || data.audios[text]);
+            if (audioB64) {
+                const binaryStr = atob(audioB64);
                 const bytes = new Uint8Array(binaryStr.length);
                 for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
                 const blob = new Blob([bytes], { type: 'audio/mp3' });
                 const url = URL.createObjectURL(blob);
-                APP._audioCache.set(text, url);
+                APP._audioCache.set(key, url);
                 updateHud();
                 APP.navAudio.src = url;
                 await APP.navAudio.play().catch(() => {});
@@ -1313,7 +1320,7 @@ async function processRouteData(data) {
             id: d.id || (i + 1), lat: pts[0]?.[0], lon: pts[0]?.[1],
             color: d.color, hex: COLORS[d.color]?.hex || '#007AFF',
             cmd: (d.cmd || d.comm || `Т${i + 1}`).trim(),
-            comm: d.comm || '', pts: pts,
+            comm: (d.comm || '').trim(), pts: pts,
             info: d.info || [],
             az: pts.length >= 2 ? calcAzimuth(pts[0], pts[1]) : 0
         };
@@ -1364,8 +1371,8 @@ async function processRouteData(data) {
 }
 
 async function precacheRouteAudio(data) {
-    const cmdTexts = [...new Set(data.map(d => d.cmd).filter(t => t && t.trim()))];
-    const commTexts = [...new Set(data.map(d => d.comm).filter(t => t && t.trim()))];
+    const cmdTexts = [...new Set(data.map(d => (d.cmd || '').trim()).filter(t => t))];
+    const commTexts = [...new Set(data.map(d => (d.comm || '').trim()).filter(t => t))];
     cmdTexts.push(APP.navConfig.SHOCK_PHRASE || 'Сильный удар');
     cmdTexts.push(APP.navConfig.SPEED_ALERT_PHRASE || 'Превышена максимальная скорость');
     const uncachedCmd = cmdTexts.filter(t => !APP._audioCache.has(t));
