@@ -229,15 +229,33 @@ def _process_batch(texts, voice_type, audios, use_cache, pool, debug):
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
+    results = []
     try:
+        # Ограничиваем параллелизм: edge-tts/сервис Microsoft не любит
+        # десятки одновременных подключений и может вернуть "No audio".
+        semaphore = asyncio.Semaphore(4)
+
+        async def synthesize(text):
+            async with semaphore:
+                return await _synthesize_one(text, voice, pitch, VOLUME)
+
         results = loop.run_until_complete(
-            asyncio.gather(*[_synthesize_one(t, voice, pitch, VOLUME) for t in uncached_texts])
+            asyncio.gather(*[synthesize(t) for t in uncached_texts], return_exceptions=True)
         )
     finally:
         loop.close()
 
     new_items = []
-    for text, audio_data in results:
+    for item in results:
+        # Одна несинтезированная фраза не должна ронять весь батч: остальные
+        # тексты всё равно возвращаем и кэшируем.
+        if isinstance(item, Exception):
+            debug.setdefault("synthesis_errors", []).append(str(item))
+            continue
+        text, audio_data = item
+        if not audio_data:
+            debug.setdefault("synthesis_errors", []).append(f"empty audio: {text}")
+            continue
         b64 = base64.b64encode(audio_data).decode("utf-8")
         audios[text] = b64
         if use_cache:

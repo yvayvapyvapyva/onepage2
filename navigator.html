@@ -1366,42 +1366,77 @@ async function processRouteData(data) {
             }
         }, 100);
     }
-    await precacheRouteAudio(data);
+    await precacheRouteAudio();
     updateRouteNameDisplay();
 }
 
-async function precacheRouteAudio(data) {
-    const cmdTexts = [...new Set(data.map(d => (d.cmd || '').trim()).filter(t => t))];
-    const commTexts = [...new Set(data.map(d => (d.comm || '').trim()).filter(t => t))];
-    cmdTexts.push(APP.navConfig.SHOCK_PHRASE || 'Сильный удар');
-    cmdTexts.push(APP.navConfig.SPEED_ALERT_PHRASE || 'Превышена максимальная скорость');
-    const uncachedCmd = cmdTexts.filter(t => !APP._audioCache.has(t));
-    const uncachedComm = commTexts.filter(t => !APP._audioCache.has(t));
-    if (uncachedCmd.length + uncachedComm.length === 0) return;
-    try {
-        const resp = await fetch(API_CONFIG.TTS_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                batches: [
-                    { voice_type: 'command', texts: uncachedCmd },
-                    { voice_type: 'comment', texts: uncachedComm },
-                ]
-            })
-        });
-        const result = await resp.json();
-        if (result.audios) {
-            for (const [text, b64] of Object.entries(result.audios)) {
-                const binaryStr = atob(b64);
-                const bytes = new Uint8Array(binaryStr.length);
-                for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
-                const blob = new Blob([bytes], { type: 'audio/mp3' });
-                APP._audioCache.set(text, URL.createObjectURL(blob));
+function cacheTTSAudio(text, b64) {
+    const key = String(text).trim();
+    if (!key || !b64) return;
+    const binaryStr = atob(b64);
+    const bytes = new Uint8Array(binaryStr.length);
+    for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+    const blob = new Blob([bytes], { type: 'audio/mp3' });
+    APP._audioCache.set(key, URL.createObjectURL(blob));
+}
+
+async function requestTTSAudio(texts, voice_type) {
+    const resp = await fetch(API_CONFIG.TTS_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ batches: [{ voice_type, texts }] })
+    });
+    if (!resp.ok) throw new Error('TTS HTTP ' + resp.status);
+    const data = await resp.json();
+    return (data && data.audios) || {};
+}
+
+async function precacheTexts(texts, voice_type) {
+    const pending = [...new Set(
+        texts.map(t => String(t).trim()).filter(t => t && !APP._audioCache.has(t))
+    )];
+    // Небольшие порции вместо одного огромного запроса: edge-tts иногда не
+    // отдаёт аудио для одной фразы и роняет весь батч. Такой батч не должен
+    // оставлять без кэша весь маршрут.
+    const CHUNK_SIZE = 6;
+    for (let i = 0; i < pending.length; i += CHUNK_SIZE) {
+        const chunk = pending.slice(i, i + CHUNK_SIZE);
+        let audios = null;
+        try {
+            audios = await requestTTSAudio(chunk, voice_type);
+            for (const [text, b64] of Object.entries(audios)) cacheTTSAudio(text, b64);
+        } catch (e) {
+            console.warn(`Precache ${voice_type} batch error:`, e);
+        }
+
+        // Сервер мог вернуть часть аудио (или упасть целиком) — дозапрашиваем
+        // недостающие фразы по одной, чтобы одна проблемная не блокировала остальные.
+        for (const text of chunk.filter(t => !APP._audioCache.has(t))) {
+            try {
+                const one = await requestTTSAudio([text], voice_type);
+                if (one[text]) cacheTTSAudio(text, one[text]);
+            } catch (e) {
+                console.warn(`Precache ${voice_type} error for "${text}":`, e);
             }
         }
-    } catch (e) {
-        console.warn('Precache error:', e);
+        updateHud();
+
+        if (i + CHUNK_SIZE < pending.length) {
+            await new Promise(r => setTimeout(r, 300));
+        }
     }
+}
+
+async function precacheRouteAudio() {
+    // Берём ровно те строки, которые показывает HUD (включая fallback
+    // cmd -> comm -> Т<номер>), иначе текст на панели остаётся серым.
+    const cmdTexts = [...new Set(APP.navPoints.map(p => p.cmd).filter(Boolean))];
+    const commTexts = [...new Set(APP.navPoints.map(p => p.comm).filter(Boolean))];
+    cmdTexts.push(APP.navConfig.SHOCK_PHRASE || 'Сильный удар');
+    cmdTexts.push(APP.navConfig.SPEED_ALERT_PHRASE || 'Превышена максимальная скорость');
+
+    await precacheTexts(cmdTexts, 'command');
+    await precacheTexts(commTexts, 'comment');
     updateHud();
 }
 
