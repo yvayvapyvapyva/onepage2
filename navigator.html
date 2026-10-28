@@ -1435,8 +1435,12 @@ async function precacheRouteAudio() {
     cmdTexts.push(APP.navConfig.SHOCK_PHRASE || 'Сильный удар');
     cmdTexts.push(APP.navConfig.SPEED_ALERT_PHRASE || 'Превышена максимальная скорость');
 
-    await precacheTexts(cmdTexts, 'command');
+    // Сначала комментарии: они озвучиваются другим голосом (Svetlana) и не
+    // должны ждать команды. Если command-голос edge-tts временно недоступен,
+    // его пачки могут обрабатываться долго, и комментарий всё это время
+    // оставался бы серым, хотя его аудио можно получить сразу.
     await precacheTexts(commTexts, 'comment');
+    await precacheTexts(cmdTexts, 'command');
     updateHud();
 }
 
