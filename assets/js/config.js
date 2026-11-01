@@ -2,7 +2,13 @@
 const API_CONFIG = {
   // API-воркер на Cloudflare (D1): каталог, маршруты, оплата, отчёты.
   API_BASE: 'https://nav-api.ivan43103.workers.dev',
-  // TTS остаётся на Yandex-функции (не на воркере).
+  // TTS: Яндекс-функция синтеза + публичный бакет Object Storage с готовыми mp3.
+  // Клиент сам считает SHA-256 от текста и голоса и проверяет файл по URL
+  // (assets/js/tts-client.js), функция вызывается только для недостающих фраз.
+  TTS_FUNCTION_URL: 'https://functions.yandexcloud.net/d4e3cj3q3ff36qlrhbg8',
+  TTS_BUCKET_URL: 'https://storage.yandexcloud.net/eia-tts',
+  // Legacy для уже закэшированных страниц старой версии (base64-ответ).
+  // Новый код сюда не обращается.
   TTS_URL: 'https://functions.yandexcloud.net/d4erngid6s4rf5oinnp1',
   // Бот и веб-версия — для ссылок «поделиться».
   BOT_URL: 'https://t.me/A152Bot',

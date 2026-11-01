@@ -169,7 +169,8 @@
 </script>
     <script src="https://api-maps.yandex.ru/v3/?apikey=c0e28937-4e16-4d15-9b99-09a30cb8fc13&lang=ru_RU" onerror="window.__ycMapsFailed = true;"></script>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js" defer onerror="window.__sortableFailed = true;"></script>
-<script src="assets/js/config.js?v=3"></script>
+<script src="assets/js/config.js?v=4"></script>
+<script src="assets/js/tts-client.js?v=1"></script>
 <script src="assets/js/report.js?v=4"></script>
 <script>
 (function (global) {
@@ -1353,26 +1354,13 @@ const toggleD = id => { const d = $(id), vis = d.style.display === 'flex'; close
 const initColorDropdown = (id, cb) => Object.entries(COLORS).forEach(([n, d]) => { const r = Object.assign(document.createElement('div'), { className: 'color-row', onclick: (e) => { e.stopPropagation(); cb(d.hex, n); closeD(); }, innerHTML: `<div class="swatch" style="background:${d.hex}"></div><div style="font-weight:600;">${d.label}</div>` }); $(id).appendChild(r); });
 async function playText(text, voice_type = 'command', btn = null) {
     if (!text || !text.trim()) return;
-    // TTS-функция обрезает пробелы в тексте и возвращает ключи уже без них.
-    const key = String(text).trim();
     if (btn) btn.classList.add('loading');
     try {
-        const resp = await fetch(API_CONFIG.TTS_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ batches: [{ voice_type, texts: [key] }] })
-        });
-        const data = await resp.json();
-        const audioB64 = data.audios && (data.audios[key] || data.audios[text]);
-        if (audioB64) {
-            const binaryStr = atob(audioB64);
-            const bytes = new Uint8Array(binaryStr.length);
-            for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
-            const blob = new Blob([bytes], { type: 'audio/mp3' });
-            const audio = new Audio();
-            audio.src = URL.createObjectURL(blob);
-            await audio.play().catch(() => {});
-        }
+        // Кэш в Object Storage + синтез отсутствующего — общий клиент навигатора.
+        const url = await NavigatorTTS.getAudioUrl(text, voice_type);
+        if (!url) return;
+        const audio = new Audio(url);
+        await audio.play().catch(() => {});
     } catch (e) {
         console.warn('TTS error:', e);
     } finally {

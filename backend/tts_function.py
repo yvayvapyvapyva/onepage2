@@ -1,170 +1,51 @@
 #!/usr/bin/env python3
 """
 tts_function.py — Yandex Cloud Function для синтеза речи через edge-tts
-с кэшированием в YDB.
+с хранением готовых mp3 в Object Storage.
 
-Зависимости (requirements-tts.txt):
-  edge-tts>=6.0.0
-  ydb>=3.0.0
+Механизм:
+  1. Клиент сам вычисляет имя файла: SHA-256 от
+     "текст\\0голос\\0pitch\\0volume" -> v1/<hash>.mp3.
+  2. Клиент делает HEAD по публичному URL. Файл есть — синтез не нужен.
+  3. Функция получает только отсутствующие фразы, синтезирует их,
+     загружает в бакет и возвращает готовые URL.
 
 Запрос:
-  - {"voice_type": "command|comment", "texts": [...]}
-  - {"batches": [{"voice_type": "command|comment", "texts": [...]}, ...]}
+  {"batches": [{"voice_type": "command|comment", "texts": ["..."]}, ...]}
+
 Ответ:
-  {"audios": {"текст": "<base64>", ...}, "format": "mp3"}
+  {"audios": [{"voice_type": "command", "text": "...", "url": "https://..."}],
+   "format": "mp3"}
+
+Зависимости: edge-tts (см. requirements.txt).
+Переменные окружения:
+  TTS_BUCKET — имя бакета Object Storage (по умолчанию eia-tts).
+Сервисному аккаунту функции нужны права на запись в бакет.
 """
 
 import asyncio
-import json
-import base64
 import hashlib
+import json
 import os
-from datetime import datetime
+from urllib.error import HTTPError
+from urllib.request import Request, urlopen
 
-try:
-    import edge_tts
-except ImportError:
-    edge_tts = None
+import edge_tts
 
-try:
-    import ydb
-    import ydb.iam
-except ImportError:
-    ydb = None
 
-VOICES = {
-    "command": "ru-RU-DmitryNeural",
-    "comment": "ru-RU-SvetlanaNeural",
-}
-PITCHES = {
-    "command": "-10Hz",
-    "comment": "+0Hz",
+BUCKET = os.environ.get("TTS_BUCKET", "eia-tts")
+BUCKET_URL = f"https://storage.yandexcloud.net/{BUCKET}"
+VOICE_SETTINGS = {
+    "command": ("ru-RU-DmitryNeural", "-10Hz"),
+    "comment": ("ru-RU-SvetlanaNeural", "+0Hz"),
 }
 VOLUME = "+30%"
-
-
-YDB_ENDPOINT = os.environ.get("YDB_ENDPOINT", "")
-YDB_DATABASE = os.environ.get("YDB_DATABASE", "")
-
-_pool = None
-_table_ready = False
-
-
-def _get_pool():
-    global _pool
-    if _pool is not None:
-        return _pool
-    if not ydb or not YDB_ENDPOINT or not YDB_DATABASE:
-        return None
-    try:
-        driver_config = ydb.DriverConfig(
-            YDB_ENDPOINT,
-            YDB_DATABASE,
-            credentials=ydb.iam.MetadataUrlCredentials(),
-        )
-        driver = ydb.Driver(driver_config)
-        driver.wait(timeout=10)
-        _pool = ydb.SessionPool(driver)
-    except Exception:
-        _pool = None
-    return _pool
-
-
-def _ensure_table():
-    global _table_ready
-    if _table_ready:
-        return True
-    pool = _get_pool()
-    if not pool:
-        return False
-    try:
-        def create(session):
-            session.execute_scheme(
-                "CREATE TABLE IF NOT EXISTS tts_cache ("
-                "cache_key Utf8,"
-                "params Utf8,"
-                "audio_data String,"
-                "created_at Timestamp,"
-                "PRIMARY KEY (cache_key)"
-                ");"
-            )
-        pool.retry_operation_sync(create)
-        try:
-            def add_column(session):
-                session.execute_scheme(
-                    "ALTER TABLE tts_cache ADD COLUMN params Utf8;"
-                )
-            pool.retry_operation_sync(add_column)
-        except Exception:
-            pass
-        _table_ready = True
-        return True
-    except Exception:
-        return False
-
-
-def _resolve_voice(voice_type):
-    return VOICES.get(voice_type, VOICES["command"])
-
-
-def _cache_key(text, voice, pitch, volume):
-    raw = f"{text}\0{voice}\0{pitch}\0{volume}".encode("utf-8")
-    return hashlib.md5(raw).hexdigest()
-
-
-def _get_cached(session, keys):
-    if not keys:
-        return {}
-    declarations = []
-    params = {}
-    conditions = []
-    for i, key in enumerate(keys):
-        p = f"$k{i}"
-        declarations.append(f"DECLARE {p} AS Utf8;")
-        params[p] = key
-        conditions.append(f"cache_key = {p}")
-    where = " OR ".join(conditions)
-    decl = "\n".join(declarations)
-    query = f"{decl}\nSELECT cache_key, audio_data FROM tts_cache WHERE {where};"
-
-    prepared = session.prepare(query)
-    result = session.transaction().execute(prepared, parameters=params, commit_tx=True)
-    cached = {}
-    for row in result[0].rows:
-        cached[row["cache_key"]] = row["audio_data"].decode("utf-8")
-    return cached
-
-
-def _save_batch(session, items):
-    if not items:
-        return
-    ts = datetime.utcnow()
-    declarations = []
-    params = {}
-    value_rows = []
-    for i, (key, params_json, b64) in enumerate(items):
-        pk = f"$k{i}"
-        pp = f"$p{i}"
-        pd = f"$d{i}"
-        pt = f"$t{i}"
-        declarations.append(f"DECLARE {pk} AS Utf8;")
-        declarations.append(f"DECLARE {pp} AS Utf8;")
-        declarations.append(f"DECLARE {pd} AS String;")
-        declarations.append(f"DECLARE {pt} AS Timestamp;")
-        params[pk] = key
-        params[pp] = params_json
-        params[pd] = b64.encode("utf-8")
-        params[pt] = ts
-        value_rows.append(f"({pk}, {pp}, {pd}, {pt})")
-    decl = "\n".join(declarations)
-    values = ",\n".join(value_rows)
-    query = (
-        f"{decl}\n"
-        f"UPSERT INTO tts_cache (cache_key, params, audio_data, created_at)\n"
-        f"VALUES\n{values};"
-    )
-    prepared = session.prepare(query)
-    session.transaction().execute(prepared, parameters=params, commit_tx=True)
+MAX_AUDIO_ITEMS = 100
+MAX_TEXT_LENGTH = 1000
+MAX_CONCURRENT_SYNTHESIS = 4
+METADATA_TOKEN_URL = (
+    "http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token"
+)
 
 
 def _cors(status, body):
@@ -176,140 +57,159 @@ def _cors(status, body):
             "Access-Control-Allow-Methods": "POST, OPTIONS",
             "Access-Control-Allow-Headers": "Content-Type",
         },
-        "body": json.dumps(body, ensure_ascii=False) if isinstance(body, (dict, list)) else str(body),
+        "body": json.dumps(body, ensure_ascii=False),
     }
 
 
-async def _synthesize_one(text, voice, pitch, volume):
-    result = b""
-    communicate = edge_tts.Communicate(text, voice=voice, pitch=pitch, volume=volume)
+def _object_key(text, voice_type):
+    voice, pitch = VOICE_SETTINGS[voice_type]
+    raw = f"{text}\0{voice}\0{pitch}\0{VOLUME}".encode("utf-8")
+    return "v1/" + hashlib.sha256(raw).hexdigest() + ".mp3"
+
+
+def _object_url(key):
+    return f"{BUCKET_URL}/{key}"
+
+
+def _object_exists(url):
+    try:
+        with urlopen(Request(url, method="HEAD"), timeout=10):
+            return True
+    except HTTPError as error:
+        if error.code == 404:
+            return False
+        raise
+
+
+def _iam_token():
+    request = Request(
+        METADATA_TOKEN_URL,
+        headers={"Metadata-Flavor": "Google"},
+    )
+    with urlopen(request, timeout=5) as response:
+        token = json.loads(response.read().decode("utf-8")).get("access_token")
+    if not token:
+        raise RuntimeError("IAM token is missing from the function metadata response")
+    return token
+
+
+def _upload_object(url, audio):
+    request = Request(
+        url,
+        data=audio,
+        method="PUT",
+        headers={
+            "Authorization": "Bearer " + _iam_token(),
+            "Content-Type": "audio/mpeg",
+            "Cache-Control": "public, max-age=31536000, immutable",
+        },
+    )
+    with urlopen(request, timeout=20) as response:
+        if response.status not in (200, 201):
+            raise RuntimeError(f"Object Storage upload failed: HTTP {response.status}")
+
+
+async def _synthesize(text, voice_type):
+    voice, pitch = VOICE_SETTINGS[voice_type]
+    communicate = edge_tts.Communicate(
+        text,
+        voice=voice,
+        pitch=pitch,
+        volume=VOLUME,
+    )
+    chunks = []
     async for chunk in communicate.stream():
         if chunk["type"] == "audio":
-            result += chunk["data"]
-    return text, result
+            chunks.append(chunk["data"])
+    audio = b"".join(chunks)
+    if not audio:
+        raise RuntimeError("Speech synthesis returned an empty audio file")
+    return audio
 
 
-def _process_batch(texts, voice_type, audios, use_cache, pool, debug):
-    """Synthesize or fetch from cache for one voice_type batch. Modifies audios in-place."""
-    voice = _resolve_voice(voice_type)
-    pitch = PITCHES.get(voice_type, PITCHES["command"])
-    keys = {t: _cache_key(t, voice, pitch, VOLUME) for t in texts}
-    cached_map = {}
-    uncached_texts = []
-    uncached_keys = []
-
-    if use_cache:
-        def query_cache(session):
-            return _get_cached(session, list(keys.values()))
-        try:
-            cached_map = pool.retry_operation_sync(query_cache)
-        except Exception as e:
-            debug.setdefault("cache_query_errors", []).append(str(e))
-            use_cache = False
-
-    cached_count = 0
-    for text in texts:
-        k = keys[text]
-        if k in cached_map:
-            audios[text] = cached_map[k]
-            cached_count += 1
-        else:
-            uncached_texts.append(text)
-            uncached_keys.append(k)
-
-    debug.setdefault("batch", []).append({
-        "voice_type": voice_type,
-        "total": len(texts),
-        "cached": cached_count,
-        "synthesized": len(uncached_texts),
-    })
-
-    if not uncached_texts:
-        return []
-
+def _run_async(coroutine):
     loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    results = []
     try:
-        # Ограничиваем параллелизм: edge-tts/сервис Microsoft не любит
-        # десятки одновременных подключений и может вернуть "No audio".
-        semaphore = asyncio.Semaphore(4)
-
-        async def synthesize(text):
-            async with semaphore:
-                return await _synthesize_one(text, voice, pitch, VOLUME)
-
-        results = loop.run_until_complete(
-            asyncio.gather(*[synthesize(t) for t in uncached_texts], return_exceptions=True)
-        )
+        return loop.run_until_complete(coroutine)
     finally:
         loop.close()
 
-    new_items = []
-    for item in results:
-        # Одна несинтезированная фраза не должна ронять весь батч: остальные
-        # тексты всё равно возвращаем и кэшируем.
-        if isinstance(item, Exception):
-            debug.setdefault("synthesis_errors", []).append(str(item))
-            continue
-        text, audio_data = item
-        if not audio_data:
-            debug.setdefault("synthesis_errors", []).append(f"empty audio: {text}")
-            continue
-        b64 = base64.b64encode(audio_data).decode("utf-8")
-        audios[text] = b64
-        if use_cache:
-            idx = uncached_texts.index(text)
-            params_json = json.dumps(
-                {"text": text, "voice": voice, "pitch": pitch, "volume": VOLUME},
-                ensure_ascii=False,
-            )
-            new_items.append((uncached_keys[idx], params_json, b64))
 
-    if use_cache and new_items:
-        try:
-            pool.retry_operation_sync(lambda s: _save_batch(s, new_items))
-        except Exception as e:
-            debug.setdefault("cache_save_errors", []).append(str(e))
+async def _ensure_audios(items):
+    semaphore = asyncio.Semaphore(MAX_CONCURRENT_SYNTHESIS)
+    return await asyncio.gather(
+        *(_ensure_audio(text, voice_type, semaphore) for voice_type, text in items)
+    )
 
-    return new_items
+
+async def _ensure_audio(text, voice_type, semaphore):
+    key = _object_key(text, voice_type)
+    url = _object_url(key)
+    if await asyncio.to_thread(_object_exists, url):
+        return url
+    async with semaphore:
+        # Повторная проверка: пока ждали слот, файл мог создать другой запрос.
+        if await asyncio.to_thread(_object_exists, url):
+            return url
+        audio = await _synthesize(text, voice_type)
+        await asyncio.to_thread(_upload_object, url, audio)
+    return url
 
 
 def handler(event, context):
+    if event.get("httpMethod") == "OPTIONS":
+        return _cors(200, {"ok": True})
+    if event.get("httpMethod") != "POST":
+        return _cors(405, {"error": "Method not allowed"})
+
     try:
-        if event.get("httpMethod") == "OPTIONS":
-            return _cors(200, {"ok": True})
-
-        if edge_tts is None:
-            return _cors(500, {"error": "edge-tts not installed"})
-
-        body = json.loads(event.get("body", "{}"))
-        use_cache = _ensure_table()
-        pool = _get_pool() if use_cache else None
-        debug = {"use_cache": use_cache}
-
-        audios = {}
+        body = json.loads(event.get("body") or "{}")
+        if not isinstance(body, dict):
+            return _cors(400, {"error": "Request body must be a JSON object"})
         batches = body.get("batches")
         if not isinstance(batches, list) or not batches:
             return _cors(400, {"error": "batches must be a non-empty array"})
 
-        debug["batches_received"] = [
-            {"voice_type": b.get("voice_type", "command"), "texts_count": len(b.get("texts", []) or [])}
-            for b in batches
-        ]
+        items = []
+        seen = set()
+        for batch in batches:
+            if not isinstance(batch, dict):
+                return _cors(400, {"error": "Each batch must be an object"})
+            voice_type = batch.get("voice_type", "command")
+            texts = batch.get("texts")
+            if voice_type not in VOICE_SETTINGS:
+                return _cors(400, {"error": "Unsupported voice_type"})
+            if not isinstance(texts, list):
+                return _cors(400, {"error": "texts must be an array"})
 
-        for b in batches:
-            voice_type = b.get("voice_type", "command")
-            texts = b.get("texts", [])
-            if not isinstance(texts, list) or not texts:
-                continue
-            texts = [t.strip() for t in texts if t and t.strip()]
-            if not texts:
-                continue
-            _process_batch(texts, voice_type, audios, use_cache, pool, debug)
+            for value in texts:
+                if not isinstance(value, str):
+                    return _cors(400, {"error": "Each text must be a string"})
+                text = value.strip()
+                if not text:
+                    continue
+                if len(text) > MAX_TEXT_LENGTH:
+                    return _cors(400, {"error": "Text exceeds the maximum length"})
+                item_key = (voice_type, text)
+                if item_key not in seen:
+                    seen.add(item_key)
+                    items.append(item_key)
+                if len(items) > MAX_AUDIO_ITEMS:
+                    return _cors(400, {"error": "Request exceeds the maximum number of audio items"})
 
-        print(json.dumps({"tts_cache": debug}))
+        urls = _run_async(_ensure_audios(items))
+        audios = []
+        for (voice_type, text), url in zip(items, urls):
+            audios.append({
+                "voice_type": voice_type,
+                "text": text,
+                "url": url,
+            })
+
         return _cors(200, {"audios": audios, "format": "mp3"})
-
-    except Exception as e:
-        return _cors(500, {"error": str(e)})
+    except (json.JSONDecodeError, TypeError) as error:
+        print(f"Invalid TTS request: {error}")
+        return _cors(400, {"error": "Request body must be valid JSON"})
+    except Exception as error:
+        print(f"TTS cache error: {error}")
+        return _cors(502, {"error": "TTS audio could not be generated or stored"})
