@@ -8,9 +8,10 @@ const MenuModule = {
     _categoryTree: null,
     _expandedFolders: new Set(),
     _locks: {}, // {folderId: price} — платные папки (по id, не по пути)
+    _instructors: new Map(), // folderId -> [{id, name, phone, car_model, photos, ...}]
     _access: new Set(), // купленные папки пользователя (id папок)
     _accessExpires: {}, // {folderId: unix-ts окончания доступа}
-    _folders: new Map(), // id -> {id, name, parent_id, owner_id}
+    _folders: new Map(), // id -> {id, name, parent_id, owner_id, price, instructors}
 
     // URL бекенда (API-воркер на Cloudflare, D1).
     // Задаётся в assets/js/config.js -> API_CONFIG.API_BASE.
@@ -177,6 +178,12 @@ const MenuModule = {
 
         // Папки приходят в том же ответе — дерево строится сразу, без гонки.
         this._folders = new Map((data.folders || []).map(f => [f.id, f]));
+        // Инструкторы (реклама) по папкам; пустые не храним.
+        this._instructors = new Map(
+            (data.folders || [])
+                .filter(f => Array.isArray(f.instructors) && f.instructors.length)
+                .map(f => [f.id, f.instructors])
+        );
 
         // Замки платных папок (ключ — id папки).
         this._locks = {};
@@ -213,6 +220,35 @@ const MenuModule = {
             cur = f && f.parent_id !== null && f.parent_id !== undefined ? String(f.parent_id) : null;
         }
         return null;
+    },
+
+    // Ближайшие инструкторы для папки: свои, иначе — от ближайшего предка.
+    // Так реклама, заданная на папке города, работает во всех его районах,
+    // но не дублируется визуально в дереве.
+    _instructorsFor(folderId) {
+        const seen = new Set();
+        let cur = folderId !== null && folderId !== undefined ? Number(folderId) : null;
+        while (cur !== null && !seen.has(cur)) {
+            seen.add(cur);
+            const list = this._instructors.get(cur);
+            if (list && list.length) return list;
+            const f = this._folders.get(cur);
+            cur = f && f.parent_id !== null && f.parent_id !== undefined ? Number(f.parent_id) : null;
+        }
+        return [];
+    },
+
+    // Открыть шторку со списком инструкторов (рендерит navigator.html).
+    _openInstructors(folderId) {
+        const list = this._instructorsFor(folderId);
+        if (!list.length) return;
+        const folder = this._folders.get(Number(folderId));
+        if (typeof window.showInstructors === 'function') {
+            // Меню и шторка инструкторов занимают один и тот же слой, поэтому
+            // сначала закрываем меню — иначе оно останется под шторкой.
+            this.hide();
+            window.showInstructors(list, folder ? folder.name : '');
+        }
     },
 
     // Куплен ли доступ именно к этой папке. Покупка оформляется на конкретную
@@ -542,6 +578,24 @@ const MenuModule = {
             ${statusBadge}
             <span class="category-count">${total}</span>
         `;
+
+        // Отдельная кнопка: открывает список инструкторов, а не раскрывает папку.
+        const instructors = this._instructorsFor(folderId);
+        if (instructors.length) {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'category-instructors';
+            btn.title = 'Инструкторы: ' + instructors.length;
+            btn.textContent = `🚗 ${instructors.length}`;
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this._openInstructors(folderId);
+            });
+            const count = header.querySelector('.category-count');
+            if (count) header.insertBefore(btn, count);
+            else header.appendChild(btn);
+        }
+
         header.addEventListener('click', e => {
             e.stopPropagation();
             if (locked) {

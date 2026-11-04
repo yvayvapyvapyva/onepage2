@@ -5,7 +5,7 @@
     <title>Редактор маршрутов</title>
     <link rel="icon" href="ico.png" type="image/png">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-    <link rel="stylesheet" href="assets/css/editor.css?v=1">
+    <link rel="stylesheet" href="assets/css/editor.css?v=2">
 </head>
 <body>
 
@@ -54,7 +54,7 @@
 <div id="settingsModal" onclick="if(event.target===this) toggleM('settingsModal')"><div class="modal-sheet"><div class="modal-header" style="padding:16px 20px 16px 10px;"><span id="settingsTitle">Маршруты</span><div style="display:flex;gap:6px;margin-left:auto;"><button class="close-circle" onclick="toggleM('settingsModal')">✕</button></div></div><div class="settings-body" id="routesList"></div><div class="modal-actions-sm"><button class="settings-tool-btn settings-tool-btn-green flex-1" onclick="openCreateRouteModal()" style="text-align:center;">Создать маршрут</button><button class="settings-tool-btn flex-1" onclick="window.createFolder()" style="text-align:center;background:rgba(0,122,255,0.25);border-color:rgba(0,122,255,0.4);">Создать папку</button></div></div></div>
 <div id="createRouteModal" onclick="if(event.target===this) toggleM('createRouteModal')"><div class="modal-sheet modal-sheet-compact"><h3 class="modal-title">Новый маршрут</h3><div class="input-wrapper" style="padding:4px;border-radius:14px;"><input type="text" id="newRouteNameInput" placeholder="Название маршрута"></div><div class="modal-actions"><button class="btn-action flex-1" onclick="toggleM('createRouteModal')">Отмена</button><button class="btn-action btn-primary flex-1" onclick="handleCreateNew()">Создать</button></div></div></div>
 <div id="createFolderModal" onclick="if(event.target===this) toggleM('createFolderModal')"><div class="modal-sheet modal-sheet-compact"><h3 class="modal-title">Новая папка</h3><div class="input-wrapper" style="padding:4px;border-radius:14px;"><input type="text" id="newFolderNameInput" placeholder="Название папки"></div><div class="modal-actions"><button class="btn-action flex-1" onclick="toggleM('createFolderModal')">Отмена</button><button class="btn-action btn-primary flex-1" onclick="handleCreateFolder()">Создать</button></div></div></div>
-<div id="folderSettingsModal" onclick="if(event.target===this) toggleM('folderSettingsModal')"><div class="modal-sheet" style="gap:0;padding:0;"><div class="modal-header"><h3 id="settingsRouteTitle">Настройки папки</h3><button class="close-circle" onclick="toggleM('folderSettingsModal')">✕</button></div><div class="modal-body-scroll"><div class="field-label">Название папки</div><div class="input-wrapper" style="padding:3px;border-radius:12px;margin-bottom:8px;"><input type="text" id="folderSettingsNameInput" placeholder="Введите название папки" style="width:100%;padding:10px;border:none;font-size:16px;outline:none;background:transparent;color:#f5f7fa;font-family:inherit;box-sizing:border-box;"></div><div class="field-label">Цена доступа (⭐)</div><div class="input-wrapper" style="padding:3px;border-radius:12px;margin-bottom:8px;"><input type="number" id="folderSettingsPriceInput" placeholder="0" min="0" max="10000" style="width:100%;padding:10px;border:none;font-size:16px;outline:none;background:transparent;color:#f5f7fa;font-family:inherit;box-sizing:border-box;"></div><div class="field-label">Видимость</div><div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:14px;background:rgba(25,25,30,0.7);border:1px solid rgba(255,255,255,0.25);"><label style="display:flex;align-items:center;gap:10px;cursor:pointer;flex:1;"><input type="checkbox" id="folderSettingsVisibleCheckbox" style="width:20px;height:20px;accent-color:#34C759;cursor:pointer;"><span style="font-size:16px;font-weight:600;color:#ffffff;">Отображать в списке</span></label></div></div><div style="display:flex;flex-direction:column;gap:8px;padding:20px;padding-top:0;"><button class="btn-action" onclick="saveFolderSettings();">💾 Сохранить</button><button class="btn-action btn-danger" onclick="deleteCurrentFolder();">🗑️ Удалить папку</button></div></div></div>
+<div id="folderSettingsModal" onclick="if(event.target===this) toggleM('folderSettingsModal')"><div class="modal-sheet" style="gap:0;padding:0;"><div class="modal-header"><h3 id="settingsRouteTitle">Настройки папки</h3><button class="close-circle" onclick="toggleM('folderSettingsModal')">✕</button></div><div class="modal-body-scroll"><div class="field-label">Название папки</div><div class="input-wrapper" style="padding:3px;border-radius:12px;margin-bottom:8px;"><input type="text" id="folderSettingsNameInput" placeholder="Введите название папки" style="width:100%;padding:10px;border:none;font-size:16px;outline:none;background:transparent;color:#f5f7fa;font-family:inherit;box-sizing:border-box;"></div><div class="field-label">Цена доступа (⭐)</div><div class="input-wrapper" style="padding:3px;border-radius:12px;margin-bottom:8px;"><input type="number" id="folderSettingsPriceInput" placeholder="0" min="0" max="10000" style="width:100%;padding:10px;border:none;font-size:16px;outline:none;background:transparent;color:#f5f7fa;font-family:inherit;box-sizing:border-box;"></div><div class="field-label">Видимость</div><div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:14px;background:rgba(25,25,30,0.7);border:1px solid rgba(255,255,255,0.25);"><label style="display:flex;align-items:center;gap:10px;cursor:pointer;flex:1;"><input type="checkbox" id="folderSettingsVisibleCheckbox" style="width:20px;height:20px;accent-color:#34C759;cursor:pointer;"><span style="font-size:16px;font-weight:600;color:#ffffff;">Отображать в списке</span></label></div><div class="field-label" style="margin-top:12px;">Инструкторы (реклама)</div><div id="folderInstructorsList" style="display:flex;flex-direction:column;gap:8px;"></div><button class="btn-action" onclick="addFolderInstructor();" style="margin-top:8px;">＋ Добавить инструктора</button></div><div style="display:flex;flex-direction:column;gap:8px;padding:20px;padding-top:0;"><button class="btn-action" onclick="saveFolderSettings();">💾 Сохранить</button><button class="btn-action btn-danger" onclick="deleteCurrentFolder();">🗑️ Удалить папку</button></div></div></div>
 <div id="settingsRouteModal" onclick="if(event.target===this) toggleM('settingsRouteModal')"><div class="modal-sheet" style="gap:0;padding:0;"><div class="modal-header"><h3 id="settingsRouteTitle">Настройки маршрута</h3><button class="close-circle" onclick="toggleM('settingsRouteModal')">✕</button></div><div class="modal-body-scroll">
 <div class="field-label">Имя маршрута</div>
 <div class="input-wrapper" style="padding:3px;border-radius:12px;margin-bottom:8px;"><textarea id="routeDisplayName" placeholder="Введите имя маршрута" rows="2" style="width:100%;padding:10px;border:none;font-size:16px;outline:none;background:transparent;color:#f5f7fa;font-family:inherit;resize:none;min-height:56px;box-sizing:border-box;"></textarea></div>
@@ -793,6 +793,7 @@ function buildRouteTree() {
             parent_id: folder.parent_id,
             visible: !!folder.visible,
             price: folder.price || 0,
+            instructors: folder.instructors || [],
             folders: {},
             routes: [],
         };
@@ -1918,6 +1919,7 @@ window.handleCreateFolder = async () => {
 };
 
 let _folderSettingsId = null;
+let _folderInstructors = [];
 
 const openFolderSettings = async (folderId) => {
     const fid = Number(folderId);
@@ -1929,6 +1931,11 @@ const openFolderSettings = async (folderId) => {
     // folder_list отдаёт видимость булевым, поэтому приводим к булеву виду
     // (сравнение с числом 0 здесь не сработало бы: false !== 0 — это true).
     $('folderSettingsVisibleCheckbox').checked = !!folder.visible;
+    // Копия, чтобы правки в модалке не меняли кэш папок до сохранения.
+    _folderInstructors = (folder.instructors || []).map((i) => ({
+        ...i, photos: { ...(i.photos || {}) },
+    }));
+    renderFolderInstructors();
     toggleM('folderSettingsModal');
 };
 
@@ -1962,6 +1969,318 @@ const deleteCurrentFolder = async () => {
     }
 };
 
+// ---- Инструкторы папки (реклама практических занятий) ----
+
+// Кэш папок (folder_list) должен знать про изменения, иначе при повторном
+// открытии настроек фото и новые карточки пропадут до общего refresh.
+function syncFolderInstructorsCache() {
+    const folder = _folders.get(Number(_folderSettingsId));
+    if (!folder) return;
+    folder.instructors = _folderInstructors.map((i) => ({
+        ...i, photos: { ...(i.photos || {}) },
+    }));
+}
+
+function renderFolderInstructors() {
+    const wrap = $('folderInstructorsList');
+    if (!wrap) return;    wrap.innerHTML = '';
+    if (!_folderInstructors.length) {
+        const empty = document.createElement('div');
+        empty.style.cssText = 'padding:10px 4px;color:rgba(255,255,255,0.5);font-size:13px;';
+        empty.textContent = 'Пока никого нет. Нажмите «Добавить инструктора».';
+        wrap.appendChild(empty);
+        return;
+    }
+    _folderInstructors.forEach((inst) => wrap.appendChild(buildInstructorCard(inst)));
+}
+
+const instructorInput = (label, field, value, multiline = false) => {
+    const box = document.createElement('div');
+    const lab = document.createElement('div');
+    lab.className = 'field-label';
+    lab.textContent = label;
+    const wrapper = document.createElement('div');
+    wrapper.className = 'input-wrapper';
+    const input = document.createElement(multiline ? 'textarea' : 'input');
+    input.dataset.field = field;
+    if (!multiline) input.type = field === 'phone' ? 'tel' : 'text';
+    input.value = value || '';
+    wrapper.appendChild(input);
+    box.appendChild(lab);
+    box.appendChild(wrapper);
+    return box;
+};
+
+function buildPhotoBlock(inst, kind, title) {
+    const photo = inst.photos ? inst.photos[kind] : null;
+    const block = document.createElement('div');
+    block.className = 'instructor-photo';
+
+    const caption = document.createElement('div');
+    caption.className = 'instructor-photo-title';
+    caption.textContent = title;
+
+    const preview = document.createElement('div');
+    preview.className = 'instructor-photo-preview';
+    if (photo && photo.url) {
+        const img = document.createElement('img');
+        img.src = photo.url;
+        img.alt = title;
+        img.loading = 'lazy';
+        preview.appendChild(img);
+    } else {
+        preview.textContent = 'Нет фото';
+    }
+
+    const actions = document.createElement('div');
+    actions.className = 'instructor-photo-actions';
+    const label = document.createElement('label');
+    label.className = 'instructor-photo-btn';
+    label.textContent = photo ? 'Заменить' : 'Загрузить';
+    const file = document.createElement('input');
+    file.type = 'file';
+    file.accept = 'image/*';
+    file.style.display = 'none';
+    file.addEventListener('change', async () => {
+        const selected = file.files && file.files[0];
+        if (!selected) return;
+        label.classList.add('loading');
+        label.textContent = 'Загрузка…';
+        await uploadInstructorPhoto(inst.id, kind, selected);
+        file.value = '';
+    });
+    label.appendChild(file);
+    actions.appendChild(label);
+
+    if (photo) {
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'instructor-photo-remove';
+        remove.textContent = 'Удалить';
+        remove.addEventListener('click', () => removeInstructorPhoto(inst.id, kind));
+        actions.appendChild(remove);
+    }
+
+    block.appendChild(caption);
+    block.appendChild(preview);
+    block.appendChild(actions);
+    return block;
+}
+
+function buildInstructorCard(inst) {
+    const card = document.createElement('div');
+    card.className = 'instructor-card';
+    card.dataset.id = inst.id;
+
+    const head = document.createElement('div');
+    head.className = 'instructor-card-head';
+    const title = document.createElement('div');
+    title.className = 'instructor-card-title';
+    title.textContent = inst.name || 'Инструктор';
+    head.appendChild(title);
+
+    const tools = document.createElement('div');
+    tools.className = 'instructor-tools';
+    const tool = (text, titleText, className, handler) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'instructor-tool-btn' + (className ? ' ' + className : '');
+        b.textContent = text;
+        b.title = titleText;
+        b.addEventListener('click', handler);
+        return b;
+    };
+    tools.appendChild(tool('↑', 'Выше', '', () => moveFolderInstructor(inst.id, 'up')));
+    tools.appendChild(tool('↓', 'Ниже', '', () => moveFolderInstructor(inst.id, 'down')));
+    tools.appendChild(tool('✕', 'Удалить', 'danger', () => deleteFolderInstructor(inst.id)));
+    head.appendChild(tools);
+    card.appendChild(head);
+
+    card.appendChild(instructorInput('Имя', 'name', inst.name));
+    card.appendChild(instructorInput('Телефон', 'phone', inst.phone));
+    card.appendChild(instructorInput('Модель авто', 'car_model', inst.car_model));
+    card.appendChild(instructorInput('Текст объявления', 'text', inst.text, true));
+    card.appendChild(instructorInput('Ссылка (Telegram/WhatsApp)', 'url', inst.url));
+
+    const visibleRow = document.createElement('label');
+    visibleRow.className = 'instructor-visible-row';
+    const visibleCheck = document.createElement('input');
+    visibleCheck.type = 'checkbox';
+    visibleCheck.dataset.field = 'visible';
+    visibleCheck.checked = !!inst.visible;
+    const visibleText = document.createElement('span');
+    visibleText.textContent = 'Показывать в приложении';
+    visibleRow.appendChild(visibleCheck);
+    visibleRow.appendChild(visibleText);
+    card.appendChild(visibleRow);
+
+    const photos = document.createElement('div');
+    photos.className = 'instructor-photos';
+    photos.appendChild(buildPhotoBlock(inst, 'avatar', 'Фото инструктора'));
+    photos.appendChild(buildPhotoBlock(inst, 'car', 'Фото авто'));
+    card.appendChild(photos);
+
+    const saveBtn = document.createElement('button');
+    saveBtn.type = 'button';
+    saveBtn.className = 'btn-action instructor-save';
+    saveBtn.textContent = '💾 Сохранить';
+    saveBtn.addEventListener('click', () => saveFolderInstructor(inst.id, card));
+    card.appendChild(saveBtn);
+
+    return card;
+}
+
+async function addFolderInstructor() {
+    if (!_folderSettingsId) return;
+    if (_folderInstructors.length >= 20) {
+        showToast('Не больше 20 инструкторов на папку', 'error');
+        return;
+    }
+    try {
+        const res = await callApi('instructor_save', {}, {
+            folder_id: _folderSettingsId,
+            name: 'Новый инструктор',
+            visible: true,
+        });
+        if (res.instructor) _folderInstructors.push(res.instructor);
+        syncFolderInstructorsCache();
+        renderFolderInstructors();
+    } catch (e) {
+        showToast('Ошибка создания инструктора', 'error');
+    }
+}
+
+async function saveFolderInstructor(id, card) {
+    const inst = _folderInstructors.find((x) => x.id === id);
+    if (!inst) return;
+    const data = { id, folder_id: inst.folder_id };
+    card.querySelectorAll('[data-field]').forEach((el) => {
+        data[el.dataset.field] = el.type === 'checkbox' ? el.checked : el.value;
+    });
+    if (!String(data.name || '').trim() && !String(data.phone || '').trim()) {
+        showToast('Укажите имя или телефон', 'error');
+        return;
+    }
+    try {
+        const res = await callApi('instructor_save', {}, data);
+        if (res.instructor) Object.assign(inst, res.instructor);
+        syncFolderInstructorsCache();
+        renderFolderInstructors();
+        showToast('Инструктор сохранён', 'success');
+    } catch (e) {
+        showToast('Ошибка сохранения', 'error');
+    }
+}
+
+async function deleteFolderInstructor(id) {
+    if (!confirm('Удалить инструктора и его фото?')) return;
+    try {
+        await callApi('instructor_delete', {}, { id });
+        _folderInstructors = _folderInstructors.filter((x) => x.id !== id);
+        syncFolderInstructorsCache();
+        renderFolderInstructors();
+        showToast('Инструктор удалён', 'success');
+    } catch (e) {
+        showToast('Ошибка удаления', 'error');
+    }
+}
+
+async function moveFolderInstructor(id, direction) {
+    try {
+        await callApi('instructor_move', {}, { id, direction });
+        const index = _folderInstructors.findIndex((x) => x.id === id);
+        const target = direction === 'up' ? index - 1 : index + 1;
+        if (index >= 0 && target >= 0 && target < _folderInstructors.length) {
+            [_folderInstructors[index], _folderInstructors[target]] =
+                [_folderInstructors[target], _folderInstructors[index]];
+            syncFolderInstructorsCache();
+            renderFolderInstructors();
+        }
+    } catch (e) {
+        showToast('Ошибка перемещения', 'error');
+    }
+}
+
+// Сжатие перед загрузкой: D1 хранит BLOB до 2 МБ, но лишний вес не нужен.
+function compressImage(file, maxSide = 1000, quality = 0.8) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error('read failed'));
+        reader.onload = () => {
+            const img = new Image();
+            img.onerror = () => reject(new Error('decode failed'));
+            img.onload = () => {
+                try {
+                    const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+                    const canvas = document.createElement('canvas');
+                    canvas.width = Math.max(1, Math.round(img.width * scale));
+                    canvas.height = Math.max(1, Math.round(img.height * scale));
+                    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+                    canvas.toBlob((blob) => {
+                        if (blob) { resolve(blob); return; }
+                        canvas.toBlob((jpeg) => resolve(jpeg), 'image/jpeg', quality);
+                    }, 'image/webp', quality);
+                } catch (e) {
+                    reject(e);
+                }
+            };
+            img.src = reader.result;
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
+async function uploadInstructorPhoto(id, kind, file) {
+    try {
+        const blob = await compressImage(file);
+        if (!blob) throw new Error('empty image');
+        if (blob.size > 1400000) {
+            showToast('Фото слишком большое, выберите другое', 'error');
+            return;
+        }
+        const target = new URL(API_URL);
+        target.searchParams.set('action', 'instructor_photo_upload');
+        target.searchParams.set('id', String(id));
+        target.searchParams.set('kind', kind);
+        const key = editorKey();
+        if (key) target.searchParams.set('editor_key', key);
+        const init = tgInitData();
+        if (init) target.searchParams.set('tg_init_data', init);
+        const resp = await fetch(target.toString(), {
+            method: 'POST',
+            headers: { 'Content-Type': blob.type || 'image/jpeg' },
+            body: blob,
+        });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const data = await resp.json();
+        const inst = _folderInstructors.find((x) => x.id === id);
+        if (inst && data.photo) {
+            inst.photos = inst.photos || {};
+            inst.photos[kind] = data.photo;
+        }
+        syncFolderInstructorsCache();
+        renderFolderInstructors();
+        showToast('Фото загружено', 'success');
+    } catch (e) {
+        console.warn('photo upload failed', e);
+        showToast('Не удалось загрузить фото', 'error');
+        renderFolderInstructors();
+    }
+}
+
+async function removeInstructorPhoto(id, kind) {
+    try {
+        await callApi('instructor_photo_delete', {}, { id, kind });
+        const inst = _folderInstructors.find((x) => x.id === id);
+        if (inst && inst.photos) inst.photos[kind] = null;
+        syncFolderInstructorsCache();
+        renderFolderInstructors();
+        showToast('Фото удалено', 'success');
+    } catch (e) {
+        showToast('Не удалось удалить фото', 'error');
+    }
+}
+
 // Экспорт функций в глобальную область для onclick обработчиков
 window.openPointsOrderModal = openPointsOrderModal;
 window.openSettingsModal = openSettingsModal;
@@ -1989,6 +2308,7 @@ window.selectZnak = selectZnak;
 window.handleCreateFolder = handleCreateFolder;
 window.openFolderSettings = openFolderSettings;
 window.saveFolderSettings = saveFolderSettings;
+window.addFolderInstructor = addFolderInstructor;
 window.deleteCurrentFolder = deleteCurrentFolder;
 
 </script>

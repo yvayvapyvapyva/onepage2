@@ -11,6 +11,8 @@ export const EDITOR_ACTIONS = new Set([
   'save_lock', 'del_lock',
   'folder_list', 'folder_create', 'folder_rename', 'folder_delete',
   'folder_move', 'folder_settings', 'route_move',
+  'instructor_save', 'instructor_delete', 'instructor_move',
+  'instructor_photo_upload', 'instructor_photo_delete',
 ]);
 
 // Среди читаемых/пишущих экшенов только эти требуют прав редактора.

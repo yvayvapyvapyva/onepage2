@@ -5,7 +5,7 @@
     <title>МОБИЛЬНЫЙ АВТОИНСТРУКТОР</title>
     <link rel="icon" href="ico.png" type="image/png">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <link rel="stylesheet" href="assets/css/navigator.css?v=1">
+    <link rel="stylesheet" href="assets/css/navigator.css?v=2">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@yandex/ymaps3-default-ui-theme@latest/dist/esm/index.css">
     <style>
 .toggle-switch {
@@ -164,7 +164,7 @@
   tryLoad('https://telegram.org/js/telegram-web-app.js', '__tgWebAppFailed');
 })(window);
 </script>
-<script src="assets/js/menu-module.js?v=7" defer></script>
+<script src="assets/js/menu-module.js?v=9" defer></script>
 <script>
 const APP = {
     map: null, userMarker: null, lastPos: null, lastAz: 0, rawAz: 0, lastTilt: 0, autoCenter: false, currentSpeed: 0,
@@ -769,6 +769,7 @@ function updateTiltState() {
 function closeAllSheets() {
     closePointsList();
     closeSettings();
+    if (typeof closeInstructors === 'function') closeInstructors();
     if (typeof MenuModule !== 'undefined') MenuModule.hide();
 }
 
@@ -1736,12 +1737,123 @@ ymaps3.ready.then(async () => {
     </div>
 </div>
 
+<div id="instructorsModal" class="hidden sheet-modal">
+    <div class="modal-sheet" id="instructorsSheet">
+        <div class="sheet-drag-area" id="instructorsDragArea">
+            <div class="sheet-handle"><svg viewBox="0 0 24 24"><path d="M3 9L12 14.2L21 9" stroke="#fff" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        </div>
+        <div id="instructorsBody" class="instructors-body"></div>
+    </div>
+</div>
+
 <script>
+function closeInstructors() {
+    hideSheetModal('instructorsModal', 'instructorsSheet');
+}
+
+// Карточка инструктора для шторки. Всё через textContent: реклама редактируется
+// пользователем, innerHTML с её полями недопустим.
+function buildInstructorCard(inst) {
+    const card = document.createElement('div');
+    card.className = 'instructor-card';
+
+    const top = document.createElement('div');
+    top.className = 'instructor-top';
+
+    const avatar = document.createElement('div');
+    avatar.className = 'instructor-avatar';
+    const avatarPhoto = inst.photos && inst.photos.avatar;
+    if (avatarPhoto && avatarPhoto.url) {
+        const img = document.createElement('img');
+        img.src = avatarPhoto.url;
+        img.alt = inst.name || 'Инструктор';
+        img.loading = 'lazy';
+        avatar.appendChild(img);
+    } else {
+        avatar.textContent = (inst.name || '?').trim().charAt(0).toUpperCase();
+    }
+    top.appendChild(avatar);
+
+    const info = document.createElement('div');
+    info.className = 'instructor-info';
+
+    const name = document.createElement('div');
+    name.className = 'instructor-name';
+    name.textContent = inst.name || 'Инструктор';
+    info.appendChild(name);
+
+    if (inst.car_model) {
+        const car = document.createElement('div');
+        car.className = 'instructor-car';
+        car.textContent = '🚗 ' + inst.car_model;
+        info.appendChild(car);
+    }
+    if (inst.text) {
+        const text = document.createElement('div');
+        text.className = 'instructor-text';
+        text.textContent = inst.text;
+        info.appendChild(text);
+    }
+    top.appendChild(info);
+    card.appendChild(top);
+
+    const actions = document.createElement('div');
+    actions.className = 'instructor-actions';
+    if (inst.phone) {
+        const call = document.createElement('a');
+        call.className = 'instructor-call';
+        call.href = 'tel:' + String(inst.phone).replace(/[^0-9+]/g, '');
+        call.textContent = '📞 ' + inst.phone;
+        actions.appendChild(call);
+    }
+    if (inst.url) {
+        const write = document.createElement('a');
+        write.className = 'instructor-write';
+        write.href = inst.url;
+        write.target = '_blank';
+        write.rel = 'noopener';
+        write.textContent = 'Написать';
+        actions.appendChild(write);
+    }
+    if (actions.children.length) card.appendChild(actions);
+
+    const carPhoto = inst.photos && inst.photos.car;
+    if (carPhoto && carPhoto.url) {
+        const wrap = document.createElement('div');
+        wrap.className = 'instructor-car-photo';
+        const img = document.createElement('img');
+        img.src = carPhoto.url;
+        img.alt = inst.car_model || 'Автомобиль';
+        img.loading = 'lazy';
+        wrap.appendChild(img);
+        card.appendChild(wrap);
+    }
+
+    return card;
+}
+
+function showInstructors(list, folderName) {
+    if (!Array.isArray(list) || !list.length) return;
+    const body = document.getElementById('instructorsBody');
+    if (!body) return;
+    body.innerHTML = '';
+
+    const title = document.createElement('div');
+    title.className = 'instructors-title';
+    title.textContent = folderName ? 'Инструкторы · ' + folderName : 'Инструкторы';
+    body.appendChild(title);
+
+    list.forEach((inst) => body.appendChild(buildInstructorCard(inst)));
+    document.getElementById('instructorsModal').classList.remove('hidden');
+}
+window.showInstructors = showInstructors;
+
 document.addEventListener('click', (e) => {
     const sheetModals = [
         { id: 'navSettingsModal', close: closeSettings, triggers: ['settingsBtn', 'menuBtn'], handle: 'settingsSheetDragArea' },
         { id: 'pointsListModal', close: closePointsList, triggers: ['hudCmd', 'hudPrevCmd', 'menuBtn'], handle: 'sheetDragArea' },
         { id: 'instructionModal', close: closeInstruction, triggers: ['instructionBtn', 'menuBtn'], handle: 'instructionDragArea' },
+        { id: 'instructorsModal', close: closeInstructors, triggers: [], handle: 'instructorsDragArea' },
     ];
     sheetModals.forEach(({ id, close, triggers, handle: handleId }) => {
         const modal = document.getElementById(id);
@@ -1792,6 +1904,7 @@ function enableSheetSwipe(modalId, sheetId, handleId, closeFn) {
 enableSheetSwipe('navSettingsModal', 'navSettingsSheet', 'settingsSheetDragArea', closeSettings);
 enableSheetSwipe('pointsListModal', 'pointsListSheet', 'sheetDragArea', closePointsList);
 enableSheetSwipe('instructionModal', 'instructionSheet', 'instructionDragArea', closeInstruction);
+enableSheetSwipe('instructorsModal', 'instructorsSheet', 'instructorsDragArea', closeInstructors);
 </script>
 </body>
 </html>
