@@ -1751,6 +1751,55 @@ function closeInstructors() {
     hideSheetModal('instructorsModal', 'instructorsSheet');
 }
 
+// Копирование номера — запасной путь: в Telegram WebView переход по tel:
+// часто игнорируется, и пользователю нужен хотя бы номер в буфере обмена.
+function copyPhoneNumber(text) {
+    const value = String(text || '').trim();
+    if (!value) return Promise.resolve(false);
+    const fallback = () => {
+        const area = document.createElement('textarea');
+        area.value = value;
+        area.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;';
+        document.body.appendChild(area);
+        area.select();
+        let ok = false;
+        try { ok = document.execCommand('copy'); } catch (e) {}
+        area.remove();
+        return ok;
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        return navigator.clipboard.writeText(value).then(() => true).catch(() => fallback());
+    }
+    return Promise.resolve(fallback());
+}
+
+// Звонок из мини-аппа. В обычном браузере работает tel:, а внутри Telegram
+// WebView ссылку нужно отдавать клиенту через openLink. Номер в любом случае
+// копируем и показываем в тосте — даже если диалер не открылся, действие видно.
+function callInstructor(phone) {
+    const telUrl = 'tel:' + String(phone || '').replace(/[^0-9+]/g, '');
+    const tg = window.Telegram && window.Telegram.WebApp;
+    let started = false;
+    if (tg && typeof tg.openLink === 'function') {
+        try {
+            tg.openLink(telUrl);
+            started = true;
+        } catch (e) {}
+    }
+    if (!started) {
+        try {
+            window.location.href = telUrl;
+            started = true;
+        } catch (e) {}
+    }
+    // Тост показываем сразу: если в WebView не сработает ни диалер, ни буфер
+    // обмена, пользователь всё равно увидит номер и сможет набрать его вручную.
+    showToast('Телефон: ' + phone, 'info', 4500);
+    copyPhoneNumber(phone).then((copied) => {
+        if (copied) showToast('Номер скопирован: ' + phone, 'info', 4500);
+    });
+}
+
 // Карточка инструктора для шторки. Всё через textContent: реклама редактируется
 // пользователем, innerHTML с её полями недопустим.
 function buildInstructorCard(inst) {
@@ -1804,6 +1853,12 @@ function buildInstructorCard(inst) {
         call.className = 'instructor-call';
         call.href = 'tel:' + String(inst.phone).replace(/[^0-9+]/g, '');
         call.textContent = '📞 ' + inst.phone;
+        call.title = 'Позвонить: ' + inst.phone;
+        call.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            callInstructor(inst.phone);
+        });
         actions.appendChild(call);
     }
     if (inst.url) {
