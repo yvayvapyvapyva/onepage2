@@ -571,19 +571,22 @@ const MenuModule = {
         `;
 
         // Отдельная кнопка: открывает список инструкторов, а не раскрывает папку.
-        // Занимает всю ширину и переносится на строку под названием папки.
+        // Обёртка занимает всю строку и переносит компактный бейдж под название.
         const instructors = this._instructorsFor(folderId);
         if (instructors.length) {
+            const row = document.createElement('div');
+            row.className = 'category-instructors-row';
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'category-instructors';
-            btn.title = 'Инструкторы: ' + instructors.length;
-            btn.textContent = 'Запись на вождение';
+            btn.title = 'Запись на вождение · инструкторов: ' + instructors.length;
+            btn.textContent = `Инструкторы · ${instructors.length}`;
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 this._openInstructors(folderId);
             });
-            header.appendChild(btn);
+            row.appendChild(btn);
+            header.appendChild(row);
         }
 
         header.addEventListener('click', e => {
