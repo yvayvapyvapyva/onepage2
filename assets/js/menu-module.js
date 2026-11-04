@@ -571,20 +571,19 @@ const MenuModule = {
         `;
 
         // Отдельная кнопка: открывает список инструкторов, а не раскрывает папку.
+        // Занимает всю ширину и переносится на строку под названием папки.
         const instructors = this._instructorsFor(folderId);
         if (instructors.length) {
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'category-instructors';
             btn.title = 'Инструкторы: ' + instructors.length;
-            btn.textContent = `🚗 ${instructors.length}`;
+            btn.textContent = 'Запись на вождение';
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 this._openInstructors(folderId);
             });
-            const count = header.querySelector('.category-count');
-            if (count) header.insertBefore(btn, count);
-            else header.appendChild(btn);
+            header.appendChild(btn);
         }
 
         header.addEventListener('click', e => {
