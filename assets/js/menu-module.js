@@ -222,20 +222,11 @@ const MenuModule = {
         return null;
     },
 
-    // Ближайшие инструкторы для папки: свои, иначе — от ближайшего предка.
-    // Так реклама, заданная на папке города, работает во всех его районах,
-    // но не дублируется визуально в дереве.
+    // Инструкторы только самой папки: наследования от родителей нет.
+    // Реклама в районе не должна автоматически всплывать у города и наоборот.
     _instructorsFor(folderId) {
-        const seen = new Set();
-        let cur = folderId !== null && folderId !== undefined ? Number(folderId) : null;
-        while (cur !== null && !seen.has(cur)) {
-            seen.add(cur);
-            const list = this._instructors.get(cur);
-            if (list && list.length) return list;
-            const f = this._folders.get(cur);
-            cur = f && f.parent_id !== null && f.parent_id !== undefined ? Number(f.parent_id) : null;
-        }
-        return [];
+        if (folderId === null || folderId === undefined) return [];
+        return this._instructors.get(Number(folderId)) || [];
     },
 
     // Открыть шторку со списком инструкторов (рендерит navigator.html).
