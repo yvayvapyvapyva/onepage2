@@ -1,4 +1,8 @@
 
+// Дата, до которой редакторам показывается «купленный» доступ.
+// Должна совпадать с EDITOR_ACCESS_UNTIL в cloudflare_worker/api.js.
+const EDITOR_ACCESS_UNTIL = Math.floor(Date.UTC(2030, 0, 1) / 1000);
+
 const MenuModule = {
     callback: null,
     isLoaded: false,
@@ -11,6 +15,7 @@ const MenuModule = {
     _instructors: new Map(), // folderId -> [{id, name, phone, car_model, photos, ...}]
     _access: new Set(), // купленные папки пользователя (id папок)
     _accessExpires: {}, // {folderId: unix-ts окончания доступа}
+    _unlimited: false, // редактор: все платные папки показываются купленными до 2030 года
     _folders: new Map(), // id -> {id, name, parent_id, owner_id, price, instructors}
 
     // URL бекенда (API-воркер на Cloudflare, D1).
@@ -205,6 +210,12 @@ const MenuModule = {
         return !!this._tgInitData();
     },
 
+    // Ключ редактора из localStorage (его сохраняет editor.html при входе
+    // из браузера). Нужен, чтобы редактор получал доступ и вне Telegram.
+    _editorKey() {
+        try { return localStorage.getItem('editor_key') || ''; } catch (e) { return ''; }
+    },
+
     // Ближайший замок для папки (сама или предок) — по id, поднимаясь по parent_id.
     // Именно по id, а не по пути: у двух папок-соседей может совпасть имя.
     // _locks: {folderId: price}.
@@ -267,6 +278,11 @@ const MenuModule = {
     // Доступ к замку, если он куплен: { id, expiresAt } либо null.
     _accessFor(lockId) {
         if (lockId === null || lockId === undefined) return null;
+        // Редактор: показываем обычный купленный доступ до 2030 года.
+        if (this._unlimited) {
+            const exp = (this._accessExpires && this._accessExpires[String(lockId)]) || EDITOR_ACCESS_UNTIL;
+            return { id: Number(lockId), expiresAt: exp };
+        }
         const key = String(lockId);
         if (!this._access.has(key)) return null;
         const exp = (this._accessExpires && this._accessExpires[key]) || 0;
@@ -293,18 +309,23 @@ const MenuModule = {
             this._locks = this._locks || {};
         }
         this._access = this._access || new Set();
+        this._unlimited = false;
         const initData = this._tgInitData();
-        if (initData) {
+        const editorKey = this._editorKey();
+        if (initData || editorKey) {
             try {
+                const headers = { 'Content-Type': 'application/json' };
+                if (editorKey) headers['X-Editor-Key'] = editorKey;
                 const res = await fetch(`${this.API_URL}?action=my_access`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ initData })
+                    headers,
+                    body: JSON.stringify(initData ? { initData } : {})
                 });
                 if (res.ok) {
                     const data = await res.json();
                     this._access = new Set((data.ids || []).map(String));
                     this._accessExpires = data.expires || {};
+                    this._unlimited = !!data.unlimited;
                 }
             } catch (e) {}
         }
@@ -911,7 +932,13 @@ const MenuModule = {
                 url += '?' + params.join('&');
             }
 
-            const res = await fetch(url);
+            // Ключ редактора — чтобы бессрочный доступ работал и в браузере,
+            // где нет Telegram initData.
+            const headers = {};
+            const editorKey = this._editorKey();
+            if (editorKey) headers['X-Editor-Key'] = editorKey;
+
+            const res = await fetch(url, { headers });
 
             if (!res.ok) {
                 let info = null;

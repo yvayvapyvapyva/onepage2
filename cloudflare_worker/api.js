@@ -57,7 +57,7 @@ import {
   lockForFolder, loadFolderIndex, folderPathIn, findFolderIdByPath,
   hasAccess, accessExpires, hiddenFolderIds,
 } from './lib/db.js';
-import { EDITOR_ACTIONS, requireEditor } from './lib/editor.js';
+import { EDITOR_ACTIONS, requireEditor, editorIdAllowed } from './lib/editor.js';
 import { handleReport } from './lib/report.js';
 import { recordPurchase } from './lib/shop.js';
 import { handleTelegramWebhook } from './lib/bot.js';
@@ -85,6 +85,10 @@ function isPublicRoute(route, hidden) {
 // ---- Инструкторы папок (реклама практических занятий) ----
 // Одна папка — много инструкторов. Фото лежат в D1 отдельной таблицей и
 // отдаются через ?action=instructor_photo, чтобы каталог не тащил бинарники.
+
+// Редакторам доступ показывается как купленный до 2030 года. Фактическая
+// проверка прав остаётся по EDITOR_IDS и не зависит от этой даты.
+const EDITOR_ACCESS_UNTIL = Math.floor(Date.UTC(2030, 0, 1) / 1000);
 
 const INSTRUCTOR_LIMITS = { name: 80, phone: 30, car_model: 80, text: 400, url: 300 };
 const MAX_INSTRUCTORS_PER_FOLDER = 20;
@@ -294,9 +298,16 @@ export default {
             : null;
           if (lock) {
             const initData = url.searchParams.get('tg_init_data') || bodyData.tg_init_data || '';
-            const { uid, err } = await verifyTgInitData(initData, env.TELEGRAM_TOKEN);
-            if (!uid) return json({ error: 'locked', id: lock.id, folder: lock.folder, price: lock.price }, 403);
-            if (!(await hasAccess(env, uid, lock.id))) {
+            const { uid } = await verifyTgInitData(initData, env.TELEGRAM_TOKEN);
+            // Редакторы (EDITOR_IDS или ключ редактора) открывают все платные
+            // папки без покупки и без срока. Проверка идёт на каждом запросе,
+            // поэтому новые платные папки им тоже доступны сразу.
+            let isEditor = !!(uid && editorIdAllowed(uid, env));
+            if (!isEditor) {
+              const guard = await requireEditor(request, bodyData, env);
+              isEditor = !!guard.ok;
+            }
+            if (!isEditor && !(uid && await hasAccess(env, uid, lock.id))) {
               return json({ error: 'locked', id: lock.id, folder: lock.folder, price: lock.price }, 403);
             }
           }
@@ -410,8 +421,28 @@ export default {
       if (action === 'my_access') {
         const initData = bodyData.initData || url.searchParams.get('tg_init_data') || '';
         const { uid, err } = await verifyTgInitData(initData, env.TELEGRAM_TOKEN);
+        const expires = uid ? await accessExpires(env, uid) : {};
+        // Редакторы видят все платные папки без покупки и без срока. В браузере
+        // вне Telegram редактор определяется по ключу (X-Editor-Key/editor_key).
+        let isEditor = !!(uid && editorIdAllowed(uid, env));
+        if (!isEditor) {
+          const guard = await requireEditor(request, bodyData, env);
+          isEditor = !!guard.ok;
+        }
+        if (isEditor) {
+          const locks = locksFromIndex(await loadFolderIndex(env));
+          // В клиенте это выглядит как обычная покупка: у всех платных папок
+          // один и тот же срок — до 2030 года.
+          const editorExpires = { ...expires };
+          for (const l of locks) editorExpires[String(l.id)] = EDITOR_ACCESS_UNTIL;
+          return json({
+            user_id: uid,
+            ids: locks.map((l) => String(l.id)),
+            expires: editorExpires,
+            unlimited: true,
+          });
+        }
         if (!uid) return json({ error: 'bad_init_data', message: err }, 401);
-        const expires = await accessExpires(env, uid);
         return json({ user_id: uid, ids: Object.keys(expires), expires });
       }
 
@@ -429,7 +460,8 @@ export default {
         }
         const lock = lockForFolder(index, folderId);
         if (!lock) return json({ error: 'not_locked' }, 400);
-        if (await hasAccess(env, uid, lock.id)) {
+        // Редактору счёт не нужен: доступ у него уже есть и не истекает.
+        if (editorIdAllowed(uid, env) || await hasAccess(env, uid, lock.id)) {
           return json({ ok: true, owned: true, folder: lock.folder, folder_id: lock.id });
         }
         const title = (`Доступ: ${lock.folder}`).substring(0, 32);
