@@ -1,0 +1,1570 @@
+/* ============================================
+   Общие переменные и базовые стили
+   ============================================ */
+:root {
+    --bg: #000000;
+    --glass-bg: rgba(15, 15, 15, 0.75);
+    --glass-bg-heavy: rgba(12, 12, 12, 0.82);
+    --glass-border: rgba(255, 255, 255, 0.12);
+    --glass-border-bright: rgba(255, 255, 255, 0.2);
+    --glass-highlight: rgba(255, 255, 255, 0.08);
+    --btn-txt: #ffffff;
+    --accent-green: #30D158;
+    --accent-green-glow: rgba(48, 209, 88, 0.35);
+    --accent-blue: #0A84FF;
+    --accent-red: #FF453A;
+    --accent-orange: #FF9F0A;
+    --text-primary: #ffffff;
+    --text-secondary: rgba(255, 255, 255, 0.7);
+    --text-tertiary: rgba(255, 255, 255, 0.5);
+    --shadow-soft: 0 8px 32px rgba(0, 0, 0, 0.3);
+    --shadow-medium: 0 12px 40px rgba(0, 0, 0, 0.4);
+    --shadow-strong: 0 20px 60px rgba(0, 0, 0, 0.4);
+    --radius-sm: 14px;
+    --radius-md: 18px;
+    --radius-lg: 24px;
+    --radius-xl: 28px;
+    --radius-full: 100px;
+}
+
+* {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    width: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', system-ui, sans-serif;
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--text-primary);
+    -webkit-font-smoothing: antialiased;
+}
+
+#wakeLockVideo {
+    position: fixed;
+    width: 1px;
+    height: 1px;
+    opacity: 0.001;
+    pointer-events: none;
+}
+
+/* ============================================
+   Утилиты
+   ============================================ */
+.marker-img { display: block; }
+.trigger-input { width:100%;padding:10px 14px;border-radius:10px;background:rgba(255,255,255,0.06);color:#fff;font-size:14px;outline:none;box-sizing:border-box;border:none; }
+.trigger-pad { padding:4px 0 6px; }
+.trigger-input-num { width:100%;padding:10px 14px;border-radius:10px;border:none;background:rgba(255,255,255,0.06);color:#fff;font-size:16px;font-weight:600;outline:none;box-sizing:border-box; }
+.speed-input-inline { width:60px !important;padding:10px 8px !important;text-align:center;font-size:14px !important;border-radius:8px !important;border:none !important;flex-shrink:0; }
+
+/* ============================================
+   Стили карты (общие)
+   ============================================ */
+#map {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+}
+
+[class*="-controls-pane"] { display: none !important; }
+[class*="-gotoymaps"] { display: none !important; }
+[class*="-gototaxi"] { display: none !important; }
+[class*="-map-copyrights-promo"] { display: none !important; }
+[class*="-copyrights-pane"] { display: none !important; }
+[class*="-copyright"] { display: none !important; }
+[class*="-logo-wrap"] { display: none !important; }
+[class*="-powered"] { display: none !important; }
+[class*="-watermark"] { display: none !important; }
+.ymaps3--controls_bottom.ymaps3--controls_left { display: none !important; }
+
+/* ============================================
+   Загрузка
+   ============================================ */
+.loading-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.75);
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 600;
+    text-align: center;
+    padding: 20px;
+}
+
+.loading-overlay.hidden {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+#instructionBtn {
+    position: fixed;
+    bottom: calc(170px + env(safe-area-inset-bottom));
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9005;
+    height: 52px;
+    padding: 0 16px;
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    background: var(--glass-bg);
+    color: #ffffff;
+    cursor: pointer;
+    transition: background 0.15s;
+    font-size: 15px;
+    font-weight: 600;
+    outline: none;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2), inset 0 0.5px 0 rgba(255, 255, 255, 0.15);
+}
+
+#instructionBtn:active {
+    transform: translateX(-50%) scale(0.95);
+    background: rgba(80, 80, 80, 0.6);
+}
+
+.android-app #instructionBtn {
+    bottom: calc(180px + env(safe-area-inset-bottom));
+}
+
+#instructionModal { z-index: 20000; }
+
+#instructionModal .modal-sheet {
+    height: 70vh;
+}
+
+#instructionModal .icon-row,
+#instructionModal .icon-row-v {
+    background: rgba(255,255,255,0.10);
+}
+
+.instruction-body {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 8px 12px 12px;
+}
+
+.instruction-loading {
+    text-align: center;
+    padding: 40px 20px;
+    color: #8b8f99;
+    font-size: 15px;
+}
+
+#loadingSpinner {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 10001;
+    display: none;
+    align-items: center;
+    justify-content: center;
+}
+
+#loadingSpinner.active {
+    display: flex;
+}
+
+.spinner-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+}
+
+.spinner-ring {
+    width: 48px;
+    height: 48px;
+    border: 3px solid rgba(255, 255, 255, 0.15);
+    border-top-color: #30D158;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+.spinner-text {
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    letter-spacing: -0.1px;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ============================================
+   Круглые кнопки
+   ============================================ */
+.circle-btn {
+    position: absolute;
+    z-index: 9005;
+    background: var(--glass-bg);
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    border: 0.5px solid var(--glass-border);
+    color: var(--text-primary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: var(--shadow-soft), inset 0 0.5px 0 rgba(255, 255, 255, 0.1);
+    touch-action: manipulation;
+}
+
+.circle-btn svg {
+    fill: currentColor;
+    width: 22px;
+    height: 22px;
+}
+
+.circle-btn:active {
+    background: rgba(30, 30, 30, 0.5);
+}
+
+.circle-btn.active {
+    background: rgba(48, 209, 88, 0.5);
+    border-color: var(--accent-green);
+    box-shadow: var(--shadow-soft), 0 0 20px var(--accent-green-glow), inset 0 0.5px 0 rgba(255, 255, 255, 0.15);
+}
+
+#locateBtn {
+    top: calc(76px + env(safe-area-inset-top));
+    right: 12px;
+}
+
+#playBtn.active {
+    background: rgba(255,59,48,0.2);
+}
+
+#playBtn.active svg {
+    fill: #FF453A;
+}
+
+#routeNameDisplay {
+    position: absolute;
+    top: calc(50px + env(safe-area-inset-top));
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9005;
+    color: #ffffff;
+    font-size: 12px;
+    font-weight: 700;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8), 0 0 8px rgba(0, 0, 0, 0.4);
+    white-space: normal;
+    word-break: break-word;
+    pointer-events: none;
+    display: none;
+    text-align: center;
+    line-height: 1.3;
+    opacity: 0.6;
+    max-width: calc(100% - 140px);
+}
+
+#topCenterControls #routeNameDisplay {
+    position: static;
+    top: auto;
+    left: auto;
+    transform: none;
+    z-index: auto;
+    max-width: none;
+}
+
+/* ============================================
+   Верхняя центральная панель (меню + спидометр)
+   ============================================ */
+#topCenterControls {
+    position: absolute;
+    top: calc(12px + env(safe-area-inset-top));
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9005;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+/* ============================================
+   Панель телеметрии (спидометр)
+   ============================================ */
+#telemetryPanel {
+    position: fixed;
+    top: calc(140px + env(safe-area-inset-top));
+    right: 12px;
+    z-index: 9005;
+    background: var(--glass-bg);
+    border-radius: 50%;
+    border: 0.5px solid var(--glass-border);
+    cursor: pointer;
+    box-shadow: var(--shadow-soft), inset 0 0.5px 0 rgba(255, 255, 255, 0.1);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    width: 52px;
+    height: 52px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    padding: 8px;
+}
+
+#telemetryPanel:active {
+    transform: scale(0.92);
+    background: rgba(30, 30, 30, 0.5);
+}
+
+.tel-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.tel-label {
+    font-size: 8px;
+    color: #ffffff;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8), 0 0 8px rgba(0, 0, 0, 0.4);
+}
+
+.tel-value {
+    font-size: 16px;
+    font-weight: 800;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    color: #ffffff;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8), 0 0 8px rgba(0, 0, 0, 0.4);
+}
+
+/* ============================================
+   HUD (панель навигации)
+   ============================================ */
+#hud {
+    position: absolute;
+    bottom: calc(20px + env(safe-area-inset-bottom));
+    left: 12px;
+    right: 12px;
+    z-index: 9000;
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+    pointer-events: auto;
+    box-sizing: border-box;
+}
+
+#hud.active {
+    display: flex;
+}
+
+.android-app #hud {
+    bottom: calc(30px + env(safe-area-inset-bottom));
+}
+
+.hud-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* Панель предыдущей команды — та же вёрстка, что и основная, но полупрозрачная */
+.hud-prev-header {
+    width: 100%;
+}
+
+.hud-cmd.hud-prev {
+    opacity: 0.55;
+    width: 100%;
+}
+
+#hudPrevCmdNum {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    cursor: pointer;
+    border-radius: 50%;
+    transition: transform 0.1s, opacity 0.1s;
+    -webkit-tap-highlight-color: transparent;
+}
+
+#hudPrevCmdNum:active {
+    transform: scale(0.85);
+    opacity: 0.7;
+}
+
+#hudPrevCmdNum.playing {
+    animation: hud-pulse 0.4s ease-in-out infinite;
+}
+
+#hudPrevCmdText {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    padding: 4px 0;
+}
+
+#hudPrevCmdTextInner {
+    display: block;
+    text-align: left;
+}
+
+#hudPrevCmdDist {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    line-height: 1.2;
+    flex-shrink: 0;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    padding: 6px 10px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.08);
+    font-size: 15px;
+}
+
+#prevCommentText {
+    font-size: 11px;
+    line-height: 1.3;
+    color: rgba(255,255,255,0.8);
+    white-space: pre-wrap;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+    display: none;
+    border: 1px solid rgba(255,69,58,0.5);
+    border-radius: 4px;
+    padding: 6px 12px;
+    margin: 2px 2px 6px;
+    box-sizing: border-box;
+}
+
+.hud-cmd {
+    font-size: 18px;
+    font-weight: 700;
+    flex: 1;
+    letter-spacing: -0.2px;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+    background: var(--glass-bg);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    color: #fff;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background 0.15s;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2), inset 0 0.5px 0 rgba(255, 255, 255, 0.15);
+    touch-action: manipulation;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.hud-cmd-row {
+    display: flex;
+    align-items: center;
+    padding: 2px 0;
+    gap: 10px;
+    min-height: 52px;
+}
+
+#hudCmdNum {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    cursor: pointer;
+    border-radius: 50%;
+    transition: transform 0.1s, opacity 0.1s;
+    -webkit-tap-highlight-color: transparent;
+}
+
+#hudCmdNum:active {
+    transform: scale(0.85);
+    opacity: 0.7;
+}
+
+#hudCmdNum.playing {
+    animation: hud-pulse 0.4s ease-in-out infinite;
+}
+
+@keyframes hud-pulse {
+    0% { transform: scale(0.92); opacity: 0.85; }
+    50% { transform: scale(1); opacity: 1; }
+    100% { transform: scale(0.92); opacity: 0.85; }
+}
+
+#hudCmdText {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    padding: 4px 0;
+}
+
+#hudCmdTextInner {
+    display: block;
+    text-align: left;
+}
+
+.hud-actions {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    touch-action: manipulation;
+}
+
+#hudCmdDist {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    line-height: 1.2;
+    flex-shrink: 0;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    padding: 6px 10px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.08);
+    font-size: 15px;
+}
+
+#hudCmdDist .dist-unit {
+    font-size: 9px;
+    font-weight: 600;
+    opacity: 0.7;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+#hudCmdDist.in-range {
+    border-color: var(--accent-green);
+    background: rgba(48, 209, 88, 0.12);
+    color: var(--accent-green);
+    text-shadow: 0 0 12px var(--accent-green-glow), 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+/* ============================================
+   Навигационная пилюля (назад, симуляция, вперёд)
+   ============================================ */
+.nav-pill {
+    display: flex;
+    width: 100%;
+    height: 48px;
+    border-radius: 100px;
+    background: rgba(15, 15, 15, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), inset 0 0.5px 0 rgba(255, 255, 255, 0.1);
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.nav-pill-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    color: #ffffff;
+    cursor: pointer;
+    height: 100%;
+    padding: 0;
+    transition: background 0.15s;
+    touch-action: manipulation;
+}
+
+.nav-pill-btn svg {
+    fill: currentColor;
+    width: 22px;
+    height: 22px;
+}
+
+.nav-pill-divider {
+    width: 1px;
+    background: rgba(255, 255, 255, 0.4);
+    flex-shrink: 0;
+}
+
+.nav-pill-btn:active {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.nav-pill-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+#playBtn.active svg {
+    fill: #FF453A;
+}
+
+#playBtn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* ============================================
+   Индикатор датчика удара (шок-бар)
+   ============================================ */
+#shockBar {
+    display: none;
+    position: fixed;
+    top: calc(4px + env(safe-area-inset-top));
+    left: 0;
+    right: 0;
+    z-index: 9002;
+    height: 4px;
+    background: transparent;
+    pointer-events: none;
+}
+#shockBarFill {
+    height: 100%;
+    width: 0%;
+    background: #30D158;
+}
+#shockBarValue {
+    position: absolute;
+    top: calc(50% - 2px);
+    left: 12px;
+    transform: translateY(-50%);
+    font-size: 10px;
+    font-weight: 800;
+    color: #ffffff;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.3px;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.9), 0 0 6px rgba(0,0,0,0.6);
+    line-height: 1;
+}
+
+/* ============================================
+   Комментарий внутри hud-cmd
+   ============================================ */
+#commentText {
+    font-size: 11px;
+    line-height: 1.3;
+    color: rgba(255,255,255,0.8);
+    white-space: pre-wrap;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+    display: none;
+    border: 1px solid rgba(255,69,58,0.5);
+    border-radius: 4px;
+    padding: 6px 12px;
+    margin: 2px 2px 6px;
+    box-sizing: border-box;
+}
+
+/* ============================================
+   Toast уведомления
+   ============================================ */
+#toast {
+    position: fixed;
+    top: calc(90px + env(safe-area-inset-top));
+    left: 50%;
+    transform: translateX(-50%) translateY(-100px);
+    background: var(--glass-bg-heavy);
+    color: var(--text-primary);
+    padding: 14px 24px;
+    border-radius: var(--radius-full);
+    font-size: 15px;
+    z-index: 16000;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    opacity: 0;
+    border: 0.5px solid var(--glass-border);
+    font-weight: 600;
+    max-width: 85vw;
+    white-space: pre-wrap;
+    text-align: center;
+    line-height: 1.4;
+    pointer-events: none;
+    box-shadow: var(--shadow-medium), inset 0 0.5px 0 rgba(255, 255, 255, 0.1);
+    letter-spacing: -0.1px;
+}
+
+#toast.show {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+}
+
+#toast.success {
+    background: rgba(48, 209, 88, 0.85);
+    border-color: rgba(48, 209, 88, 0.5);
+}
+
+#toast.error {
+    background: rgba(255, 69, 58, 0.85);
+    border-color: rgba(255, 69, 58, 0.5);
+}
+
+#toast.info {
+    background: var(--glass-bg-heavy);
+}
+
+/* ============================================
+   Модальное окно меню (menu-module)
+   ============================================ */
+#menuBtn {
+    position: relative;
+    width: auto;
+    padding: 0 18px;
+    border-radius: 100px;
+    height: 48px;
+    gap: 8px;
+    background: rgba(15, 15, 15, 0.75);
+    border: 0.5px solid rgba(255, 255, 255, 0.12);
+    color: #ffffff;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), inset 0 0.5px 0 rgba(255, 255, 255, 0.1);
+    flex-shrink: 0;
+}
+
+#menuBtn svg {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+}
+
+#menuBtn span {
+    font-size: 15px;
+    font-weight: 700;
+    white-space: nowrap;
+    letter-spacing: -0.1px;
+    color: #fff;
+}
+
+#menuBtn:active {
+    transform: scale(0.94);
+    background: rgba(30, 30, 30, 0.5);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+}
+
+#jsonModal .routes-list {
+    padding: 8px 8px 16px;
+    margin-top: 0;
+}
+
+.modal-sheet {
+    width: 100%;
+    height: 100%;
+    background: #0f0f0f;
+    border: 0.5px solid rgba(255, 255, 255, 0.12);
+    border-radius: 24px;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4), inset 0 0.5px 0 rgba(255, 255, 255, 0.06);
+    overflow: hidden;
+    box-sizing: border-box;
+}
+
+.routes-list {
+    margin-top: 8px;
+    flex: 1 1 0%;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px 4px 0;
+}
+.routes-list::after {
+    content: '';
+    display: block;
+    height: 50px;
+    pointer-events: none;
+    flex-shrink: 0;
+}
+
+.route-item {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 14px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    text-align: left;
+    width: 100%;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+    position: relative;
+}
+
+.route-item:active {
+    transform: scale(0.98);
+    background: rgba(48, 209, 88, 0.2);
+    border-color: rgba(48, 209, 88, 0.4);
+}
+
+.route-info-btn {
+    position: absolute;
+    top: 5px;
+    right: 10px;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    border: 1.5px solid rgba(255, 255, 255, 0.4);
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 16px;
+    font-weight: 700;
+    font-style: italic;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    padding: 0;
+    line-height: 1;
+    z-index: 10;
+}
+
+.route-info-btn:active {
+    transform: scale(0.88);
+    background: rgba(10, 132, 255, 0.35);
+    border-color: rgba(10, 132, 255, 0.7);
+    color: #fff;
+}
+
+.route-name {
+    font-size: 16px;
+    font-weight: 600;
+    color: #fff;
+    line-height: 1.3;
+    letter-spacing: -0.1px;
+    padding-right: 36px;
+}
+
+/* ============================================
+   Модальное окно описания маршрута и paywall
+   ============================================ */
+#routeDescModal,
+#paywallModal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 12000;
+}
+
+.desc-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    z-index: 99999;
+}
+
+#routeDescModal.visible .desc-modal-overlay,
+#paywallModal.visible .desc-modal-overlay {
+    opacity: 1;
+}
+
+.desc-modal-content {
+    width: 90%;
+    max-width: 500px;
+    max-height: 80vh;
+    background: rgba(15, 15, 15, 0.97);
+    border: 0.5px solid rgba(255, 255, 255, 0.12);
+    border-radius: 20px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), inset 0 0.5px 0 rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+    transform: scale(0.9);
+    transition: transform 0.2s ease;
+}
+
+#routeDescModal.visible .desc-modal-content,
+#paywallModal.visible .desc-modal-content {
+    transform: scale(1);
+}
+
+.desc-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 0.5px solid rgba(255, 255, 255, 0.08);
+}
+
+.desc-modal-header span {
+    font-size: 17px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: -0.1px;
+    flex: 1;
+}
+
+.desc-close-btn {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255, 255, 255, 0.12);
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 24px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+
+.desc-close-btn:active {
+    transform: scale(0.9);
+    background: rgba(255, 255, 255, 0.2);
+    color: #fff;
+}
+
+.desc-modal-body {
+    padding: 20px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    font-size: 15px;
+    line-height: 1.5;
+    color: rgba(255, 255, 255, 0.85);
+    white-space: pre-wrap;
+}
+
+/* ============================================
+   Категории
+   ============================================ */
+.category-folder {
+    width: 100%;
+}
+
+.category-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 16px;
+    border-radius: 14px;
+    background: rgba(0, 122, 255, 0.25);
+    border: 1px solid rgba(0, 122, 255, 0.5);
+    cursor: pointer;
+    transition: all 0.2s;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.category-header.expanded {
+    background: rgba(0, 122, 255, 0.15);
+}
+.category-header.personal {
+    background: rgba(175, 82, 222, 0.25);
+    border-color: rgba(175, 82, 222, 0.5);
+}
+.category-header.personal.expanded {
+    background: rgba(175, 82, 222, 0.15);
+}
+.category-header.root {
+    background: rgba(0, 122, 255, 0.25);
+    border-color: rgba(0, 122, 255, 0.5);
+}
+.category-header.root.expanded {
+    background: rgba(0, 122, 255, 0.15);
+}
+.category-header:active {
+    transform: scale(0.98);
+    background: rgba(0, 122, 255, 0.25);
+}
+.category-header.root:active {
+    background: rgba(0, 122, 255, 0.25);
+}
+
+.category-icon {
+    font-size: 18px;
+    flex-shrink: 0;
+}
+
+.category-name {
+    flex: 1;
+    font-size: 16px;
+    font-weight: 600;
+    color: #fff;
+    text-align: left;
+}
+
+.category-count {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.5);
+    background: rgba(255, 255, 255, 0.1);
+    padding: 2px 8px;
+    border-radius: 10px;
+    flex-shrink: 0;
+}
+
+/* Бейдж цены для закрытой платной папки («Купить · N ⭐») */
+.category-price {
+    font-size: 12px;
+    font-weight: 600;
+    color: #FFD700;
+    background: rgba(255, 215, 0, 0.12);
+    border: 1px solid rgba(255, 215, 0, 0.35);
+    padding: 2px 8px;
+    border-radius: 10px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* Бейдж купленной папки («✅ Куплено · N дн.») */
+.category-owned {
+    font-size: 12px;
+    font-weight: 600;
+    color: #30D158;
+    background: rgba(48, 209, 88, 0.15);
+    border: 1px solid rgba(48, 209, 88, 0.4);
+    padding: 2px 8px;
+    border-radius: 10px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* ============================================
+   Модальное окно настроек навигатора
+   ============================================ */
+#navSettingsModal .settings-body {
+    padding: 8px 12px 16px;
+}
+
+.settings-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+}
+.settings-body::after {
+    content: '';
+    display: block;
+    height: 50px;
+    pointer-events: none;
+    flex-shrink: 0;
+}
+
+.settings-label {
+    font-size: 16px;
+    font-weight: 600;
+    text-align: center;
+}
+
+.settings-group {
+    background: rgba(255,255,255,0.10);
+    border-radius: 12px;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.settings-group + .settings-group {
+    margin-top: 12px;
+}
+
+.map-type-btns {
+    display: flex;
+    gap: 10px;
+}
+
+.map-type-btn {
+    flex: 1;
+    padding: 14px;
+    border-radius: 12px;
+    background: var(--glass-bg);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    color: #fff;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: center;
+}
+
+.map-type-btn:active {
+    background: rgba(80, 80, 80, 0.6);
+}
+
+.map-type-btn.active {
+    border-color: var(--accent-green);
+    background: rgba(48, 209, 88, 0.15);
+    box-shadow: 0 0 12px rgba(48, 209, 88, 0.2);
+}
+
+/* ---- Trigger settings ---- */
+.trigger-setting-row {
+    display: flex;
+    flex-direction: column;
+}
+
+.trigger-setting-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 0 0 6px 0;
+}
+
+.trigger-setting-row .label {
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    flex: 1;
+}
+
+.trigger-setting-row .value {
+    font-size: 14px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.5);
+    min-width: 28px;
+    text-align: center;
+}
+
+.trigger-setting-row input[type="range"] {
+    width: 100%;
+    height: 32px;
+    margin: 0;
+    padding: 0;
+    accent-color: #30D158;
+    -webkit-appearance: none;
+    appearance: none;
+    background: transparent;
+    box-sizing: border-box;
+}
+
+.trigger-setting-row input[type="range"]::-webkit-slider-runnable-track {
+    height: 10px;
+    border-radius: 5px;
+    background: rgba(255,255,255,0.12);
+}
+
+.trigger-setting-row input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: #30D158;
+    margin-top: -9px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+.trigger-setting-row input[type="range"]::-moz-range-track {
+    height: 10px;
+    border-radius: 5px;
+    background: rgba(255,255,255,0.12);
+    border: none;
+}
+
+.trigger-setting-row input[type="range"]::-moz-range-thumb {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: #30D158;
+    border: none;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+/* ---- Tree view for route list ---- */
+.route-item.dragging {
+    opacity: 0.5;
+}
+
+.category-header.personal:active {
+    background: rgba(175, 82, 222, 0.25);
+}
+
+.personal-routes-body {
+    padding: 8px 0 4px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+/* ============================================
+   Bottom sheet modal (shared)
+   ============================================ */
+.sheet-modal {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    z-index: 11000;
+    pointer-events: none;
+}
+
+.sheet-modal .modal-sheet {
+    height: 70vh;
+    border-radius: 24px 24px 0 0;
+    padding: 0;
+    margin: 0;
+    width: 100%;
+    max-width: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    background: #0f0f0f;
+    border: 0.5px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4), inset 0 0.5px 0 rgba(255, 255, 255, 0.06);
+    box-sizing: border-box;
+    transform: translateY(100%);
+    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    pointer-events: auto;
+}
+
+.sheet-modal:not(.hidden) .modal-sheet {
+    transform: translateY(0);
+}
+
+.sheet-modal.hidden .modal-sheet {
+    pointer-events: none;
+}
+
+.sheet-drag-area {
+    flex-shrink: 0;
+    touch-action: none;
+    cursor: grab;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 0;
+    min-height: 44px;
+
+    box-sizing: border-box;
+    border-bottom: 0.5px solid rgba(255,255,255,0.15);
+    background: rgba(255,255,255,0.06);
+}
+
+.sheet-handle {
+    width: 100px;
+    height: 26px;
+    flex-shrink: 0;
+    opacity: 0.5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+}
+
+.sheet-handle svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    fill: #fff;
+    pointer-events: none;
+}
+
+#pointsListWrap {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 8px 0;
+    -webkit-overflow-scrolling: touch;
+}
+#pointsListWrap::after {
+    content: '';
+    display: block;
+    height: 50px;
+    pointer-events: none;
+}
+
+.pl-item {
+    cursor: pointer;
+    touch-action: manipulation;
+    padding: 4px 0;
+}
+
+.pl-item:active {
+    opacity: 0.8;
+}
+
+.pl-item-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding: 0 4px;
+    min-height: 52px;
+    background: var(--glass-bg);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2), inset 0 0.5px 0 rgba(255, 255, 255, 0.15);
+    box-sizing: border-box;
+}
+
+.pl-item-row-main {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 52px;
+    padding: 2px 0;
+}
+
+.pl-item.pl-active .pl-item-row {
+    border-width: 2px;
+    box-shadow: 0 0 12px rgba(0,255,0,0.15), 0 2px 8px rgba(0, 0, 0, 0.2), inset 0 0.5px 0 rgba(255, 255, 255, 0.15);
+}
+
+.pl-item-icon {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border-radius: 50%;
+    transition: transform 0.1s, opacity 0.1s;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.pl-item-icon:active {
+    transform: scale(0.85);
+    opacity: 0.7;
+}
+
+.pl-item-icon.playing {
+    animation: hud-pulse 0.4s ease-in-out infinite;
+}
+
+.pl-prev {
+    opacity: 0.45;
+}
+
+.pl-item-text {
+    flex: 1;
+    font-size: 18px;
+    font-weight: 700;
+    min-width: 0;
+    word-break: break-word;
+    line-height: 1.3;
+    padding: 4px 0;
+}
+
+.pl-item-dist {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    line-height: 1.2;
+    flex-shrink: 0;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    padding: 6px 10px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.08);
+    font-size: 15px;
+}
+
+.pl-item-dist .dist-unit {
+    font-size: 9px;
+    font-weight: 600;
+    opacity: 0.7;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.pl-comment {
+    font-size: 11px;
+    line-height: 1.3;
+    color: rgba(255,255,255,0.8);
+    white-space: pre-wrap;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+    border: 1px solid rgba(255,69,58,0.5);
+    border-radius: 4px;
+    padding: 4px 8px;
+    margin: 4px 6px 6px;
+    box-sizing: border-box;
+}
+
+/* ============================================
+   Инструкторы (реклама практических занятий)
+   ============================================ */
+/* Обёртка на всю ширину: бейдж всегда на новой строке под названием папки. */
+.category-instructors-row {
+    flex: 0 0 100%;
+    display: flex;
+}
+.category-instructors {
+    flex: 0 0 auto;
+    padding: 5px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 214, 10, 0.55);
+    background: rgba(255, 214, 10, 0.2);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.3;
+    cursor: pointer;
+    box-sizing: border-box;
+}
+.category-instructors:active {
+    transform: scale(0.96);
+    background: rgba(255, 214, 10, 0.3);
+}
+
+.instructors-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 14px 14px 40px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    -webkit-overflow-scrolling: touch;
+}
+.instructors-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.75);
+    padding: 0 2px 2px;
+}
+.instructor-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+}
+.instructor-top {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+}
+.instructor-avatar {
+    width: 56px;
+    height: 56px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    font-weight: 700;
+    color: #fff;
+    background: linear-gradient(135deg, rgba(0, 122, 255, 0.65), rgba(88, 86, 214, 0.65));
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+.instructor-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.instructor-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.instructor-name {
+    font-size: 16px;
+    font-weight: 700;
+    color: #fff;
+}
+.instructor-car {
+    font-size: 13px;
+    font-weight: 600;
+    color: rgba(255, 214, 10, 0.9);
+}
+.instructor-text {
+    font-size: 13px;
+    line-height: 1.4;
+    color: rgba(255, 255, 255, 0.7);
+}
+.instructor-actions {
+    display: flex;
+    gap: 8px;
+}
+.instructor-call,
+.instructor-write {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 11px 10px;
+    border-radius: 12px;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 600;
+}
+.instructor-call {
+    color: #fff;
+    background: linear-gradient(180deg, rgba(52, 199, 89, 0.9), rgba(40, 160, 70, 0.85));
+    border: 1px solid rgba(52, 199, 89, 0.5);
+}
+.instructor-write {
+    color: #fff;
+    background: rgba(0, 122, 255, 0.3);
+    border: 1px solid rgba(0, 122, 255, 0.5);
+}
+.instructor-call:active,
+.instructor-write:active {
+    transform: scale(0.97);
+}
+.instructor-car-photo {
+    width: 100%;
+    max-height: 200px;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(0, 0, 0, 0.25);
+}
+.instructor-car-photo img {
+    width: 100%;
+    height: 100%;
+    max-height: 200px;
+    object-fit: cover;
+    display: block;
+}
+
+/* ============================================
+   Telegram fullscreen: безопасные отступы
+   ============================================ */
+:root {
+    --tg-safe-top: 0px;
+    --tg-safe-bottom: 0px;
+}
+html.tg-fullscreen #locateBtn {
+    top: calc(76px + max(env(safe-area-inset-top, 0px), var(--tg-safe-top)));
+}
+html.tg-fullscreen #telemetryPanel {
+    top: calc(140px + max(env(safe-area-inset-top, 0px), var(--tg-safe-top)));
+}
+html.tg-fullscreen #settingsBtn {
+    top: calc(76px + max(env(safe-area-inset-top, 0px), var(--tg-safe-top))) !important;
+}
+html.tg-fullscreen #hud {
+    bottom: calc(20px + max(env(safe-area-inset-bottom, 0px), var(--tg-safe-bottom)));
+}
+html.android-app.tg-fullscreen #hud {
+    bottom: calc(30px + max(env(safe-area-inset-bottom, 0px), var(--tg-safe-bottom)));
+}

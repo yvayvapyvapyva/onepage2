@@ -12,6 +12,8 @@ SITE_FILES=(
   index.html
   navigator.html
   navigator-v3.html
+  navigator-test.html
+  editor-test.html
   editor.html
   instr.html
   instr_editor.html

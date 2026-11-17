@@ -6,7 +6,6 @@
     <link rel="icon" href="ico.png" type="image/png">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
     <link rel="stylesheet" href="assets/css/editor.css?v=2">
-    <link rel="stylesheet" href="assets/css/maplibre-gl.css?v=1">
 </head>
 <body>
 
@@ -168,13 +167,9 @@
   tryLoad('https://telegram.org/js/telegram-web-app.js', '__tgWebAppFailed');
 })(window);
 </script>
-    <script src="assets/js/maplibre-gl.js?v=1"></script>
-    <script src="assets/js/pmtiles.js?v=1"></script>
-    <script src="assets/js/map-styles.js?v=1"></script>
-    <script src="assets/js/map-shim.js?v=1"></script>
+    <script src="https://api-maps.yandex.ru/v3/?apikey=c0e28937-4e16-4d15-9b99-09a30cb8fc13&lang=ru_RU" onerror="window.__ycMapsFailed = true;"></script>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js" defer onerror="window.__sortableFailed = true;"></script>
 <script src="assets/js/config.js?v=4"></script>
-<script src="assets/js/tg-fullscreen.js?v=1"></script>
 <script src="assets/js/tts-client.js?v=1"></script>
 <script src="assets/js/report.js?v=4"></script>
 <script>
@@ -593,7 +588,7 @@ function initMapWithGeolocation() {
 }
 
 if (typeof ymaps3 === 'undefined' || !ymaps3.ready) {
-    showToast('Ошибка загрузки карты (MapLibre)', 'error', 8000);
+    showToast('Ошибка загрузки Яндекс.Карт (возможно, блокировка)', 'error', 8000);
     const wsEl = document.getElementById('welcomeScreen');
     if (wsEl) wsEl.style.display = 'none';
 } else {

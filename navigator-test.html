@@ -1,0 +1,1965 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <title>МОБИЛЬНЫЙ АВТОИНСТРУКТОР (тест)</title>
+    <link rel="icon" href="ico.png" type="image/png">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <link rel="stylesheet" href="assets/css/navigator-test.css?v=1">
+    <link rel="stylesheet" href="assets/css/maplibre-gl.css?v=1">
+    <style>
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 52px;
+    height: 32px;
+    flex-shrink: 0;
+}
+.toggle-input { display: none; }
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    inset: 0;
+    background: rgba(255,255,255,0.15);
+    border-radius: 32px;
+    transition: 0.25s;
+}
+.toggle-slider::before {
+    content: '';
+    position: absolute;
+    width: 26px; height: 26px;
+    left: 3px; bottom: 3px;
+    background: #fff;
+    border-radius: 50%;
+    transition: 0.25s;
+}
+.toggle-input:checked + .toggle-slider {
+    background: #30D158;
+}
+.toggle-input:checked + .toggle-slider::before {
+    transform: translateX(20px);
+}
+</style>
+</head>
+<body>
+
+<div id="loading" class="loading-overlay">
+    <div id="loadingText">ЗАГРУЗКА...</div>
+</div>
+
+<div id="instructionModal" class="hidden sheet-modal">
+    <div class="modal-sheet" id="instructionSheet">
+        <div class="sheet-drag-area" id="instructionDragArea">
+            <div class="sheet-handle"><svg viewBox="0 0 24 24"><path d="M3 9L12 14.2L21 9" stroke="#fff" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        </div>
+        <div class="instruction-body" id="instructionBody">
+            <div class="instruction-loading">Загрузка...</div>
+        </div>
+    </div>
+</div>
+
+
+<video id="wakeLockVideo" playsinline muted loop></video>
+<div id="map"></div>
+<button id="settingsBtn" class="circle-btn" title="Настройки" style="top: calc(76px + env(safe-area-inset-top)); left: 12px;">
+    <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.488.488 0 00-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 00-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+</button>
+<button id="locateBtn" class="circle-btn">
+    <svg viewBox="0 0 24 24"><path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3c-.46-4.17-3.77-7.48-7.94-7.94V1h-2v2.06C6.83 3.52 3.52 6.83 3.06 11H1v2h2.06c.46 4.17 3.77 7.48 7.94 7.94V23h2v-2.06c4.17-.46 7.48-3.77 7.94-7.94H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg>
+</button>
+
+<div id="telemetryPanel">
+    <div class="tel-item"><span class="tel-label">КМ/Ч</span><span class="tel-value" id="telSpeed">0</span></div>
+</div>
+<div id="topCenterControls"><div id="routeNameDisplay"></div></div>
+<button id="instructionBtn">📖 Инструкция</button>
+
+<div id="hud">
+    <div class="hud-header hud-prev-header" id="hudPrevHeader" style="display:none">
+        <button class="hud-cmd hud-prev" id="hudPrevCmd"><div class="hud-cmd-row"><span id="hudPrevCmdNum">1</span><span id="hudPrevCmdText"><span id="hudPrevCmdTextInner"></span></span><span id="hudPrevCmdDist" style="display:none">---</span></div><span id="prevCommentText"></span></button>
+    </div>
+    <div class="hud-header">
+        <button class="hud-cmd" id="hudCmd"><div class="hud-cmd-row"><span id="hudCmdNum">1</span><span id="hudCmdText"><span id="hudCmdTextInner">Маршрут не выбран</span></span><span id="hudCmdDist">---</span></div><span id="commentText"></span></button>
+    </div>
+    <div class="hud-actions">
+        <div class="nav-pill">
+            <button class="nav-pill-btn" id="prevBtn" title="Предыдущая точка"></button>
+            <div class="nav-pill-divider"></div>
+            <button class="nav-pill-btn" id="playBtn" title="Симуляция проезда">
+                <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            </button>
+            <div class="nav-pill-divider"></div>
+            <button class="nav-pill-btn" id="nextBtn" title="Следующая точка"></button>
+        </div>
+    </div>
+</div>
+
+<div id="shockBar">
+    <div id="shockBarFill"></div>
+    <span id="shockBarValue">0.0</span>
+</div>
+
+<div id="toast"></div>
+
+<script src="assets/js/config.js?v=4"></script>
+<script src="assets/js/tg-fullscreen.js?v=1"></script>
+<script src="assets/js/tts-client.js?v=1"></script>
+<script src="assets/js/report.js?v=4"></script>
+<script src="assets/js/maplibre-gl.js?v=1"></script>
+<script src="assets/js/pmtiles.js?v=1"></script>
+<script src="assets/js/map-styles.js?v=1"></script>
+<script src="assets/js/map-shim.js?v=1"></script>
+<script>
+// Грузим Telegram SDK асинхронно с таймаутом 10с.
+// Если telegram.org заблокирован или недоступен — не блокируем загрузку приложения.
+(function (g) {
+  var finished = false, pending = 0, cbs = [];
+  function finish() {
+    if (finished) return;
+    finished = true;
+    var list = cbs.splice(0);
+    for (var i = 0; i < list.length; i++) { try { list[i](); } catch (e) {} }
+  }
+  function tryLoad(url, flag) {
+    pending++;
+    var settled = false;
+    var controller = null;
+    var timeout = null;
+    function settle(failed) {
+      if (settled) return; settled = true;
+      if (failed) { try { g[flag] = true; } catch (e) {} }
+      if (timeout) { clearTimeout(timeout); timeout = null; }
+      if (controller) { try { controller.abort(); } catch (e) {} controller = null; }
+      if (--pending === 0) finish();
+    }
+    timeout = setTimeout(function () { settle(true); }, 10000);
+    if (typeof fetch === 'function' && typeof AbortController !== 'undefined') {
+      // Реально отменяем запрос через 10с, чтобы браузер не крутил спиннер
+      controller = new AbortController();
+      fetch(url, { signal: controller.signal })
+        .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+        .then(function (code) {
+          if (settled) return;
+          try {
+            var s = document.createElement('script');
+            s.text = code;
+            (document.head || document.documentElement).appendChild(s);
+          } catch (e) {}
+          settle(false);
+        })
+        .catch(function () { settle(true); });
+    } else {
+      var s = document.createElement('script');
+      s.async = true;
+      var done = false;
+      function done_(failed) { if (done) return; done = true; settle(failed); }
+      s.onload = function () { done_(false); };
+      s.onerror = function () { done_(true); };
+      s.src = url;
+      try { (document.head || document.documentElement).appendChild(s); }
+      catch (e) { done_(true); }
+    }
+  }
+  g.bootPlatforms = function (cb) {
+    if (finished) { try { cb(); } catch (e) {} }
+    else cbs.push(cb);
+  };
+  g.platformReady = new Promise(function (r) { g.bootPlatforms(r); });
+  tryLoad('https://telegram.org/js/telegram-web-app.js', '__tgWebAppFailed');
+})(window);
+</script>
+<script src="assets/js/menu-module.js?v=13" defer></script>
+<script>
+const APP = {
+    map: null, userMarker: null, lastPos: null, lastAz: 0, rawAz: 0, lastTilt: 0, autoCenter: false, currentSpeed: 0,
+    navPoints: [],     navCurrentIndex: 0, navPreviewIndex: -1, _routeTotalDistance: 0,
+    navAudio: new Audio(), _commentAudio: new Audio(),
+    navConfig: { TRIGGER_DIST: 25, AZ_TOLERANCE: 45, SPEED_THRESHOLD: 2, SHOCK_THRESHOLD: 1, SHOCK_PHRASE: 'Сильный удар', SPEED_ALERT_THRESHOLD: 58, SPEED_ALERT_PHRASE: 'Превышена максимальная скорость' },
+    _isScheme: false, _schemeLayer: null, _satLayer: null, _featuresLayer: null, _buildings: null,
+    _driveActive: false, _driveRaf: null, _driveMarker: null, _driveShowFrom: -1,
+    _driveSpeed: 90,
+    _userMarkerEl: null, markerRotation: 0,
+    _lastMarkerPos: null, _currentDisplayAz: 0, _prevAnim: null,
+    _infoMarkers: [],
+    _audioCache: new Map(),
+    _commentEnabled: true,
+    _lastShockTime: 0,
+    _lastSpeedAlertTime: 0,
+    _motionTracked: false,
+    _shockDisplayG: 0,
+    _shockPeakTime: 0,
+    _simFirstRun: true,
+    _simMode: false,
+    _drivePaused: false,
+    _drivePauseData: null,
+    _navSeq: 0,
+    _audioPending: 0,
+    _autoCenterTimer: null
+};
+
+const $ = id => document.getElementById(id);
+
+// Ключ локального кэша аудио. Тип голоса обязателен: один и тот же текст,
+// озвученный как команда и как комментарий, — это два разных файла.
+function ttsCacheKey(text, voiceType) {
+    const type = voiceType === 'comment' ? 'comment' : 'command';
+    return `${type}\0${String(text || '').trim()}`;
+}
+
+// Telegram detection (только для подписи отчётов window.tgUser, авторизации нет)
+(function() {
+    const runAuth = () => {
+        if (window._authRan) return;
+        window._authRan = true;
+        if (typeof Telegram !== 'undefined' && Telegram.WebApp) {
+            try {
+                Telegram.WebApp.ready();
+                Telegram.WebApp.expand();
+                if (Telegram.WebApp.version && parseFloat(Telegram.WebApp.version) >= 7.0) {
+                    try { Telegram.WebApp.requestFullscreen?.(); } catch (e) {}
+                    try { Telegram.WebApp.disableVerticalSwipes?.(); } catch (e) {}
+                }
+                const user = Telegram.WebApp.initDataUnsafe?.user;
+                if (user) window.tgUser = user;
+            } catch (e) {}
+        }
+        if (navigator.userAgent.includes('Android') && window.tgUser) {
+            document.documentElement.classList.add('android-app');
+        }
+    };
+    if (window.bootPlatforms) window.bootPlatforms(runAuth); else runAuth();
+})();
+
+let toastTimer = null;
+function showToast(text, type = 'info', duration = 2000) {
+    const el = $('toast');
+    el.textContent = text;
+    el.className = `toast ${type} show`;
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove('show'), duration);
+}
+
+let _editorHoldTimer = null;
+const speedEl = document.getElementById('telemetryPanel');
+if (speedEl) {
+    speedEl.addEventListener('pointerdown', () => {
+        _editorHoldTimer = setTimeout(() => {
+            _editorHoldTimer = null;
+            window.location.href = 'editor.html';
+        }, 1000);
+    });
+    speedEl.addEventListener('pointerup', () => {
+        if (_editorHoldTimer) { clearTimeout(_editorHoldTimer); _editorHoldTimer = null; }
+    });
+    speedEl.addEventListener('pointerleave', () => {
+        if (_editorHoldTimer) { clearTimeout(_editorHoldTimer); _editorHoldTimer = null; }
+    });
+    speedEl.addEventListener('pointercancel', () => {
+        if (_editorHoldTimer) { clearTimeout(_editorHoldTimer); _editorHoldTimer = null; }
+    });
+}
+
+function updateUserMarkerRotation() {
+    if (!APP._userMarkerEl || APP.lastAz === null || !APP.map) return;
+    if (APP.currentSpeed < APP.navConfig.SPEED_THRESHOLD) return;
+    const arrow = APP._userMarkerEl.querySelector('#user-arrow');
+    if (arrow) {
+        const mapAz = (APP.map.azimuth || 0) * (180 / Math.PI);
+        const targetRotation = APP._currentDisplayAz + mapAz;
+        let delta = ((targetRotation - APP.markerRotation + 180) % 360) - 180;
+        APP.markerRotation += delta;
+        arrow.setAttribute('transform', `rotate(${APP.markerRotation}, 20, 20)`);
+    }
+}
+
+function calcAzimuth(p1, p2) {
+    if (!p1 || !p2) return 0;
+    const [la1, lo1] = p1.map(v => v * Math.PI / 180);
+    const [la2, lo2] = p2.map(v => v * Math.PI / 180);
+    const y = Math.sin(lo2 - lo1) * Math.cos(la2);
+    const x = Math.cos(la1) * Math.sin(la2) - Math.sin(la1) * Math.cos(la2) * Math.cos(lo2 - lo1);
+    return Math.round((Math.atan2(y, x) * 180 / Math.PI + 360) % 360);
+}
+
+function getGeoDistance(p1, p2) {
+    const R = 6371000;
+    const dLat = (p2[0] - p1[0]) * Math.PI / 180;
+    const dLon = (p2[1] - p1[1]) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(p1[0] * Math.PI / 180) * Math.cos(p2[0] * Math.PI / 180) *
+              Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+}
+
+function setMapLocation(center, zoom, azimuth, duration = 400) {
+    if (!APP.map) return;
+    const params = {};
+    const loc = { center: [center[1], center[0]], duration, easing: 'linear' };
+    if (zoom !== undefined) loc.zoom = zoom;
+    params.location = loc;
+    if (azimuth !== undefined) {
+        const targetDeg = ((azimuth % 360) + 360) % 360;
+        let curDeg = 0;
+        try { curDeg = -(APP.map.azimuth * 180 / Math.PI); } catch (e) {}
+        let diff = targetDeg - curDeg;
+        while (diff > 180) diff -= 360;
+        while (diff < -180) diff += 360;
+        const finalDeg = curDeg + diff;
+        params.camera = { azimuth: -finalDeg * Math.PI / 180, tilt: APP.lastTilt, duration: Math.min(duration, 1000), easing: 'linear' };
+    }
+    APP.map.update(params);
+}
+
+function stopDrive() {
+    APP._driveActive = false;
+    APP._drivePaused = false;
+    APP._driveShowFrom = -1;
+    if (APP._driveRaf) { cancelAnimationFrame(APP._driveRaf); APP._driveRaf = null; }
+    if (APP._zoomWatcherRaf) { cancelAnimationFrame(APP._zoomWatcherRaf); APP._zoomWatcherRaf = null; }
+    if (APP._driveMarker) { APP._driveMarker.element.style.display = 'none'; }
+    if (APP._prevAnim) { cancelAnimationFrame(APP._prevAnim); APP._prevAnim = null; }
+    APP.navAudio.pause();
+    APP._commentAudio.pause();
+    APP.navAudio.onended = null;
+    APP._commentAudio.onended = null;
+    document.querySelectorAll('.playing').forEach(e => e.classList.remove('playing'));
+    const pb = $('playBtn');
+    if (pb) {
+        pb.classList.remove('active');
+        pb.innerHTML = '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
+    }
+}
+
+function driveAlongPath(fromIdx) {
+    const p = APP.navPoints[fromIdx];
+    if (!p || !p.pts || p.pts.length < 2) return;
+    stopDrive();
+
+    const path = p.pts;
+    if (!p._dists) {
+        p._dists = [0];
+        for (let i = 1; i < path.length; i++) {
+            p._dists[i] = p._dists[i - 1] + getGeoDistance(path[i - 1], path[i]);
+        }
+    }
+    const dists = p._dists;
+    const totalDist = dists[path.length - 1];
+    if (totalDist < 0.1) return;
+
+    APP._driveShowFrom = fromIdx;
+
+    APP._driveActive = true;
+    const resume = APP._drivePauseData;
+    APP._drivePauseData = null;
+    APP._drivePaused = false;
+    let simulatedDist = resume ? resume.dist : 0;
+    let currentSeg = resume ? resume.seg : 0;
+    let currentAz = resume ? resume.az : calcAzimuth(path[0], path[1]);
+    let lastFrameTime = performance.now();
+    let _lastSeg = resume ? resume.lastSeg : 0;
+    let _simZoom;
+    try { _simZoom = APP.map.zoom; } catch (e) { _simZoom = undefined; }
+
+    APP.map.removeChild(APP._driveMarker);
+    APP.map.addChild(APP._driveMarker);
+    APP._driveMarker.update({ coordinates: [path[0][1], path[0][0]] });
+    APP._driveMarker.element.style.display = '';
+
+    if (resume) {
+        const mp = getPos(simulatedDist);
+        APP._driveMarker.update({ coordinates: [mp.lon, mp.lat] });
+        const nextIdx = resume.seg + 1;
+        if (nextIdx < path.length) {
+            setMapLocation([path[nextIdx][0], path[nextIdx][1]], undefined, currentAz, 0);
+        }
+    } else {
+        const firstDur = (dists[1] - dists[0]) / (APP._driveSpeed / 3.6) * 1000;
+        const zoom = APP._simForceZoom ? 19 : undefined;
+        APP._simForceZoom = false;
+        setMapLocation([path[1][0], path[1][1]], zoom, currentAz, Math.max(firstDur, 500));
+    }
+
+    function getPos(dist) {
+        if (dist >= totalDist) {
+            const last = path[path.length - 1];
+            return { lat: last[0], lon: last[1], seg: path.length - 2 };
+        }
+        while (_lastSeg < dists.length - 1 && dists[_lastSeg + 1] < dist) _lastSeg++;
+        const t = dists[_lastSeg + 1] > dists[_lastSeg] ? (dist - dists[_lastSeg]) / (dists[_lastSeg + 1] - dists[_lastSeg]) : 0;
+        return {
+            lat: path[_lastSeg][0] + (path[_lastSeg + 1][0] - path[_lastSeg][0]) * t,
+            lon: path[_lastSeg][1] + (path[_lastSeg + 1][1] - path[_lastSeg][1]) * t,
+            seg: _lastSeg
+        };
+    }
+
+    function frame(time) {
+        if (!APP._driveActive) return;
+        if (APP._drivePaused) {
+            APP._drivePauseData = { dist: simulatedDist, seg: currentSeg, az: currentAz, lastSeg: _lastSeg, idx: fromIdx };
+            APP._driveRaf = null;
+            return;
+        }
+        const dt = (time - lastFrameTime) / 1000;
+        lastFrameTime = time;
+        simulatedDist += (APP._driveSpeed / 3.6) * dt;
+
+        if (simulatedDist >= totalDist) {
+            const lastPt = path[path.length - 1];
+            const prevPt = path.length >= 2 ? path[path.length - 2] : lastPt;
+            currentAz = calcAzimuth(prevPt, lastPt);
+            APP._driveMarker.update({ coordinates: [lastPt[1], lastPt[0]] });
+            stopDrive();
+            const nextIdx = fromIdx + 1;
+            if (nextIdx < APP.navPoints.length) {
+                const np = APP.navPoints[nextIdx];
+                if (np && np.pts && np.pts.length >= 2) {
+                    APP.navCurrentIndex = nextIdx;
+                    APP._driveShowFrom = nextIdx;
+                    renderRoutePoints();
+                    updateHud();
+                    updatePointsListActive();
+                    playPointAudio(np, () => {
+                        if (APP._driveShowFrom >= 0 && !APP._driveActive) driveAlongPath(nextIdx);
+                    });
+                    const pb = $('playBtn');
+                    if (pb) { pb.classList.add('active'); pb.innerHTML = '<svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>'; }
+                }
+            }
+            if (nextIdx >= APP.navPoints.length ||
+                !APP.navPoints[nextIdx] ||
+                !APP.navPoints[nextIdx].pts ||
+                APP.navPoints[nextIdx].pts.length < 2) {
+                APP._simMode = false;
+                updateTiltState();
+            }
+            return;
+        }
+
+        const mp = getPos(simulatedDist);
+
+        const curZoom = APP.map.zoom;
+        if (curZoom !== _simZoom) {
+            if (_simZoom === undefined) {
+                _simZoom = curZoom;
+            } else {
+                _simZoom = curZoom;
+                APP._drivePaused = true;
+                APP._drivePauseData = { dist: simulatedDist, seg: currentSeg, az: currentAz, lastSeg: _lastSeg, idx: fromIdx };
+                $('playBtn').classList.remove('active');
+                $('playBtn').innerHTML = '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
+                APP._driveRaf = null;
+                startZoomWatcher();
+                return;
+            }
+        }
+
+        if (mp.seg !== currentSeg) {
+            currentSeg = mp.seg;
+            const nextIdx = mp.seg + 1;
+            if (nextIdx < path.length) {
+                const d = (dists[nextIdx] - dists[mp.seg]) / (APP._driveSpeed / 3.6) * 1000;
+                currentAz = calcAzimuth(path[mp.seg], path[nextIdx]);
+                setMapLocation([path[nextIdx][0], path[nextIdx][1]], undefined, currentAz, Math.max(d, 500));
+            }
+        }
+        APP._driveMarker.update({ coordinates: [mp.lon, mp.lat] });
+        APP._driveRaf = requestAnimationFrame(frame);
+    }
+
+    function startZoomWatcher() {
+        let stableStart = 0;
+        let prevZoom = APP.map.zoom;
+        function watch() {
+            if (!APP._drivePaused || !APP._driveActive) return;
+            const z = APP.map.zoom;
+            if (z === prevZoom) {
+                if (!stableStart) stableStart = performance.now();
+                if ((performance.now() - stableStart) >= 100) {
+                    const idx = APP._drivePauseData ? APP._drivePauseData.idx : APP.navCurrentIndex;
+                    APP._driveRaf = null;
+                    if (idx !== undefined) driveAlongPath(idx);
+                    return;
+                }
+            } else {
+                stableStart = 0;
+                prevZoom = z;
+            }
+            APP._zoomWatcherRaf = requestAnimationFrame(watch);
+        }
+        watch();
+    }
+
+    APP._driveRaf = requestAnimationFrame(frame);
+    $('playBtn').classList.add('active');
+    $('playBtn').innerHTML = '<svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>';
+}
+
+
+function initGeolocation() {
+    if (navigator.geolocation) {
+        navigator.geolocation.watchPosition(pos => {
+            const coords = [pos.coords.latitude, pos.coords.longitude];
+            const speed = (pos.coords.speed || 0) * 3.6;
+            if (APP.lastPos && speed >= APP.navConfig.SPEED_THRESHOLD) {
+                const rawAz = calcAzimuth(APP.lastPos, coords);
+                APP.rawAz = rawAz;
+                APP.lastAz = rawAz;
+            }
+            APP.lastPos = coords;
+            APP.currentSpeed = speed;
+            checkSpeedAlert(speed);
+
+            if (APP.userMarker && APP._userMarkerEl) {
+                if (APP.autoCenter) {
+                    APP._lastMarkerPos = coords;
+                    APP._currentDisplayAz = APP.lastAz;
+                    APP.userMarker.update({ coordinates: [coords[1], coords[0]] });
+                    const camera = { tilt: APP.lastTilt, duration: 0 };
+                    if (APP.lastAz) {
+                        camera.azimuth = -APP.lastAz * Math.PI / 180;
+                    }
+                    APP.map.update({
+                        location: { center: [coords[1], coords[0]], duration: 0 },
+                        camera
+                    });
+                } else {
+                    APP._lastMarkerPos = coords;
+                    APP._currentDisplayAz = APP.lastAz;
+                    APP.userMarker.update({ coordinates: [coords[1], coords[0]] });
+                }
+                updateUserMarkerRotation();
+            }
+            $('telSpeed').textContent = Math.round(APP.currentSpeed);
+
+            if (APP.navCurrentIndex >= 0) navCheckTriggers();
+        }, () => {}, { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 });
+    }
+}
+
+function disableAutoCenter() {
+    if (APP._autoCenterTimer) {
+        clearTimeout(APP._autoCenterTimer);
+        APP._autoCenterTimer = null;
+    }
+    APP.autoCenter = false;
+    $('locateBtn').classList.remove('active');
+    updateTiltState();
+}
+
+function tempDisableAutoCenter(duration) {
+    if (!APP.autoCenter) return;
+    disableAutoCenter();
+    APP._autoCenterTimer = setTimeout(() => {
+        APP.autoCenter = true;
+        $('locateBtn').classList.add('active');
+        if (APP.lastPos) {
+            const camera = { tilt: APP.lastTilt, duration: 0 };
+            if (APP.lastAz) camera.azimuth = -APP.lastAz * Math.PI / 180;
+            APP.map.update({
+                location: { center: [APP.lastPos[1], APP.lastPos[0]], duration: 0 },
+                camera
+            });
+        }
+        updateTiltState();
+        APP._autoCenterTimer = null;
+    }, duration || 5000);
+}
+
+function toggleAutoCenter() {
+    if (APP._autoCenterTimer) {
+        clearTimeout(APP._autoCenterTimer);
+        APP._autoCenterTimer = null;
+    }
+    APP.autoCenter = !APP.autoCenter;
+    $('locateBtn').classList.toggle('active', APP.autoCenter);
+    if (APP.autoCenter) {
+        stopDrive();
+        APP._simMode = false;
+    }
+    if (APP.autoCenter && APP.lastPos) {
+        const camera = { tilt: APP.lastTilt, duration: 0 };
+        if (APP.lastAz) {
+            camera.azimuth = -APP.lastAz * Math.PI / 180;
+        }
+        APP.map.update({
+            location: { center: [APP.lastPos[1], APP.lastPos[0]], duration: 0 },
+            camera
+        });
+    }
+    updateTiltState();
+    showToast(APP.autoCenter ? 'Привязка включена' : 'Привязка отключена');
+}
+
+function updateShockDisplay() {
+    if (!$('triggerShockToggle').checked) {
+        $('triggerShockVal').textContent = 'Выкл';
+        return;
+    }
+    const val = parseFloat($('triggerShock').value);
+    $('triggerShockVal').textContent = val + 'g';
+}
+
+function applyShockConfig() {
+    const on = $('triggerShockToggle').checked;
+    const val = on ? parseFloat($('triggerShock').value) : 0;
+    const phrase = $('triggerShockPhrase').value.trim() || 'Сильный удар';
+    APP.navConfig.SHOCK_THRESHOLD = val;
+    APP.navConfig.SHOCK_PHRASE = phrase;
+    updateShockBarVisibility();
+    if (val > 0) ensureMotionTracking();
+}
+function applySpeedConfig() {
+    const on = $('triggerSpeedAlertToggle').checked;
+    const val = on ? parseInt($('triggerSpeedAlert').value) || 58 : 0;
+    const phrase = $('triggerSpeedAlertPhrase').value.trim() || 'Превышена максимальная скорость';
+    APP.navConfig.SPEED_ALERT_THRESHOLD = val;
+    APP.navConfig.SPEED_ALERT_PHRASE = phrase;
+}
+
+function applyCommentConfig() {
+    APP._commentEnabled = $('commentToggle').checked;
+    if (!APP._commentEnabled) APP._commentAudio.pause();
+    const ct = $('commentText');
+    ct.style.display = APP._commentEnabled && ct.textContent.trim() ? 'block' : 'none';
+    const pct = $('prevCommentText');
+    if (pct) pct.style.display = APP._commentEnabled && pct.textContent.trim() ? 'block' : 'none';
+}
+
+async function requestMotionPermission() {
+    if (typeof DeviceMotionEvent !== 'undefined' && DeviceMotionEvent.requestPermission) {
+        try {
+            const state = await DeviceMotionEvent.requestPermission();
+            return state === 'granted';
+        } catch (e) {
+            return false;
+        }
+    }
+    return true;
+}
+
+function ensureMotionTracking() {
+    if (APP._motionTracked) return Promise.resolve(true);
+    return requestMotionPermission().then(granted => {
+        if (granted) {
+            APP._motionTracked = true;
+            window.addEventListener('devicemotion', onMotion);
+        } else {
+            APP.navConfig.SHOCK_THRESHOLD = 0;
+            $('triggerShock').value = 0;
+            updateShockDisplay();
+        }
+        updateShockBarVisibility();
+        return granted;
+    });
+}
+
+function updateShockBarVisibility() {
+    const bar = $('shockBar');
+    if (bar) bar.style.display = APP.navConfig.SHOCK_THRESHOLD > 0 ? 'block' : 'none';
+}
+
+const SHOCK_DEBOUNCE = 3000;
+
+function isAudioPlaying() {
+    return APP._audioPending > 0 ||
+           (!APP.navAudio.paused && APP.navAudio.currentTime > 0) ||
+           (!APP._commentAudio.paused && APP._commentAudio.currentTime > 0);
+}
+
+function onMotion(event) {
+    const gThreshold = APP.navConfig.SHOCK_THRESHOLD;
+    if (gThreshold <= 0) return;
+    const { x, y, z } = event.accelerationIncludingGravity;
+    const total = Math.sqrt(x*x + y*y + z*z);
+    const impactG = Math.abs(total - 9.8) / 9.8;
+    updateShockBar(impactG);
+    if (isAudioPlaying()) return;
+    if (impactG > gThreshold) {
+        const now = Date.now();
+        if (now - APP._lastShockTime < SHOCK_DEBOUNCE) return;
+        APP._lastShockTime = now;
+        playCommand(APP.navConfig.SHOCK_PHRASE || 'Сильный удар').catch(() => {});
+    }
+}
+
+let _shockFill = null;
+let _shockLabel = null;
+let _shockLastG = -1;
+let _shockLastColor = '';
+
+function updateShockBar(g) {
+    if (!_shockFill) _shockFill = $('shockBarFill');
+    if (!_shockLabel) _shockLabel = $('shockBarValue');
+    if (!_shockFill) return;
+    const now = Date.now();
+    if (g > APP._shockDisplayG) {
+        APP._shockDisplayG = g;
+        APP._shockPeakTime = now;
+    } else if (now - APP._shockPeakTime > 1000) {
+        APP._shockDisplayG += (g - APP._shockDisplayG) * 0.08;
+        if (Math.abs(APP._shockDisplayG - g) < 0.01) {
+            APP._shockDisplayG = g;
+        }
+    }
+    const displayG = APP._shockDisplayG;
+    if (Math.abs(displayG - _shockLastG) < 0.05) return;
+    _shockLastG = displayG;
+    const clamped = Math.max(0.1, Math.min(3, displayG));
+    const pct = ((clamped - 0.1) / (3 - 0.1)) * 100;
+    _shockFill.style.width = Math.min(100, pct) + '%';
+    if (_shockLabel) {
+        _shockLabel.textContent = displayG > 0.2 ? displayG.toFixed(2) : '';
+    }
+    let color;
+    if (displayG < 0.5) color = '#30D158';
+    else if (displayG < 1.5) color = '#FFD700';
+    else if (displayG < 2.5) color = '#FF9500';
+    else color = '#FF3B30';
+    if (color !== _shockLastColor) {
+        _shockFill.style.background = color;
+        _shockLastColor = color;
+    }
+}
+
+const SPEED_ALERT_DEBOUNCE = 5000;
+
+function checkSpeedAlert(speed) {
+    const threshold = APP.navConfig.SPEED_ALERT_THRESHOLD;
+    if (threshold <= 0) return;
+    if (isAudioPlaying()) return;
+    if (speed > threshold) {
+        const now = Date.now();
+        if (now - APP._lastSpeedAlertTime < SPEED_ALERT_DEBOUNCE) return;
+        APP._lastSpeedAlertTime = now;
+        playCommand(APP.navConfig.SPEED_ALERT_PHRASE || 'Превышена максимальная скорость').catch(() => {});
+    }
+}
+
+function setMapType(type) {
+    if (!APP.map) return;
+    const isScheme = type === 'scheme';
+    if (isScheme && !APP._isScheme) {
+        if (APP._satLayer) { APP.map.removeChild(APP._satLayer); APP._satLayer = null; }
+        APP.map.addChild(APP._schemeLayer);
+        addBuildingsToMap();
+        showToast('Схема', 'info', 2000);
+    } else if (!isScheme && APP._isScheme) {
+        APP.map.removeChild(APP._schemeLayer);
+        if (APP._buildings) { APP.map.removeChild(APP._buildings); APP._buildings = null; }
+        const { YMapDefaultSatelliteLayer } = ymaps3;
+        APP._satLayer = new YMapDefaultSatelliteLayer({});
+        APP.map.addChild(APP._satLayer);
+        showToast('Спутник', 'info', 2000);
+    }
+    APP._isScheme = isScheme;
+    $('schemeBtn').classList.toggle('active', isScheme);
+    $('satBtn').classList.toggle('active', !isScheme);
+}
+
+function setTilt(mode) {
+    const is3d = mode === '3d';
+    if (is3d === APP._is3D) return;
+    APP._is3D = is3d;
+    APP.lastTilt = is3d ? 60 : 0;
+    APP.map.update({ camera: { tilt: APP.lastTilt, duration: 300 } });
+}
+
+function updateTiltState() {
+    setTilt(APP._simMode || APP.autoCenter ? '3d' : '2d');
+}
+
+function closeAllSheets() {
+    closePointsList();
+    closeSettings();
+    if (typeof closeInstructors === 'function') closeInstructors();
+    if (typeof MenuModule !== 'undefined') MenuModule.hide();
+}
+
+function openSettings() {
+    if (!$('navSettingsModal').classList.contains('hidden')) { closeSettings(); return; }
+    closeAllSheets();
+    $('schemeBtn').classList.toggle('active', APP._isScheme);
+    $('satBtn').classList.toggle('active', !APP._isScheme);
+    const shockOn = APP.navConfig.SHOCK_THRESHOLD > 0;
+    $('triggerShockToggle').checked = shockOn;
+    $('triggerShock').value = shockOn ? APP.navConfig.SHOCK_THRESHOLD : 1;
+    $('triggerShockPhrase').value = APP.navConfig.SHOCK_PHRASE;
+    const speedOn = APP.navConfig.SPEED_ALERT_THRESHOLD > 0;
+    $('triggerSpeedAlertToggle').checked = speedOn;
+    $('triggerSpeedAlert').value = speedOn ? APP.navConfig.SPEED_ALERT_THRESHOLD : 58;
+    $('triggerSpeedAlertPhrase').value = APP.navConfig.SPEED_ALERT_PHRASE;
+    $('triggerShockVal').textContent = shockOn ? APP.navConfig.SHOCK_THRESHOLD + 'g' : 'Выкл';
+    $('commentToggle').checked = APP._commentEnabled;
+    $('navSettingsModal').classList.remove('hidden');
+}
+
+function hideSheetModal(modalId, sheetId) {
+    const sheet = document.getElementById(sheetId);
+    if (sheet) { sheet.style.transform = ''; sheet.style.transition = ''; }
+    document.getElementById(modalId).classList.add('hidden');
+}
+
+function closeSettings() {
+    hideSheetModal('navSettingsModal', 'navSettingsSheet');
+}
+
+function addBuildingsToMap() {
+    ymaps3.import('@yandex/ymaps3-buildings').then(({ YMapBuildings }) => {
+        APP._buildings = new YMapBuildings({});
+        APP.map.addChild(APP._buildings);
+    }).catch(() => {});
+}
+
+function getNavIconSvg(col, txt, az, isEnd, isCurr = false, hasComm = false) {
+    const s = isEnd ? 34 : 40, c = s / 2;
+    const r = isEnd ? 7 : 9;
+    const txtFill = '#ffffff';
+    const txtStroke = hasComm ? '#FF3B30' : '#000000';
+    const txtStrokeW = hasComm ? 3 : 2;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${s}" height="${s}">
+        <rect width="${s}" height="${s}" fill="transparent"/>
+        ${isCurr ? `<circle cx="${c}" cy="${c}" r="${r + 3}" fill="none" stroke="#00FF00" stroke-width="2.5" opacity="0.9"/>` : ''}
+        <circle cx="${c}" cy="${c}" r="${r}" fill="rgba(0,0,0,0.7)"/>
+        <circle cx="${c}" cy="${c}" r="${r}" fill="${col}" opacity="0.3"/>
+        <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${col}" stroke-width="1.5"/>
+        <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+        <text x="${c}" y="${c + 0.5}" font-size="${isEnd ? 8 : 9}" font-family="Arial" font-weight="900" text-anchor="middle" dominant-baseline="middle" fill="${txtFill}" stroke="${txtStroke}" stroke-width="${txtStrokeW}" paint-order="stroke fill">${txt}</text>
+    </svg>`;
+    return 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
+}
+
+function hexToRgba(h, a) {
+    return `rgba(${parseInt(h.slice(1,3),16)},${parseInt(h.slice(3,5),16)},${parseInt(h.slice(5,7),16)},${a})`;
+}
+
+function removeRouteObjects() {
+    if (!APP.map) return;
+    APP.navPoints.forEach(p => {
+        if (p.placemark) APP.map.removeChild(p.placemark);
+        if (p.line) APP.map.removeChild(p.line);
+    });
+}
+
+function updateRouteNameDisplay() {
+    const el = $('routeNameDisplay');
+    if (!el) return;
+    let name = '';
+    try {
+        if (typeof MenuModule !== 'undefined') {
+            const cr = MenuModule.currentRoute;
+            if (cr && MenuModule.routesDescriptions && MenuModule.routesDescriptions[cr]) {
+                const fullName = MenuModule.routesDescriptions[cr].name || '';
+                name = fullName;
+            }
+            if (!name && cr) {
+                const dashIndex = cr.indexOf('-');
+                name = dashIndex > 0 ? decodeURIComponent(cr.substring(dashIndex + 1)) : cr;
+            }
+        }
+    } catch (e) {}
+    if (APP._routeTotalDistance > 0 && name) {
+        const d = APP._routeTotalDistance;
+        const distText = d >= 1000 ? `${(d / 1000).toFixed(1)} км` : `${Math.round(d)} м`;
+        name = `${name} (${distText})`;
+    }
+    el.textContent = name;
+    el.style.display = name ? 'block' : 'none';
+}
+
+function clearInfoMarkers() {
+    APP._infoMarkers.forEach(m => { if (APP.map) APP.map.removeChild(m); });
+    APP._infoMarkers = [];
+}
+
+function renderInfoMarkers() {
+    clearInfoMarkers();
+    if (!APP.map) return;
+    const idx = APP.navCurrentIndex;
+    const pt = APP.navPoints[idx];
+    if (!pt || !pt.info || !pt.info.length) return;
+    pt.info.forEach(inf => {
+        const img = inf.image;
+        if (!img) return;
+        const el = document.createElement('img');
+        el.src = `znaki/${img}`;
+        el.style.cssText = 'width:36px;height:36px;border:none;outline:none;display:block;margin:-18px 0 0 -18px;';
+        const marker = new ymaps3.YMapMarker({ coordinates: [inf.lon, inf.lat] }, el);
+        APP.map.addChild(marker);
+        APP._infoMarkers.push(marker);
+    });
+}
+
+function clearRoute() {
+    stopDrive();
+    APP._simMode = false;
+    updateTiltState();
+    removeRouteObjects();
+    clearInfoMarkers();
+    APP.navPoints = [];
+    APP.navCurrentIndex = 0;
+    APP._routeTotalDistance = 0;
+    $('hud').classList.remove('active');
+    updateRouteNameDisplay();
+}
+
+function renderRoutePoints() {
+    APP.navPoints.forEach((p, i) => {
+        const isCurrent = (i === APP.navCurrentIndex);
+        const isPassed = (i < APP.navCurrentIndex);
+        const isPrevious = (i === APP.navCurrentIndex - 1);
+        const hasComm = p.comm && p.comm.trim() !== '';
+
+        const showPoint = APP._driveShowFrom >= 0 ? (i >= Math.max(APP._driveShowFrom - 1, 0)) : (!isPassed || isCurrent || isPrevious);
+        const showPath = APP._driveShowFrom >= 0 ? (i >= Math.max(APP._driveShowFrom - 1, 0)) : (!isPassed || isPrevious);
+
+        if (!p.placemark) {
+            const el = document.createElement('div');
+            el.style.cssText = 'width:40px;height:40px;cursor:pointer;transform:translate(-50%,-50%);';
+            el.dataset.idx = i;
+            el.addEventListener('click', e => {
+                e.stopPropagation();
+                const idx = parseInt(el.dataset.idx);
+                setTarget(idx);
+            });
+            p.placemark = new ymaps3.YMapMarker({ coordinates: [p.lon, p.lat] }, el);
+        }
+
+        const el = p.placemark.element;
+        el.dataset.idx = i;
+
+        if (showPoint) {
+            el.style.display = '';
+            el.style.opacity = isPrevious ? '0.7' : '';
+            el.innerHTML = `<img src="${getNavIconSvg(p.hex, p.id, p.az, false, isCurrent, hasComm)}" width="40" height="40" class="marker-img" />`;
+            p.placemark.update({ coordinates: [p.lon, p.lat] });
+        } else {
+            el.style.display = 'none';
+        }
+
+        if (showPath && p.pts && p.pts.length >= 2) {
+            const coords = p.pts.map(pt => [pt[1], pt[0]]);
+            const strokes = [];
+            strokes.push({ width: isPrevious ? 6 : 4, color: isCurrent ? p.hex : (isPrevious ? hexToRgba(p.hex, 0.5) : p.hex) });
+            strokes.push({ width: isCurrent ? 6 : (isPrevious ? 8 : 6), color: isPrevious ? 'rgba(0,0,0,0.7)' : '#000000' });
+            if (isCurrent) strokes.push({ width: 10, color: '#00FF00' });
+
+            if (!p.line) {
+                p.line = new ymaps3.YMapFeature({
+                    geometry: { type: 'LineString', coordinates: coords },
+                    style: { stroke: strokes }
+                });
+            } else {
+                p.line.update({
+                    geometry: { type: 'LineString', coordinates: coords },
+                    style: { stroke: strokes }
+                });
+            }
+
+            if (APP.map && !p.line._onMap) {
+                APP.map.addChild(p.line);
+                p.line._onMap = true;
+            }
+        } else if (p.line && p.line._onMap) {
+            if (APP.map) APP.map.removeChild(p.line);
+            p.line._onMap = false;
+        }
+    });
+
+    if (APP.map) {
+        for (let ci = APP.navPoints.length - 1; ci >= 0; ci--) {
+            const pt = APP.navPoints[ci];
+            if (pt.placemark && !pt.placemark._onMap) {
+                APP.map.addChild(pt.placemark);
+                pt.placemark._onMap = true;
+            }
+        }
+        renderInfoMarkers();
+    }
+    updateHud();
+}
+
+
+function updateHud() {
+    let idx = APP.navCurrentIndex;
+    if (idx >= APP.navPoints.length) idx = APP.navPoints.length - 1;
+    const t = APP.navPoints[idx];
+    if (!t) return;
+
+    $('hudCmdNum').innerHTML = `<svg width="44" height="44" viewBox="0 0 20 20"><circle cx="10" cy="10" r="9" fill="${t.hex}" opacity="0.3"/><circle cx="10" cy="10" r="9" fill="none" stroke="${t.hex}" stroke-width="1.5"/><text x="10" y="10.5" font-size="8" font-family="Arial" font-weight="900" text-anchor="middle" dominant-baseline="middle" fill="#fff">${t.id}</text></svg>`;
+    $('hudCmdTextInner').textContent = t.cmd;
+    $('hudCmdTextInner').style.opacity = NavigatorTTS.has(t.cmd, 'command') ? '1' : '0.35';
+    $('hudCmdNum').onclick = (e) => {
+        e.stopPropagation();
+        const el = $('hudCmdNum');
+        document.querySelectorAll('.playing').forEach(e => e.classList.remove('playing'));
+        APP._commentAudio.onended = null;
+        el.classList.add('playing');
+        playPointAudio(t, () => el.classList.remove('playing'));
+    };
+    $('hudCmd').onclick = openPointsList;
+
+    if (APP.lastPos) {
+        const d = getGeoDistance(APP.lastPos, [t.lat, t.lon]);
+        let ad = Math.abs(APP.lastAz - t.az) % 360;
+        if (ad > 180) ad = 360 - ad;
+        $('hudCmdDist').innerHTML = formatDistance(d);
+        $('hudCmdDist').classList.toggle('in-range', d < 50 && ad <= APP.navConfig.AZ_TOLERANCE);
+    } else {
+        $('hudCmdDist').innerHTML = '---';
+        $('hudCmdDist').classList.remove('in-range');
+    }
+
+    const prevBtn = $('prevBtn'), nextBtn = $('nextBtn');
+    prevBtn.disabled = (idx <= 0);
+    nextBtn.disabled = (idx >= APP.navPoints.length - 1);
+    prevBtn.onclick = () => { stopDrive(); APP._simMode = false; updateTiltState(); idx > 0 && setTarget(idx - 1); tempDisableAutoCenter(5000); };
+
+    nextBtn.onclick = () => { if (idx < APP.navPoints.length - 1) { stopDrive(); APP._simMode = false; updateTiltState(); setTarget(idx + 1); tempDisableAutoCenter(5000); } };
+    prevBtn.innerHTML = `<svg class="arrow-icon" viewBox="0 0 24 24" width="18" height="18"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>`;
+    nextBtn.innerHTML = `<svg class="arrow-icon" viewBox="0 0 24 24" width="18" height="18"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>`;
+
+    const playBtn = $('playBtn');
+    if (playBtn) {
+        const hasPath = t && t.pts && t.pts.length >= 2;
+        playBtn.disabled = !hasPath;
+    }
+
+    $('commentText').textContent = t.comm || '';
+    const hasComm = t.comm && t.comm.trim() !== '';
+    $('commentText').style.display = hasComm && APP._commentEnabled ? 'block' : 'none';
+    $('commentText').style.opacity = (t.comm && NavigatorTTS.has(t.comm, 'comment')) ? '1' : '0.35';
+
+    // Панель предыдущей команды — та же вёрстка над основной, полупрозрачная
+    const prevHeader = $('hudPrevHeader');
+    const prev = idx > 0 ? APP.navPoints[idx - 1] : null;
+    if (prevHeader) {
+        if (!prev) {
+            prevHeader.style.display = 'none';
+        } else {
+            prevHeader.style.display = '';
+            $('hudPrevCmdNum').innerHTML = `<svg width="44" height="44" viewBox="0 0 20 20"><circle cx="10" cy="10" r="9" fill="${prev.hex}" opacity="0.3"/><circle cx="10" cy="10" r="9" fill="none" stroke="${prev.hex}" stroke-width="1.5"/><text x="10" y="10.5" font-size="8" font-family="Arial" font-weight="900" text-anchor="middle" dominant-baseline="middle" fill="#fff">${prev.id}</text></svg>`;
+            $('hudPrevCmdTextInner').textContent = prev.cmd;
+            $('hudPrevCmdTextInner').style.opacity = NavigatorTTS.has(prev.cmd, 'command') ? '1' : '0.35';
+            $('hudPrevCmdNum').onclick = (e) => {
+                e.stopPropagation();
+                const el = $('hudPrevCmdNum');
+                document.querySelectorAll('.playing').forEach(e => e.classList.remove('playing'));
+                APP._commentAudio.onended = null;
+                el.classList.add('playing');
+                playPointAudio(prev, () => el.classList.remove('playing'));
+            };
+            $('hudPrevCmd').onclick = openPointsList;
+            $('prevCommentText').textContent = prev.comm || '';
+            const hasPrevComm = prev.comm && prev.comm.trim() !== '';
+            $('prevCommentText').style.display = hasPrevComm && APP._commentEnabled ? 'block' : 'none';
+            $('prevCommentText').style.opacity = (prev.comm && NavigatorTTS.has(prev.comm, 'comment')) ? '1' : '0.35';
+        }
+    }
+}
+
+function formatDistance(d) {
+    if (d >= 1000) {
+        const v = (d / 1000).toFixed(1);
+        return `${v}<span class="dist-unit">км</span>`;
+    }
+    return `${Math.round(d)}<span class="dist-unit">м</span>`;
+}
+
+function escapeHtml(str) {
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+}
+
+function openPointsList() {
+    if (!$('pointsListModal').classList.contains('hidden')) { closePointsList(); return; }
+    closeAllSheets();
+    const wrap = $('pointsListWrap');
+    if (!wrap || APP.navPoints.length === 0) return;
+    wrap.innerHTML = APP.navPoints.map((p, i) => {
+        const isCurrent = i === APP.navCurrentIndex;
+        const isPrev = i < APP.navCurrentIndex;
+        const dist = isCurrent && APP.lastPos && p.pts && p.pts[0]
+            ? formatDistance(getGeoDistance(APP.lastPos, [p.pts[0][0], p.pts[0][1]]))
+            : '';
+        const cls = `pl-item${isCurrent ? ' pl-active' : ''}${isPrev ? ' pl-prev' : ''}`;
+        const activeStyle = isCurrent ? ` style="border-color:#00FF00;border-width:2px"` : '';
+        return `<div class="${cls}" data-idx="${i}">
+            <div class="pl-item-row"${activeStyle}>
+                <div class="pl-item-row-main">
+                    <div class="pl-item-icon" data-play="${i}"><svg width="44" height="44" viewBox="0 0 20 20"><circle cx="10" cy="10" r="9" fill="${p.hex}" opacity="0.3"/><circle cx="10" cy="10" r="9" fill="none" stroke="${p.hex}" stroke-width="1.5"/><text x="10" y="10.5" font-size="8" font-family="Arial" font-weight="900" text-anchor="middle" dominant-baseline="middle" fill="#fff">${p.id}</text></svg></div>
+                    <div class="pl-item-text">${p.cmd}</div>
+                    ${dist ? `<div class="pl-item-dist">${dist}</div>` : ''}
+                </div>
+                ${p.comm && p.comm.trim() ? `<div class="pl-comment">${escapeHtml(p.comm)}</div>` : ''}
+            </div>
+        </div>`;
+    }).join('');
+    $('pointsListModal').classList.remove('hidden');
+    requestAnimationFrame(() => {
+        const active = wrap.querySelector('.pl-active');
+        if (active) active.scrollIntoView({ block: 'center', behavior: 'auto' });
+    });
+}
+
+function closePointsList() {
+    hideSheetModal('pointsListModal', 'pointsListSheet');
+}
+
+function updateHudDist(d, ad) {
+    $('hudCmdDist').innerHTML = formatDistance(d);
+    $('hudCmdDist').classList.toggle('in-range', d < 50 && ad <= APP.navConfig.AZ_TOLERANCE);
+    updatePointsListDist();
+}
+
+function updatePointsListDist() {
+    const modal = $('pointsListModal');
+    if (!modal || modal.classList.contains('hidden')) return;
+    const activeItem = modal.querySelector('.pl-active');
+    if (!activeItem || !APP.lastPos || APP.navCurrentIndex < 0) return;
+    const t = APP.navPoints[APP.navCurrentIndex];
+    if (!t) return;
+    const d = getGeoDistance(APP.lastPos, [t.lat, t.lon]);
+    const distEl = activeItem.querySelector('.pl-item-dist');
+    if (distEl) distEl.innerHTML = formatDistance(d);
+}
+
+
+
+function updateCurrentPointHud() {
+    if (APP.lastPos && APP.navPoints[APP.navCurrentIndex]) {
+        const t = APP.navPoints[APP.navCurrentIndex];
+        const d = getGeoDistance(APP.lastPos, [t.lat, t.lon]);
+        let ad = Math.abs(APP.lastAz - t.az) % 360;
+        if (ad > 180) ad = 360 - ad;
+        $('hudCmdDist').innerHTML = formatDistance(d);
+        $('hudCmdDist').classList.toggle('in-range', d < 50 && ad <= APP.navConfig.AZ_TOLERANCE);
+    }
+}
+
+function setTarget(i) {
+    APP.navCurrentIndex = i;
+    renderRoutePoints();
+    updateHud();
+    updateCurrentPointHud();
+    fitMapToCurrentTarget();
+    updatePointsListActive();
+}
+
+function updatePointsListActive() {
+    const modal = $('pointsListModal');
+    if (!modal || modal.classList.contains('hidden')) return;
+    modal.querySelectorAll('.pl-item').forEach(el => {
+        const idx = parseInt(el.dataset.idx);
+        const isCurrent = idx === APP.navCurrentIndex;
+        el.classList.toggle('pl-active', isCurrent);
+        el.classList.toggle('pl-prev', idx < APP.navCurrentIndex);
+
+        const row = el.querySelector('.pl-item-row');
+        if (row) row.style.cssText = isCurrent ? 'border-color:#00FF00;border-width:2px' : '';
+
+        const pt = APP.navPoints[idx];
+        let distEl = el.querySelector('.pl-item-dist');
+        if (isCurrent && APP.lastPos && pt && pt.pts && pt.pts[0]) {
+            const distText = formatDistance(getGeoDistance(APP.lastPos, [pt.pts[0][0], pt.pts[0][1]]));
+            if (distEl) {
+                distEl.innerHTML = distText;
+            } else {
+                const main = el.querySelector('.pl-item-row-main');
+                if (main) {
+                    distEl = document.createElement('div');
+                    distEl.className = 'pl-item-dist';
+                    distEl.innerHTML = distText;
+                    main.appendChild(distEl);
+                }
+            }
+        } else if (distEl) {
+            distEl.remove();
+        }
+    });
+    const active = modal.querySelector('.pl-active');
+    if (active) active.scrollIntoView({ block: 'center', behavior: 'smooth' });
+}
+
+function fitMapToCurrentTarget() {
+    const p = APP.navPoints[APP.navCurrentIndex];
+    if (!p || !p.pts || p.pts.length < 1 || !APP.map) return;
+    let minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
+    for (const pt of p.pts) {
+        const lat = pt[0], lon = pt[1];
+        if (lat < minLat) minLat = lat;
+        if (lat > maxLat) maxLat = lat;
+        if (lon < minLon) minLon = lon;
+        if (lon > maxLon) maxLon = lon;
+    }
+    if (minLat === Infinity) return;
+    const pad = Math.max(Math.abs(maxLat - minLat), Math.abs(maxLon - minLon)) * 0.20;
+    APP.map.update({ location: { bounds: [[minLon - pad, minLat - pad], [maxLon + pad, maxLat + pad]], duration: 400 } });
+}
+
+
+async function playCommand(text) {
+    if (!text || !text.trim()) return;
+    APP._commentAudio.pause();
+    APP.navAudio.onended = null;
+    APP.navAudio.pause();
+    await playTTS(text);
+}
+
+async function playTTS(text, voice_type = 'command') {
+    if (!text || !text.trim()) return;
+    APP._audioPending++;
+    try {
+        APP.navAudio.pause();
+        const key = ttsCacheKey(text, voice_type);
+        const url = APP._audioCache.get(key) || await NavigatorTTS.getAudioUrl(text, voice_type);
+        if (!url) return;
+        APP._audioCache.set(key, url);
+        updateHud();
+        APP.navAudio.src = url;
+        await APP.navAudio.play().catch(() => {});
+    } catch (e) {
+        console.warn('TTS error:', e);
+    } finally {
+        APP._audioPending--;
+    }
+}
+
+async function playComment(text) {
+    if (!text || !text.trim()) return;
+    if (!APP._commentEnabled) return;
+    APP.navAudio.pause();
+    APP._commentAudio.pause();
+    const saved = APP.navAudio;
+    APP.navAudio = APP._commentAudio;
+    try {
+        await playTTS(text, 'comment');
+    } finally {
+        APP.navAudio = saved;
+    }
+}
+
+function playPointAudio(point, onDone) {
+    if (!point) { if (onDone) onDone(); return; }
+    let finished = false;
+    const finish = () => { if (finished) return; finished = true; if (onDone) onDone(); };
+
+    playCommand(point.cmd).then(() => {
+        APP._commentAudio.onended = null;
+
+        const afterCommand = () => {
+            APP.navAudio.onended = null;
+            if (point.comm && point.comm.trim() && APP._commentEnabled) {
+                APP._commentAudio.onended = () => {
+                    APP._commentAudio.onended = null;
+                    finish();
+                };
+                playComment(point.comm).then(() => {
+                    // Комментарий не зазвучал (нет TTS / автоплей заблокирован) —
+                    // не ждём onended, иначе симуляция/подсветка зависнут.
+                    if (APP._commentAudio.paused || !APP._commentAudio.src) {
+                        APP._commentAudio.onended = null;
+                        finish();
+                    }
+                }).catch(finish);
+            } else {
+                finish();
+            }
+        };
+
+        // То же для команды: если она не зазвучала, не ждём onended.
+        if (APP.navAudio.paused || !APP.navAudio.src) afterCommand();
+        else APP.navAudio.onended = afterCommand;
+    }).catch(finish);
+}
+
+function navCheckTriggers() {
+    if (APP.navCurrentIndex < 0 || !APP.lastPos || !APP.navPoints[APP.navCurrentIndex]) return;
+    const t = APP.navPoints[APP.navCurrentIndex];
+    const d = getGeoDistance(APP.lastPos, [t.lat, t.lon]);
+    let ad = Math.abs(APP.rawAz - t.az) % 360;
+    if (ad > 180) ad = 360 - ad;
+    updateHudDist(d, ad);
+
+    if (d <= APP.navConfig.TRIGGER_DIST && ad <= APP.navConfig.AZ_TOLERANCE) {
+        const mySeq = ++APP._navSeq;
+        playCommand(t.cmd).then(() => {
+            if (mySeq !== APP._navSeq) return;
+            if (t.comm && t.comm.trim()) {
+                APP.navAudio.onended = () => {
+                    APP.navAudio.onended = null;
+                    if (mySeq !== APP._navSeq) return;
+                    playComment(t.comm);
+                };
+            }
+        });
+        APP.navCurrentIndex++;
+        if (APP.navCurrentIndex < APP.navPoints.length) {
+            renderRoutePoints();
+            updateHud();
+            updatePointsListActive();
+        } else {
+            showToast('Маршрут завершён!', 'success');
+            updateHud();
+        }
+    }
+}
+
+async function loadRouteFromJSON(data) {
+    await processRouteData(data);
+}
+
+async function processRouteData(data) {
+    startWakeLock();
+    APP._simFirstRun = true;
+    if (!data || !Array.isArray(data)) throw new Error('Неверный формат данных: ожидается массив');
+    if (data.length === 0) throw new Error('Маршрут пуст');
+
+    APP.navPoints = data.map((d, i) => {
+        const pts = d.pts || [];
+        if (!pts || pts.length === 0) return null;
+        return {
+            id: d.id || (i + 1), lat: pts[0]?.[0], lon: pts[0]?.[1],
+            color: d.color, hex: COLORS[d.color]?.hex || '#007AFF',
+            cmd: (d.cmd || d.comm || `Т${i + 1}`).trim(),
+            comm: (d.comm || '').trim(), pts: pts,
+            info: d.info || [],
+            az: pts.length >= 2 ? calcAzimuth(pts[0], pts[1]) : 0
+        };
+    }).filter(p => p !== null);
+
+    if (APP.navPoints.length === 0) throw new Error('Нет валидных точек в маршруте');
+
+    let totalDist = 0;
+    for (const p of APP.navPoints) {
+        if (p.pts && p.pts.length >= 2) {
+            for (let i = 1; i < p.pts.length; i++) {
+                totalDist += getGeoDistance(p.pts[i-1], p.pts[i]);
+            }
+        }
+    }
+    APP._routeTotalDistance = totalDist;
+
+    APP.navCurrentIndex = 0;
+
+    $('hud').classList.add('active');
+    $('jsonModal').classList.add('hidden');
+    $('loading').classList.add('hidden');
+
+    renderRoutePoints();
+    updateHud();
+
+    if (APP.navPoints.length > 0 && APP.map) {
+        setTimeout(() => {
+            let minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
+            for (const p of APP.navPoints) {
+                if (!p.pts) continue;
+                for (const pt of p.pts) {
+                    const lat = pt[0], lon = pt[1];
+                    if (lat < minLat) minLat = lat;
+                    if (lat > maxLat) maxLat = lat;
+                    if (lon < minLon) minLon = lon;
+                    if (lon > maxLon) maxLon = lon;
+                }
+            }
+            if (minLat !== Infinity) {
+                const pad = Math.max(Math.abs(maxLat - minLat), Math.abs(maxLon - minLon)) * 0.1;
+                APP.map.update({ location: { bounds: [[minLon - pad, minLat - pad], [maxLon + pad, maxLat + pad]], duration: 400 } });
+            }
+        }, 100);
+    }
+    updateRouteNameDisplay();
+    // Прогрев аудио — в фоне: карта и HUD не ждут синтез.
+    precacheRouteAudio(data).catch(e => console.warn('Background audio caching failed:', e));
+}
+
+async function precacheRouteAudio(data) {
+    // Берём ровно те строки, которые показывает HUD (включая fallback
+    // cmd -> comm -> Т<номер>).
+    const cmdTexts = [...new Set(data.map((d, i) => d.cmd || d.comm || `Т${i + 1}`).filter(t => t && t.trim()))];
+    const commTexts = [...new Set(data.map(d => d.comm).filter(t => t && t.trim()))];
+    cmdTexts.push(APP.navConfig.SHOCK_PHRASE || 'Сильный удар');
+    cmdTexts.push(APP.navConfig.SPEED_ALERT_PHRASE || 'Превышена максимальная скорость');
+
+    try {
+        // Сначала проверяем/синтезируем всё, потом раскладываем URL по кэшу.
+        await NavigatorTTS.preload([
+            { voice_type: 'command', texts: cmdTexts },
+            { voice_type: 'comment', texts: commTexts },
+        ]);
+        for (const text of cmdTexts) {
+            const url = await NavigatorTTS.getAudioUrl(text, 'command');
+            if (url) APP._audioCache.set(ttsCacheKey(text, 'command'), url);
+        }
+        for (const text of commTexts) {
+            const url = await NavigatorTTS.getAudioUrl(text, 'comment');
+            if (url) APP._audioCache.set(ttsCacheKey(text, 'comment'), url);
+        }
+        updateHud();
+    } catch (e) {
+        console.error('Precache error:', e);
+        throw new Error('Не удалось подготовить аудио маршрута: ' + e.message);
+    }
+}
+
+let _wakeLock = null, wakeLockInterval = null, wakeCanvas = null, wakeCanvasStream = null;
+const wakeVideo = document.getElementById('wakeLockVideo');
+
+async function requestWakeLock() {
+    if (!navigator.wakeLock || !navigator.wakeLock.request) return;
+    try {
+        const lock = await navigator.wakeLock.request('screen');
+        lock.addEventListener('release', () => {
+            _wakeLock = null;
+            if (document.visibilityState === 'visible') startWakeLock();
+        });
+        _wakeLock = lock;
+        stopCanvasWakeLock();
+    } catch (e) {
+        startCanvasWakeLock();
+    }
+}
+
+function startCanvasWakeLock() {
+    if (_wakeLock) return;
+    if (!wakeCanvas) {
+        wakeCanvas = document.createElement('canvas');
+        wakeCanvas.width = 1; wakeCanvas.height = 1;
+        const ctx = wakeCanvas.getContext('2d');
+        ctx.fillStyle = '#000'; ctx.fillRect(0, 0, 1, 1);
+        if (wakeCanvas.captureStream) wakeCanvasStream = wakeCanvas.captureStream(30);
+        else if (wakeCanvas.mozCaptureStream) wakeCanvasStream = wakeCanvas.mozCaptureStream(30);
+    }
+    if (wakeVideo && wakeCanvasStream) {
+        wakeVideo.srcObject = wakeCanvasStream;
+        wakeVideo.play().catch(() => {});
+    }
+    if (wakeLockInterval) clearInterval(wakeLockInterval);
+    wakeLockInterval = setInterval(() => {
+        if (wakeVideo && wakeVideo.paused) wakeVideo.play().catch(() => {});
+        if (wakeCanvas) {
+            const ctx = wakeCanvas.getContext('2d');
+            ctx.fillStyle = '#' + Math.floor(Math.random()*16777215).toString(16);
+            ctx.fillRect(0, 0, 1, 1);
+        }
+    }, 15000);
+}
+
+function stopCanvasWakeLock() {
+    if (wakeLockInterval) {
+        clearInterval(wakeLockInterval);
+        wakeLockInterval = null;
+    }
+    if (wakeVideo) {
+        wakeVideo.pause();
+        wakeVideo.srcObject = null;
+    }
+}
+
+function startWakeLock() {
+    requestWakeLock();
+}
+
+// iOS — запрос по первому клику (требуется жест пользователя)
+document.addEventListener('click', async () => {
+    if (!_wakeLock) await requestWakeLock();
+}, { once: true });
+
+// Перезахват после выключения/включения экрана
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && !_wakeLock) requestWakeLock();
+});
+
+function openInstruction() {
+    closePointsList();
+    closeSettings();
+    if (typeof MenuModule !== 'undefined') MenuModule.hide();
+    const modal = $('instructionModal');
+    const body = $('instructionBody');
+    if (!modal || !body) return;
+    modal.classList.remove('hidden');
+    if (!body.dataset.loaded) {
+        fetch('instr.html')
+            .then(r => r.text())
+            .then(html => {
+                const doc = new DOMParser().parseFromString(html, 'text/html');
+                body.innerHTML = doc.body.innerHTML;
+                body.dataset.loaded = '1';
+            })
+            .catch(() => { body.innerHTML = '<div style="text-align:center;padding:40px;color:rgba(255,100,100,0.8);">Ошибка загрузки инструкции</div>'; });
+    }
+}
+
+function closeInstruction() {
+    hideSheetModal('instructionModal', 'instructionSheet');
+}
+
+document.addEventListener('click', e => {
+    const btn = $('instructionBtn');
+    if (!btn) return;
+    if (btn.contains(e.target)) openInstruction();
+    setTimeout(() => btn.remove(), 0);
+}, { once: true });
+
+document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(startWakeLock, 500);
+});
+
+if (typeof ymaps3 === 'undefined' || !ymaps3.ready) {
+    showToast('Ошибка загрузки карты (MapLibre)', 'error', 8000);
+    $('loading').classList.add('hidden');
+} else {
+ymaps3.ready.then(async () => {
+    const { YMap, YMapDefaultSchemeLayer, YMapDefaultFeaturesLayer, YMapDefaultSatelliteLayer, YMapMarker, YMapControls } = ymaps3;
+
+    let initCenter = [43.9968, 56.3269];
+    if (navigator.geolocation) {
+        try {
+            const pos = await new Promise((resolve, reject) => {
+                navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 });
+            });
+            initCenter = [pos.coords.longitude, pos.coords.latitude];
+        } catch (e) {}
+    }
+
+    APP.map = new YMap(document.getElementById('map'), {
+        location: { center: initCenter, zoom: 17 },
+        zoomRange: { min: 3, max: 24 },
+        behaviors: ['drag', 'scrollZoom', 'dblClick', 'pinchZoom', 'pinchRotate', 'pinchTilt', 'mouseTilt', 'mouseRotate']
+    });
+
+    APP._schemeLayer = new YMapDefaultSchemeLayer({});
+    APP._featuresLayer = new YMapDefaultFeaturesLayer({ zIndex: 100000 });
+    APP._satLayer = new YMapDefaultSatelliteLayer({});
+    APP.map.addChild(APP._satLayer);
+    APP.map.addChild(APP._featuresLayer);
+
+    try {
+        const { YMapBuildings } = await ymaps3.import('@yandex/ymaps3-buildings');
+        APP._buildings = new YMapBuildings({});
+        APP.map.addChild(APP._buildings);
+    } catch (e) {}
+
+    const userEl = document.createElement('div');
+    userEl.style.cssText = 'width:40px;height:40px;transform:translate(-50%,-50%);cursor:pointer;';
+    userEl.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><g id="user-arrow"><path d="M20,4 L32,34 L20,28 L8,34 Z" fill="#FF3B30" stroke="white" stroke-width="2"/></g></svg>';
+    APP._userMarkerEl = userEl;
+    APP.userMarker = new YMapMarker({ coordinates: [0, 0] }, userEl);
+    APP.map.addChild(APP.userMarker);
+
+    const driveEl = document.createElement('div');
+    driveEl.innerHTML = '<svg width="18" height="18" viewBox="0 0 18 18"><circle cx="9" cy="9" r="7" fill="#FF3B30" stroke="#fff" stroke-width="2.5"/></svg>';
+    driveEl.style.cssText = 'transform:translate(-50%,-50%);display:none;position:relative;z-index:9999;';
+    APP._driveMarker = new YMapMarker({ coordinates: [0, 0] }, driveEl);
+    APP.map.addChild(APP._driveMarker);
+
+    initGeolocation();
+
+    APP._is3D = false;
+
+    $('locateBtn').addEventListener('click', toggleAutoCenter);
+
+    $('settingsBtn').addEventListener('click', openSettings);
+    $('playBtn').addEventListener('click', () => {
+        if (APP._driveActive || (!APP.navAudio.paused && APP.navAudio.currentTime > 0) ||
+            (!APP._commentAudio.paused && APP._commentAudio.currentTime > 0)) {
+            stopDrive();
+            APP._simMode = false;
+            updateTiltState();
+            return;
+        }
+        APP._drivePauseData = null;
+        const idx = APP.navCurrentIndex;
+        const p = APP.navPoints[idx];
+        if (!p || !p.pts || p.pts.length < 2) {
+            showToast('У текущей точки нет пути для симуляции', 'info');
+            return;
+        }
+        disableAutoCenter();
+        APP._simMode = true;
+        updateTiltState();
+        APP._simForceZoom = APP._simFirstRun;
+        if (APP._simFirstRun) {
+            APP._simFirstRun = false;
+            const from = p.pts[0], to = p.pts[1];
+            const dLon = (to[1] - from[1]) * Math.PI / 180;
+            const y = Math.sin(dLon) * Math.cos(to[0] * Math.PI / 180);
+            const x = Math.cos(from[0] * Math.PI / 180) * Math.sin(to[0] * Math.PI / 180) -
+                      Math.sin(from[0] * Math.PI / 180) * Math.cos(to[0] * Math.PI / 180) * Math.cos(dLon);
+            const bearing = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+            setMapLocation(from, 19, bearing, 2000);
+        }
+        APP.navCurrentIndex = idx;
+        APP._driveShowFrom = idx;
+        renderRoutePoints();
+        $('playBtn').classList.add('active');
+        $('playBtn').innerHTML = '<svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>';
+        const startSimAfterAudio = () => {
+            if (APP._driveShowFrom >= 0 && !APP._driveActive) driveAlongPath(idx);
+        };
+        const doPlay = () => playPointAudio(p, startSimAfterAudio);
+        APP._simForceZoom ? setTimeout(doPlay, 2000) : doPlay();
+    });
+
+    document.getElementById('map').addEventListener('click', () => {
+        stopDrive();
+        APP._simMode = false;
+        updateTiltState();
+    });
+
+    $('pointsListWrap').addEventListener('click', (e) => {
+        const icon = e.target.closest('.pl-item-icon');
+        if (icon) {
+            const idx = +icon.dataset.play;
+            if (!isNaN(idx) && APP.navPoints[idx]) {
+                const p = APP.navPoints[idx];
+                document.querySelectorAll('.playing').forEach(e => e.classList.remove('playing'));
+                APP._commentAudio.onended = null;
+                icon.classList.add('playing');
+                playPointAudio(p, () => icon.classList.remove('playing'));
+            }
+            return;
+        }
+        const item = e.target.closest('.pl-item');
+        if (!item) return;
+        const idx = +item.dataset.idx;
+        if (!isNaN(idx) && idx >= 0 && idx < APP.navPoints.length) {
+            closePointsList();
+            stopDrive();
+            APP._simMode = false;
+            updateTiltState();
+            setTarget(idx);
+            tempDisableAutoCenter(5000);
+        }
+    });
+
+    // Скрываем оверлей сразу, не дожидаясь загрузки SDK (в браузере блокировки тянутся до ~10с)
+    $('loading').classList.add('hidden');
+    // Даём SDK короткую фору (1.5с); в TG он приходит мгновенно, в браузере — продолжаем без него
+    if (window.platformReady) {
+        const grace = new Promise(r => setTimeout(r, 1500));
+        try { await Promise.race([window.platformReady, grace]); } catch (e) {}
+    }
+    MenuModule.init(loadRouteFromJSON);
+    ensureMotionTracking();
+
+    document.addEventListener('click', function activateAudio() {
+        APP.navAudio.muted = true;
+        APP.navAudio.play().catch(() => {});
+        APP.navAudio.pause();
+        APP.navAudio.muted = false;
+    }, { once: true });
+}).catch(e => {
+    showToast('Ошибка загрузки карты: ' + e.message, 'error', 5000);
+    $('loading').classList.add('hidden');
+});
+}
+</script>
+
+<div id="pointsListModal" class="hidden sheet-modal">
+    <div class="modal-sheet" id="pointsListSheet">
+        <div class="sheet-drag-area" id="sheetDragArea">
+            <div class="sheet-handle"><svg viewBox="0 0 24 24"><path d="M3 9L12 14.2L21 9" stroke="#fff" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        </div>
+        <div id="pointsListWrap"></div>
+    </div>
+</div>
+
+<div id="navSettingsModal" class="hidden sheet-modal">
+    <div class="modal-sheet" id="navSettingsSheet">
+        <div class="sheet-drag-area" id="settingsSheetDragArea">
+            <div class="sheet-handle"><svg viewBox="0 0 24 24"><path d="M3 9L12 14.2L21 9" stroke="#fff" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        </div>
+        <div class="settings-body">
+            <div class="settings-group">
+                <div class="settings-label">Вид карты</div>
+                <div class="map-type-btns">
+                    <button class="map-type-btn" id="satBtn" onclick="setMapType('sat')">Спутник</button>
+                    <button class="map-type-btn" id="schemeBtn" onclick="setMapType('scheme')">Схема</button>
+                </div>
+            </div>
+
+            <div class="settings-group">
+                <div class="settings-label">Настройки оповещений</div>
+                <div class="trigger-setting-row">
+                    <div class="trigger-setting-header">
+                        <label class="toggle-switch">
+                            <input type="checkbox" class="toggle-input" id="triggerShockToggle" onchange="updateShockDisplay();applyShockConfig()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span class="label">Детекция ударов</span>
+                        <span class="value" id="triggerShockVal">Выкл</span>
+                    </div>
+                    <div id="triggerShockControls">
+                        <input type="range" id="triggerShock" min="0.5" max="3" value="1" step="0.25" oninput="updateShockDisplay();applyShockConfig()">
+                        <div class="trigger-pad">
+                            <input type="text" id="triggerShockPhrase" value="Сильный удар" class="trigger-input" oninput="applyShockConfig()">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="trigger-setting-row">
+                    <div class="trigger-setting-header">
+                        <label class="toggle-switch">
+                            <input type="checkbox" class="toggle-input" id="triggerSpeedAlertToggle" onchange="applySpeedConfig()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span class="label">Превышение скорости</span>
+                        <input type="text" inputmode="numeric" pattern="[0-9]*" id="triggerSpeedAlert" value="58" class="trigger-input-num speed-input-inline" oninput="this.value=this.value.replace(/[^0-9]/g,'');applySpeedConfig()">
+                    </div>
+                    <div id="triggerSpeedAlertControls">
+                        <div class="trigger-pad">
+                            <input type="text" id="triggerSpeedAlertPhrase" value="Превышена максимальная скорость" class="trigger-input" oninput="applySpeedConfig()">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-group">
+                <div class="settings-label">Комментарии</div>
+                <div class="trigger-setting-row">
+                    <div class="trigger-setting-header">
+                        <label class="toggle-switch">
+                            <input type="checkbox" class="toggle-input" id="commentToggle" checked onchange="applyCommentConfig()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span class="label">Включить отображение и озвучивание</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-group" style="cursor:pointer" onclick="closeSettings(); setTimeout(openInstruction, 350)">
+                <div class="settings-label" style="text-align:center;color:rgba(255,255,255,0.6)">📖 Инструкция</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="instructorsModal" class="hidden sheet-modal">
+    <div class="modal-sheet" id="instructorsSheet">
+        <div class="sheet-drag-area" id="instructorsDragArea">
+            <div class="sheet-handle"><svg viewBox="0 0 24 24"><path d="M3 9L12 14.2L21 9" stroke="#fff" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        </div>
+        <div id="instructorsBody" class="instructors-body"></div>
+    </div>
+</div>
+
+<script>
+function closeInstructors() {
+    hideSheetModal('instructorsModal', 'instructorsSheet');
+}
+
+// Копирование номера — запасной путь: в Telegram WebView переход по tel:
+// часто игнорируется, и пользователю нужен хотя бы номер в буфере обмена.
+function copyPhoneNumber(text) {
+    const value = String(text || '').trim();
+    if (!value) return Promise.resolve(false);
+    const fallback = () => {
+        const area = document.createElement('textarea');
+        area.value = value;
+        area.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;';
+        document.body.appendChild(area);
+        area.select();
+        let ok = false;
+        try { ok = document.execCommand('copy'); } catch (e) {}
+        area.remove();
+        return ok;
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        return navigator.clipboard.writeText(value).then(() => true).catch(() => fallback());
+    }
+    return Promise.resolve(fallback());
+}
+
+// Звонок из мини-аппа. В обычном браузере работает tel:, а внутри Telegram
+// WebView ссылку нужно отдавать клиенту через openLink. Номер в любом случае
+// копируем и показываем в тосте — даже если диалер не открылся, действие видно.
+function callInstructor(phone) {
+    const telUrl = 'tel:' + String(phone || '').replace(/[^0-9+]/g, '');
+    const tg = window.Telegram && window.Telegram.WebApp;
+    let started = false;
+    if (tg && typeof tg.openLink === 'function') {
+        try {
+            tg.openLink(telUrl);
+            started = true;
+        } catch (e) {}
+    }
+    if (!started) {
+        try {
+            window.location.href = telUrl;
+            started = true;
+        } catch (e) {}
+    }
+    // Тост показываем сразу: если в WebView не сработает ни диалер, ни буфер
+    // обмена, пользователь всё равно увидит номер и сможет набрать его вручную.
+    showToast('Телефон: ' + phone, 'info', 4500);
+    copyPhoneNumber(phone).then((copied) => {
+        if (copied) showToast('Номер скопирован: ' + phone, 'info', 4500);
+    });
+}
+
+// Карточка инструктора для шторки. Всё через textContent: реклама редактируется
+// пользователем, innerHTML с её полями недопустим.
+function buildInstructorCard(inst) {
+    const card = document.createElement('div');
+    card.className = 'instructor-card';
+
+    const top = document.createElement('div');
+    top.className = 'instructor-top';
+
+    const avatar = document.createElement('div');
+    avatar.className = 'instructor-avatar';
+    const avatarPhoto = inst.photos && inst.photos.avatar;
+    if (avatarPhoto && avatarPhoto.url) {
+        const img = document.createElement('img');
+        img.src = avatarPhoto.url;
+        img.alt = inst.name || 'Инструктор';
+        img.loading = 'lazy';
+        avatar.appendChild(img);
+    } else {
+        avatar.textContent = (inst.name || '?').trim().charAt(0).toUpperCase();
+    }
+    top.appendChild(avatar);
+
+    const info = document.createElement('div');
+    info.className = 'instructor-info';
+
+    const name = document.createElement('div');
+    name.className = 'instructor-name';
+    name.textContent = inst.name || 'Инструктор';
+    info.appendChild(name);
+
+    if (inst.car_model) {
+        const car = document.createElement('div');
+        car.className = 'instructor-car';
+        car.textContent = '🚗 ' + inst.car_model;
+        info.appendChild(car);
+    }
+    if (inst.text) {
+        const text = document.createElement('div');
+        text.className = 'instructor-text';
+        text.textContent = inst.text;
+        info.appendChild(text);
+    }
+    top.appendChild(info);
+    card.appendChild(top);
+
+    const actions = document.createElement('div');
+    actions.className = 'instructor-actions';
+    if (inst.phone) {
+        const call = document.createElement('a');
+        call.className = 'instructor-call';
+        call.href = 'tel:' + String(inst.phone).replace(/[^0-9+]/g, '');
+        call.textContent = '📞 ' + inst.phone;
+        call.title = 'Позвонить: ' + inst.phone;
+        call.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            callInstructor(inst.phone);
+        });
+        actions.appendChild(call);
+    }
+    if (inst.url) {
+        const write = document.createElement('a');
+        write.className = 'instructor-write';
+        write.href = inst.url;
+        write.target = '_blank';
+        write.rel = 'noopener';
+        write.textContent = 'Написать';
+        actions.appendChild(write);
+    }
+    if (actions.children.length) card.appendChild(actions);
+
+    const carPhoto = inst.photos && inst.photos.car;
+    if (carPhoto && carPhoto.url) {
+        const wrap = document.createElement('div');
+        wrap.className = 'instructor-car-photo';
+        const img = document.createElement('img');
+        img.src = carPhoto.url;
+        img.alt = inst.car_model || 'Автомобиль';
+        img.loading = 'lazy';
+        wrap.appendChild(img);
+        card.appendChild(wrap);
+    }
+
+    return card;
+}
+
+function showInstructors(list, folderName) {
+    if (!Array.isArray(list) || !list.length) return;
+    const body = document.getElementById('instructorsBody');
+    if (!body) return;
+    body.innerHTML = '';
+
+    const title = document.createElement('div');
+    title.className = 'instructors-title';
+    title.textContent = folderName ? 'Инструкторы · ' + folderName : 'Инструкторы';
+    body.appendChild(title);
+
+    list.forEach((inst) => body.appendChild(buildInstructorCard(inst)));
+    document.getElementById('instructorsModal').classList.remove('hidden');
+}
+window.showInstructors = showInstructors;
+
+document.addEventListener('click', (e) => {
+    const sheetModals = [
+        { id: 'navSettingsModal', close: closeSettings, triggers: ['settingsBtn', 'menuBtn'], handle: 'settingsSheetDragArea' },
+        { id: 'pointsListModal', close: closePointsList, triggers: ['hudCmd', 'hudPrevCmd', 'menuBtn'], handle: 'sheetDragArea' },
+        { id: 'instructionModal', close: closeInstruction, triggers: ['instructionBtn', 'menuBtn'], handle: 'instructionDragArea' },
+        { id: 'instructorsModal', close: closeInstructors, triggers: [], handle: 'instructorsDragArea' },
+    ];
+    sheetModals.forEach(({ id, close, triggers, handle: handleId }) => {
+        const modal = document.getElementById(id);
+        if (!modal || modal.classList.contains('hidden')) return;
+        const sheet = modal.querySelector('.modal-sheet');
+        const isTrigger = triggers.some(tid => {
+            const el = document.getElementById(tid);
+            return el && (el === e.target || el.contains(e.target));
+        });
+        const isHandle = handleId && document.getElementById(handleId)?.contains(e.target);
+        if (isHandle || (sheet && !sheet.contains(e.target) && !isTrigger)) close();
+    });
+});
+
+function enableSheetSwipe(modalId, sheetId, handleId, closeFn) {
+    const sheet = document.getElementById(sheetId);
+    const handle = document.getElementById(handleId);
+    let startY = 0, currentY = 0, dragging = false;
+    if (!sheet || !handle) return;
+    const onStart = (e) => { e.preventDefault(); startY = e.clientY; currentY = startY; dragging = false; };
+    const onMove = (e) => {
+        if (startY === 0) return;
+        const dy = e.clientY - startY;
+        if (Math.abs(dy) > 5) dragging = true;
+        if (!dragging) return;
+        currentY = e.clientY;
+        sheet.style.transition = 'none';
+        if (dy > 0) sheet.style.transform = `translateY(${dy}px)`;
+    };
+    const onEnd = () => {
+        if (startY === 0) return;
+        if (dragging) {
+            sheet.style.transition = '';
+            const dy = currentY - startY;
+            if (dy > 100) { closeFn(); startY = 0; return; }
+            sheet.style.transform = '';
+        } else {
+            closeFn();
+        }
+        startY = 0;
+    };
+    handle.addEventListener('pointerdown', onStart);
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onEnd);
+    window.addEventListener('pointercancel', onEnd);
+}
+
+enableSheetSwipe('navSettingsModal', 'navSettingsSheet', 'settingsSheetDragArea', closeSettings);
+enableSheetSwipe('pointsListModal', 'pointsListSheet', 'sheetDragArea', closePointsList);
+enableSheetSwipe('instructionModal', 'instructionSheet', 'instructionDragArea', closeInstruction);
+enableSheetSwipe('instructorsModal', 'instructorsSheet', 'instructorsDragArea', closeInstructors);
+</script>
+</body>
+</html>

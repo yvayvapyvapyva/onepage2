@@ -11,7 +11,6 @@ cd "$(dirname "$0")"
 SITE_FILES=(
   index.html
   navigator.html
-  navigator-v3.html
   editor.html
   instr.html
   instr_editor.html
