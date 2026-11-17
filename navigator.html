@@ -6,7 +6,7 @@
     <link rel="icon" href="ico.png" type="image/png">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <link rel="stylesheet" href="assets/css/navigator.css?v=4">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@yandex/ymaps3-default-ui-theme@latest/dist/esm/index.css">
+    <link rel="stylesheet" href="assets/css/maplibre-gl.css?v=1">
     <style>
 .toggle-switch {
     position: relative;
@@ -104,7 +104,10 @@
 <script src="assets/js/config.js?v=4"></script>
 <script src="assets/js/tts-client.js?v=1"></script>
 <script src="assets/js/report.js?v=4"></script>
-<script src="https://api-maps.yandex.ru/v3/?apikey=c0e28937-4e16-4d15-9b99-09a30cb8fc13&lang=ru_RU" onerror="window.__ycMapsFailed = true;"></script>
+<script src="assets/js/maplibre-gl.js?v=1"></script>
+<script src="assets/js/pmtiles.js?v=1"></script>
+<script src="assets/js/map-styles.js?v=1"></script>
+<script src="assets/js/map-shim.js?v=1"></script>
 <script>
 // Грузим Telegram SDK асинхронно с таймаутом 10с.
 // Если telegram.org заблокирован или недоступен — не блокируем загрузку приложения.
@@ -1504,7 +1507,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 if (typeof ymaps3 === 'undefined' || !ymaps3.ready) {
-    showToast('Ошибка загрузки Яндекс.Карт (возможно, блокировка)', 'error', 8000);
+    showToast('Ошибка загрузки карты (MapLibre)', 'error', 8000);
     $('loading').classList.add('hidden');
 } else {
 ymaps3.ready.then(async () => {
@@ -1536,10 +1539,6 @@ ymaps3.ready.then(async () => {
         const { YMapBuildings } = await ymaps3.import('@yandex/ymaps3-buildings');
         APP._buildings = new YMapBuildings({});
         APP.map.addChild(APP._buildings);
-    } catch (e) {}
-
-    try {
-        ymaps3.import.registerCdn('https://cdn.jsdelivr.net/npm/{package}', ['@yandex/ymaps3-default-ui-theme@latest']);
     } catch (e) {}
 
     const userEl = document.createElement('div');
