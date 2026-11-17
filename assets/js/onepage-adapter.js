@@ -54,35 +54,21 @@
         return catalogPromise;
     }
 
-    function lockMap(catalog) {
-        const folders = new Map();
+    function rememberFolders(catalog) {
+        const parents = {};
+        const names = {};
         (catalog.folders || []).forEach((folder) => {
-            folders.set(String(folder.id), folder);
+            parents[String(folder.id)] = folder.parent_id == null ? '' : String(folder.parent_id);
+            names[String(folder.id)] = folder.name || '';
         });
-        const locked = new Set(
-            (catalog.locks || []).map((lock) => String(lock.id))
-        );
-
-        function isLocked(folderId) {
-            let current = folderId == null ? '' : String(folderId);
-            const seen = new Set();
-            while (current && !seen.has(current)) {
-                if (locked.has(current)) return true;
-                seen.add(current);
-                const folder = folders.get(current);
-                current = folder ? String(folder.parent_id || '') : '';
-            }
-            return false;
-        }
-
-        return { isLocked };
+        global.OnepageFolders = { parents: parents, names: names };
     }
 
     function ownerBundle(catalog) {
-        const locks = lockMap(catalog);
+        rememberFolders(catalog);
         const folders = (catalog.folders || []).map((folder) => {
             const parentId = folder.parent_id == null ? '' : String(folder.parent_id);
-            return {
+            const item = {
                 folder_id: String(folder.id),
                 // В onepage2 у корневых папок parent_id пустой, в навигаторе3
                 // они должны быть вложены в корень владельца.
@@ -90,13 +76,18 @@
                 name: folder.name || 'Папка',
                 sort_order: Number(folder.sort_order) || 0
             };
+            if (Array.isArray(folder.instructors) && folder.instructors.length) {
+                item.instructors = folder.instructors;
+            }
+            return item;
         });
 
+        const shop = global.OnepageShop;
         const routes = (catalog.routes || [])
             .filter((route) => route && route.m)
             .map((route) => {
                 const folderId = route.folder_id == null ? '' : String(route.folder_id);
-                const locked = folderId ? locks.isLocked(folderId) : false;
+                const locked = shop && folderId ? shop.isLocked(folderId) : false;
                 return {
                     m: String(route.m),
                     title: route.name || route.m,
@@ -129,7 +120,11 @@
     }
 
     function handleCatalog() {
-        return loadCatalog().then((catalog) => jsonResponse(ownerBundle(catalog)));
+        const shopReady = global.OnepageShop && global.OnepageShop.ready
+            ? global.OnepageShop.ready
+            : Promise.resolve();
+        return Promise.all([loadCatalog(), shopReady])
+            .then(([catalog]) => jsonResponse(ownerBundle(catalog)));
     }
 
     function handleRoute(m) {

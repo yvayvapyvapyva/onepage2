@@ -24,7 +24,6 @@ const MenuModule = {
     _ownersLoaded: false,
     _ownerBundles: new Map(),
     _routeOwners: new Map(),
-    _ownerSigns: new Map(),
     _activeOwnerId: null,
     API_OWNERS_URL: '/api/owners',
     API_CATALOG_URL: '/api/catalog',
@@ -198,12 +197,6 @@ const MenuModule = {
         }
 
         this._ownerBundles.set(rootId, bundle);
-        const ownerSigns = Array.isArray(bundle.signs) ? bundle.signs : [];
-        this._ownerSigns.set(rootId, ownerSigns);
-        // Готовим иконки знаков заранее, пока пользователь выбирает маршрут.
-        if (ownerSigns.length && typeof window.preloadOwnerSigns === 'function') {
-            window.preloadOwnerSigns(ownerSigns);
-        }
         this._folders = Array.isArray(bundle.folders) ? bundle.folders.slice() : [];
         if (!this._folders.some(folder => folder.folder_id === rootId) && bundle.owner) {
             this._folders.unshift({
@@ -263,13 +256,6 @@ const MenuModule = {
         if (!rootId) throw new Error('Не найден владелец маршрута');
         this._applyOwnerBundle(rootId, bundle);
         return bundle;
-    },
-
-    getSignsForRoute(routeM) {
-        const rootId = this._routeOwners.get(String(routeM || ''));
-        if (!rootId) return [];
-        const signs = this._ownerSigns.get(rootId);
-        return Array.isArray(signs) ? signs : [];
     },
 
     async _fetchRoute(routeM) {
@@ -346,6 +332,7 @@ const MenuModule = {
                 folders,
                 folderNames,
                 description: typeof route.description === 'string' ? route.description.trim() : '',
+                folder_id: route.folder_id || '',
                 premium: !!route.premium,
                 locked: !!route.locked,
                 viewed: !!route.viewed,
@@ -567,11 +554,45 @@ const MenuModule = {
             }
             container.appendChild(folderList);
         }
+        const instructors = this._instructorsForCurrentFolder();
+        if (instructors.length) {
+            const instructorBtn = document.createElement('button');
+            instructorBtn.type = 'button';
+            instructorBtn.className = 'instructors-row';
+            instructorBtn.style.cssText = 'display:flex;align-items:center;gap:10px;width:100%;padding:12px 14px;margin:8px 0 0;border:1px solid rgba(18,28,46,0.12);border-radius:14px;background:var(--surface,#fff);color:inherit;font:inherit;cursor:pointer;text-align:left;';
+            const title = document.createElement('span');
+            title.style.cssText = 'font-weight:700;flex:1;';
+            title.textContent = 'Инструкторы по вождению';
+            const count = document.createElement('span');
+            count.style.cssText = 'color:#5B6B80;font-size:13px;';
+            count.textContent = String(instructors.length);
+            const chevron = document.createElement('span');
+            chevron.style.cssText = 'color:#5B6B80;';
+            chevron.textContent = '›';
+            instructorBtn.append(title, count, chevron);
+            instructorBtn.addEventListener('click', () => {
+                if (window.OnepageInstructors) {
+                    window.OnepageInstructors.open(
+                        instructors,
+                        this._folderMap.get(this._folderPath[this._folderPath.length - 1] || '')?.name || ''
+                    );
+                }
+            });
+            container.appendChild(instructorBtn);
+        }
+
         const frag = document.createDocumentFragment();
         for (const route of routes) frag.appendChild(this._createRouteRow(route));
         container.appendChild(frag);
         this._observeRoutePreviews(container);
         this._scrollToCurrentRoute(container);
+    },
+
+    _instructorsForCurrentFolder() {
+        const folderId = this._folderPath[this._folderPath.length - 1] || '';
+        if (!folderId) return [];
+        const folder = this._folderMap.get(folderId);
+        return folder && Array.isArray(folder.instructors) ? folder.instructors : [];
     },
 
     // Прокручивает список к загруженному маршруту, чтобы при открытии меню
@@ -755,10 +776,12 @@ const MenuModule = {
         btn.addEventListener('click', event => {
             event.stopPropagation();
             if (route.locked) {
-                if (typeof window.openPremiumOffer === 'function') {
+                if (window.OnepageShop && typeof window.OnepageShop.openPaywall === 'function') {
+                    window.OnepageShop.openPaywall(route.folder_id);
+                } else if (typeof window.openPremiumOffer === 'function') {
                     window.openPremiumOffer();
                 } else if (typeof showToast === 'function') {
-                    showToast('Премиум-маршрут доступен по подписке', 'info', 4000);
+                    showToast('Маршрут доступен после оплаты папки', 'info', 4000);
                 }
                 return;
             }
@@ -1188,7 +1211,6 @@ const MenuModule = {
         this._ownersLoaded = false;
         this._ownerBundles.clear();
         this._routeOwners.clear();
-        this._ownerSigns.clear();
         this._activeOwnerId = null;
         this._catalog = [];
         this.routesDescriptions = {};
