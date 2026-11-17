@@ -2273,3 +2273,32 @@ button, input, select, textarea {
     background: color-mix(in srgb, var(--surface) 75%, transparent) !important;
     opacity: 1;
 }
+
+/* ============================================
+   Telegram fullscreen: безопасные отступы
+   ============================================ */
+:root {
+    --tg-safe-top: 0px;
+    --tg-safe-bottom: 0px;
+}
+html.tg-fullscreen .top-nav {
+    padding-top: max(10px, var(--tg-safe-top));
+}
+html.tg-fullscreen #locateBtn {
+    top: calc(100px + max(env(safe-area-inset-top, 0px), var(--tg-safe-top)));
+}
+html.tg-fullscreen #telemetryPanel {
+    top: calc(165px + max(env(safe-area-inset-top, 0px), var(--tg-safe-top)));
+}
+html.tg-fullscreen #topCenterControls {
+    top: calc(72px + max(env(safe-area-inset-top, 0px), var(--tg-safe-top)));
+}
+html.tg-fullscreen #shockBar {
+    top: max(4px, var(--tg-safe-top));
+}
+html.tg-fullscreen #toast {
+    top: calc(90px + max(env(safe-area-inset-top, 0px), var(--tg-safe-top)));
+}
+html.tg-fullscreen #hud {
+    bottom: calc(12px + max(env(safe-area-inset-bottom, 0px), var(--tg-safe-bottom)));
+}

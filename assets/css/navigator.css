@@ -1545,3 +1545,26 @@ html, body {
     object-fit: cover;
     display: block;
 }
+
+/* ============================================
+   Telegram fullscreen: безопасные отступы
+   ============================================ */
+:root {
+    --tg-safe-top: 0px;
+    --tg-safe-bottom: 0px;
+}
+html.tg-fullscreen #locateBtn {
+    top: calc(76px + max(env(safe-area-inset-top, 0px), var(--tg-safe-top)));
+}
+html.tg-fullscreen #telemetryPanel {
+    top: calc(140px + max(env(safe-area-inset-top, 0px), var(--tg-safe-top)));
+}
+html.tg-fullscreen #settingsBtn {
+    top: calc(76px + max(env(safe-area-inset-top, 0px), var(--tg-safe-top))) !important;
+}
+html.tg-fullscreen #hud {
+    bottom: calc(20px + max(env(safe-area-inset-bottom, 0px), var(--tg-safe-bottom)));
+}
+html.android-app.tg-fullscreen #hud {
+    bottom: calc(30px + max(env(safe-area-inset-bottom, 0px), var(--tg-safe-bottom)));
+}
