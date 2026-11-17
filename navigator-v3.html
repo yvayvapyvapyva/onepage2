@@ -1,0 +1,3481 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <script>
+        /* Шлюз маршрутизирует только по пути, поэтому на домене редактора
+           корень отдаёт navigator.html. Уводим на редактор до отрисовки. */
+        (function () {
+            if (window.location.hostname !== 'editor.ainstruktor.ru') return;
+            var path = window.location.pathname;
+            if (path === '/' || path === '/index.html' || path === '/navigator.html') {
+                window.location.replace('/editor.html' + window.location.search + window.location.hash);
+            }
+        })();
+    </script>
+    <title>Автоинструктор</title>
+    <link rel="icon" href="ico.png" type="image/png">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#F4F6FA">
+    <script>
+        /* Тема применяется до первой отрисовки, чтобы не было вспышки светлого фона.
+           Выбор пользователя живёт только в памяти вкладки, поэтому после
+           перезагрузки снова берём схему устройства. */
+        (function () {
+            var theme = 'light';
+            try {
+                if (window.matchMedia('(prefers-color-scheme: dark)').matches) theme = 'dark';
+            } catch (e) {}
+            document.documentElement.setAttribute('data-theme', theme);
+            var meta = document.querySelector('meta[name="theme-color"]');
+            if (meta) meta.setAttribute('content', theme === 'dark' ? '#0F141C' : '#F4F6FA');
+            /* Ключ из прошлых версий больше не нужен. */
+            try { localStorage.removeItem('osm_theme_v1'); } catch (e) {}
+        })();
+    </script>
+    <link rel="stylesheet" href="assets/css/navigator-v3.css?v=25">
+    <link rel="stylesheet" href="assets/css/maplibre-gl.css?v=4.7.1">
+    <!-- Yandex.Metrika counter -->
+    <script type="text/javascript">
+        (function(m,e,t,r,i,k,a){
+            m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
+            m[i].l=1*new Date();
+            for (var j = 0; j < document.scripts.length; j++) {if (document.scripts[j].src === r) { return; }}
+            k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)
+        })(window, document,'script','https://mc.yandex.ru/metrika/tag.js?id=113791980', 'ym');
+
+        ym(113791980, 'init', {ssr:true, webvisor:true, clickmap:true, ecommerce:"dataLayer", referrer: document.referrer, url: location.href, accurateTrackBounce:true, trackLinks:true});
+    </script>
+    <noscript><div><img src="https://mc.yandex.ru/watch/113791980" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
+    <!-- /Yandex.Metrika counter -->
+</head>
+<body>
+
+<div id="loading" class="loading-overlay">
+    <div>ЗАГРУЗКА...</div>
+</div>
+
+<div id="topActions" class="top-nav" aria-label="Разделы">
+    <div class="top-nav-container">
+        <button type="button" class="top-nav-btn active" data-tab="routes">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="6" cy="19" r="2.5"/>
+                <circle cx="18" cy="5" r="2.5"/>
+                <path d="M8.5 19H15a4 4 0 0 0 0-8H9a4 4 0 0 1 0-8h6"/>
+            </svg>
+            <span>Маршруты</span>
+        </button>
+        <button type="button" class="top-nav-btn" data-tab="instruction">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 6.2C10.4 4.9 8.2 4.2 5.5 4.2H4.5a1 1 0 0 0-1 1v11.6a1 1 0 0 0 1 1h1c2.7 0 4.9.7 6.5 2 1.6-1.3 3.8-2 6.5-2h1a1 1 0 0 0 1-1V5.2a1 1 0 0 0-1-1h-1c-2.7 0-4.9.7-6.5 2Z"/>
+                <path d="M12 6.2v13.6"/>
+            </svg>
+            <span>Инструкция</span>
+        </button>
+        <button type="button" class="top-nav-btn" data-tab="profile">
+            <span class="top-nav-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="12" cy="8" r="4"/>
+                    <path d="M4.5 20a7.5 7.5 0 0 1 15 0"/>
+                </svg>
+                <i class="nav-premium-badge" id="profilePremiumBadge" hidden title="Премиум активен" aria-label="Премиум активен">★</i>
+            </span>
+            <span>Профиль</span>
+        </button>
+        <button type="button" class="top-nav-btn" data-tab="settings">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M4 7h10M18 7h2M4 17h2M10 17h10M4 12h4M12 12h8"/>
+                <circle cx="16" cy="7" r="2"/>
+                <circle cx="8" cy="17" r="2"/>
+                <circle cx="10" cy="12" r="2"/>
+            </svg>
+            <span>Настройки</span>
+        </button>
+    </div>
+</div>
+
+<div id="instructionModal" class="hidden screen-modal">
+    <div class="screen-panel" id="instructionScreen">
+        <header class="screen-head">
+            <h1 class="screen-title">Инструкция</h1>
+            <button type="button" class="screen-close" onclick="closeInstruction()" aria-label="Закрыть">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+            </button>
+        </header>
+        <div class="instruction-body" id="instructionBody">
+            <div class="instruction-loading">Загрузка...</div>
+        </div>
+    </div>
+</div>
+
+
+<video id="wakeLockVideo" playsinline muted loop></video>
+<div id="map"></div>
+<button id="locateBtn" class="circle-btn" aria-label="Привязка к геопозиции">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.05 5.96 11.68 22.5l-2.42-7.76L1.5 12.32 18.05 5.96Z"/></svg>
+</button>
+
+<div id="telemetryPanel" aria-label="Спидометр. Удерживайте для перехода в редактор" title="Удерживайте для перехода в редактор">
+    <div class="tel-item"><span class="tel-label">КМ/Ч</span><span class="tel-value" id="telSpeed">0</span></div>
+</div>
+<div id="topCenterControls"><div id="routeNameDisplay"></div></div>
+
+<div id="hud">
+    <div class="hud-header hud-prev-header" id="hudPrevHeader" style="display:none">
+        <button class="hud-cmd hud-prev" id="hudPrevCmd"><div class="hud-cmd-row"><span id="hudPrevCmdNum">1</span><span id="hudPrevCmdText"><span id="hudPrevCmdTextInner"></span></span></div></button>
+    </div>
+    <div class="hud-header">
+        <button class="hud-cmd" id="hudCmd"><div class="hud-cmd-row"><span id="hudCmdNum">1</span><span id="hudCmdText"><span id="hudCmdTextInner">Маршрут не выбран</span></span><span id="hudCmdDist">---</span></div><span id="commentText"></span></button>
+    </div>
+    <div class="hud-actions">
+        <button class="nav-action-btn" id="prevBtn" title="Предыдущая точка">
+            <svg viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+            <span>Назад</span>
+        </button>
+        <button class="nav-action-btn" id="playBtn" title="Симуляция проезда">
+            <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            <span>Симуляция</span>
+        </button>
+        <button class="nav-action-btn" id="nextBtn" title="Следующая точка">
+            <svg viewBox="0 0 24 24"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+            <span>Вперёд</span>
+        </button>
+    </div>
+</div>
+
+<div id="shockBar">
+    <div id="shockBarFill"></div>
+    <div id="shockBarPeak" aria-hidden="true"></div>
+    <span id="shockBarValue">0.0</span>
+</div>
+
+<div id="toast"></div>
+
+<script src="assets/js/tts-n3.js"></script>
+<script src="assets/js/maplibre-gl.js?v=4.7.1"></script>
+<script src="assets/js/pmtiles.js?v=3.2.1"></script>
+<script src="assets/js/map-styles.js?v=10"></script>
+<script src="assets/js/onepage-adapter.js"></script>
+<script src="assets/js/menu-n3.js?v=14"></script>
+<script src="assets/js/auth-n3.js?v=4"></script>
+<script>
+const MAP_PREFS_KEY = 'osm_map_prefs_v1';
+
+function loadMapPrefs() {
+  const prefs = { style: 'nn_3d' };
+  try {
+    const saved = JSON.parse(localStorage.getItem(MAP_PREFS_KEY) || '{}');
+    if (saved && saved.style) {
+      prefs.style = MAP_STYLES[saved.style] ? saved.style : 'nn_3d';
+    }
+  } catch (e) {}
+  return prefs;
+}
+
+const MAP_PREFS = loadMapPrefs();
+
+/* Выбор темы живёт только в памяти: после перезагрузки приложение снова
+   следует схеме устройства. */
+let sessionTheme = null;
+
+const THEME_MEDIA = window.matchMedia('(prefers-color-scheme: dark)');
+
+function loadThemePreference() {
+  return sessionTheme ? sessionTheme === 'dark' : THEME_MEDIA.matches;
+}
+
+function applyThemePreference(isDark, remember) {
+  const theme = isDark ? 'dark' : 'light';
+  const previousTheme = document.documentElement.getAttribute('data-theme');
+  document.documentElement.setAttribute('data-theme', theme);
+
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', isDark ? '#0F141C' : '#F4F6FA');
+
+  const toggle = document.getElementById('themeToggle');
+  if (toggle) toggle.checked = isDark;
+
+  const value = document.getElementById('themeValue');
+  if (value) value.textContent = isDark ? 'Вкл' : 'Выкл';
+
+  /* remember === false — тему выставила система или старт приложения, а не
+     пользователь: выбор не фиксируем и продолжаем следить за системой. */
+  if (remember !== false) sessionTheme = theme;
+
+  if (previousTheme && previousTheme !== theme &&
+      typeof MenuModule !== 'undefined' &&
+      typeof MenuModule.refreshRoutePreviews === 'function') {
+    MenuModule.refreshRoutePreviews();
+  }
+}
+
+/* Пока тема не выбрана вручную, приложение следует за системной: если
+   пользователь переключит оформление на устройстве, тема обновится сразу. */
+function handleSystemThemeChange(event) {
+  if (sessionTheme) return;
+  applyThemePreference(event.matches, false);
+}
+
+if (typeof THEME_MEDIA.addEventListener === 'function') {
+  THEME_MEDIA.addEventListener('change', handleSystemThemeChange);
+} else if (typeof THEME_MEDIA.addListener === 'function') {
+  /* Safari до 14 не поддерживает addEventListener у MediaQueryList. */
+  THEME_MEDIA.addListener(handleSystemThemeChange);
+}
+
+const COLORS = {
+  Gold: { hex: '#FFD700' },
+  Blue: { hex: '#007AFF' },
+  Red: { hex: '#FF3B30' },
+  Fuchsia: { hex: '#AF52DE' },
+  Orange: { hex: '#FF9500' },
+  Purple: { hex: '#5856D6' },
+  Cyan: { hex: '#5AC8FA' },
+  Brown: { hex: '#A2845E' },
+  Lime: { hex: '#34C759' }
+};
+
+function ttsCacheKey(text, voiceType) {
+    return `${voiceType}\0${String(text || '').trim()}`;
+}
+
+// Редактор работает только на домене шлюза: CDN перед ainstruktor.ru
+// не пропускает POST, без которого сохранение невозможно.
+const EDITOR_URL = 'https://editor.ainstruktor.ru/editor.html';
+
+const APP = {
+    map: null, userMarker: null, lastPos: null, lastAz: 0, rawAz: 0, hasHeading: false, lastTilt: 0, lastZoom: 17, autoCenter: false, currentSpeed: 0,
+    lastFixTime: 0, _lastGoodFixAt: 0, _weakToastAt: 0, _azBasePos: null, _speedFallback: null,
+    _geoWatchId: null, _geoErrorAt: 0, _geoDenied: false,
+    navPoints: [],     navCurrentIndex: 0, _routeTotalDistance: 0,
+    navAudio: new Audio(), _commentAudio: new Audio(),
+    navConfig: {
+        TRIGGER_DIST: 25, AZ_TOLERANCE: 45, SPEED_THRESHOLD: 2,
+        ACCURACY_LIMIT: 150, WEAK_FIX_GRACE: 8000, HEADING_MIN_DIST: 6,
+        /* Порог удара — в g (как показывает шок-бар). */
+        SHOCK_THRESHOLD: 0, SHOCK_PHRASE: 'Сильный удар',
+        SPEED_ALERT_THRESHOLD: 58, SPEED_ALERT_PHRASE: 'Превышение скорости'
+    },
+    _mapStyle: MAP_PREFS.style,
+    _routeFeatures: [], _routeDataSource: null, _routeDataDirty: false,
+    _driveActive: false, _driveRaf: null, _driveMarker: null, _driveShowFrom: -1,
+    _lastSpeedAlertTime: 0,
+    _motionPermissionGranted: false,
+    _driveState: null, _driveResume: null, _simSeq: 0,
+    _driveSpeed: 90,
+    _simCurPos: null,
+    markerRotation: 0, _arrowRaf: null, _arrowPos: null,
+    _followPausedUntil: 0, _followPaddingBottom: 0,
+    _audioCache: new Map(),
+    _commentEnabled: true,
+    _lastShockTime: 0,
+    _lastSpeedAlertTime: 0,
+    _motionTracked: false,
+    _simFirstRun: true,
+    _simMode: false,
+    _navSeq: 0,
+    _audioPending: 0,
+    _autoCenterTimer: null,
+    premiumStatus: null,
+    _signsData: null,
+    _signsLoading: null,
+    _signsSeq: 0,
+    _signsEnabled: true,
+    _signCatalog: new Map(),
+    _signCatalogPromise: null,
+    _signCatalogLoaded: false,
+    _signImageCache: new Map(),
+    _signIconDefs: [],
+    _signIconCacheBySigns: new WeakMap(),
+    _signBuildPromises: new WeakMap(),
+    _signIconGen: 0,
+    _signFeatures: null,
+    _signSourceData: null
+};
+
+const $ = id => document.getElementById(id);
+
+// ---------- Дорожные знаки из сцены PAD ----------
+const SIGNS_SOURCE_ID = 'nav-signs';
+const SIGNS_LAYER_ID = 'nav-signs-icons';
+const SIGNS_ENABLED_KEY = 'osm_signs_enabled_v1';
+const SIGNS_REF_PX = 128;
+const SIGNS_DSF = 2;
+const SIGNS_MIN_ZOOM = 13;
+try {
+    APP._signsEnabled = localStorage.getItem(SIGNS_ENABLED_KEY) !== '0';
+} catch (e) {}
+
+const NAV_PLAY_ICONS = {
+    play: '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>',
+    pause: '<svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>'
+};
+
+function setPlayBtnState(state) {
+    const pb = $('playBtn');
+    if (!pb) return;
+    const value = state === true ? 'running' : state === false ? 'idle' : state;
+    const running = value === 'running';
+    const paused = value === 'paused';
+    const label = running ? 'Пауза' : paused ? 'Продолжить' : 'Симуляция';
+    const title = running ? 'Пауза' : paused ? 'Продолжить симуляцию' : 'Симуляция проезда';
+    pb.classList.toggle('active', running);
+    pb.classList.toggle('is-paused', paused);
+    pb.title = title;
+    pb.setAttribute('aria-label', title);
+    pb.innerHTML = `${running ? NAV_PLAY_ICONS.pause : NAV_PLAY_ICONS.play}<span>${label}</span>`;
+}
+
+/* ---------- MapLibre: адаптер объектов карты ---------- */
+class MapMarker {
+    constructor(options, element) {
+        this.element = element;
+        this.coordinates = options.coordinates || [0, 0];
+        this._marker = new maplibregl.Marker({
+            element,
+            anchor: 'center',
+            rotationAlignment: options.rotationAlignment || 'viewport',
+            pitchAlignment: options.pitchAlignment || 'viewport'
+        }).setLngLat(this.coordinates);
+        this._onMap = false;
+    }
+    update(options) {
+        if (options && options.coordinates) {
+            this.coordinates = options.coordinates;
+            this._marker.setLngLat(this.coordinates);
+        }
+    }
+    setRotation(deg) {
+        if (this._marker.setRotation) this._marker.setRotation(deg);
+    }
+    _add(map) {
+        if (!this._onMap) {
+            this._marker.addTo(map);
+            this._onMap = true;
+        }
+    }
+    _remove() {
+        if (this._onMap) {
+            this._marker.remove();
+            this._onMap = false;
+        }
+    }
+}
+
+function mapAddChild(obj) {
+    if (!APP.map || !obj) return;
+    if (obj._add) obj._add(APP.map);
+}
+
+function mapRemoveChild(obj) {
+    if (!obj) return;
+    if (obj._remove) obj._remove();
+}
+
+let toastTimer = null;
+function showToast(text, type = 'info', duration = 2000) {
+    const el = $('toast');
+    el.textContent = text;
+    el.className = `toast ${type} show`;
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove('show'), duration);
+}
+
+const ARROW_FRAME_MS = 1000 / 60;
+
+function shortestAngleDelta(from, to) {
+    return ((to - from + 540) % 360) - 180;
+}
+
+function normalizeAngle(deg) {
+    return ((deg % 360) + 360) % 360;
+}
+
+function stopArrowAnimation() {
+    if (APP._arrowRaf) {
+        cancelAnimationFrame(APP._arrowRaf);
+        APP._arrowRaf = null;
+    }
+}
+
+// Плавно ведёт стрелку от последнего отрисованного положения к новому фиксу.
+// Цикл живёт только на время перехода и завершается сам; кадры ограничены
+// 60 fps, чтобы не тратить лишнее на 120-герцовых экранах.
+function animateUserMarker(lat, lon, bearing, duration) {
+    const marker = APP.userMarker;
+    if (!marker) return;
+
+    const from = APP._arrowPos || { lat, lon };
+    const fromBearing = APP.markerRotation;
+    const toBearing = Number.isFinite(bearing) ? normalizeAngle(bearing) : fromBearing;
+    const moved = getGeoDistance([from.lat, from.lon], [lat, lon]);
+    const turned = Math.abs(shortestAngleDelta(fromBearing, toBearing));
+
+    stopArrowAnimation();
+
+    // На месте и без поворота — ставим сразу, иначе стрелка дрожит от шума GPS.
+    if (moved < 2 && turned < 2) {
+        marker.update({ coordinates: [lon, lat] });
+        marker.setRotation(toBearing);
+        APP.markerRotation = toBearing;
+        APP._arrowPos = { lat, lon };
+        return;
+    }
+
+    const started = performance.now();
+    let lastFrame = started - ARROW_FRAME_MS;
+
+    const step = now => {
+        if (now - lastFrame < ARROW_FRAME_MS - 0.5) {
+            APP._arrowRaf = requestAnimationFrame(step);
+            return;
+        }
+        lastFrame = now;
+
+        const t = Math.min(1, (now - started) / duration);
+        const frameLat = from.lat + (lat - from.lat) * t;
+        const frameLon = from.lon + (lon - from.lon) * t;
+        const frameBearing = normalizeAngle(fromBearing + shortestAngleDelta(fromBearing, toBearing) * t);
+
+        marker.update({ coordinates: [frameLon, frameLat] });
+        marker.setRotation(frameBearing);
+        APP.markerRotation = frameBearing;
+        APP._arrowPos = { lat: frameLat, lon: frameLon };
+        APP._arrowRaf = t < 1 ? requestAnimationFrame(step) : null;
+    };
+
+    APP._arrowRaf = requestAnimationFrame(step);
+}
+
+// Стрелка не увеличивается больше базовых 54 px: 100% — это потолок.
+// От зума 16 вниз до 12 она плавно уменьшается до 66%, чтобы на обзорной
+// карте не закрывать половину города. Ниже 12 остаётся минимум.
+function updateArrowScale() {
+    if (!APP.map) return;
+    const t = Math.min(1, Math.max(0, (APP.map.getZoom() - 12) / 4));
+    const scale = 0.66 + 0.34 * t;
+    document.documentElement.style.setProperty('--nav-mk-scale', scale.toFixed(3));
+}
+
+function followPadding() {
+    const hud = $('hud');
+    if (!hud || !hud.classList.contains('active')) {
+        return { top: 0, bottom: 0, left: 0, right: 0 };
+    }
+    return { top: 0, bottom: Math.round(hud.getBoundingClientRect().height + 24), left: 0, right: 0 };
+}
+
+function resetFollowPadding() {
+    if (!APP.map || !APP._followPaddingBottom) return;
+    APP._followPaddingBottom = 0;
+    APP.map.easeTo({ padding: { top: 0, bottom: 0, left: 0, right: 0 }, duration: 300 });
+}
+
+// Панель меняет высоту (появился комментарий, сменилась точка) — пересчитываем
+// отступ камеры сразу. Иначе стрелка остаётся под панелью до следующего
+// GPS-фикса, а потом камера прыгает. Замер после кадра: к этому моменту
+// текст уже перенёсся и высота HUD окончательная.
+function syncFollowPadding(duration = 300) {
+    if (!APP.map || !APP.autoCenter) return;
+    requestAnimationFrame(() => {
+        if (!APP.map || !APP.autoCenter) return;
+        if (Date.now() < (APP._followPausedUntil || 0)) return;
+        const padding = followPadding();
+        if (padding.bottom === APP._followPaddingBottom) return;
+        APP._followPaddingBottom = padding.bottom;
+        APP.map.easeTo({ padding, duration });
+    });
+}
+
+function followCamera(lat, lon, duration) {
+    if (!APP.map) return;
+    if (Date.now() < (APP._followPausedUntil || 0)) return;
+
+    const camera = {
+        center: [lon, lat],
+        zoom: APP.lastZoom,
+        pitch: APP.lastTilt,
+        duration,
+        easing: t => t
+    };
+    if (APP.hasHeading) camera.bearing = APP.lastAz;
+
+    // Нижний отступ уводит стрелку из-под HUD: карта центрируется
+    // в видимой части, а не под панелью.
+    const padding = followPadding();
+    if (padding.bottom !== APP._followPaddingBottom) {
+        camera.padding = padding;
+        APP._followPaddingBottom = padding.bottom;
+    }
+    APP.map.easeTo(camera);
+}
+
+// Жест пользователя отпускает камеру на 5 с, иначе следующий фикс
+// выдёргивает карту из-под пальца.
+function pauseFollow() {
+    if (!APP.autoCenter) return;
+    APP._followPausedUntil = Date.now() + 5000;
+}
+
+function calcAzimuth(p1, p2) {
+    if (!p1 || !p2) return 0;
+    const [la1, lo1] = p1.map(v => v * Math.PI / 180);
+    const [la2, lo2] = p2.map(v => v * Math.PI / 180);
+    const y = Math.sin(lo2 - lo1) * Math.cos(la2);
+    const x = Math.cos(la1) * Math.sin(la2) - Math.sin(la1) * Math.cos(la2) * Math.cos(lo2 - lo1);
+    return Math.round((Math.atan2(y, x) * 180 / Math.PI + 360) % 360);
+}
+
+function getGeoDistance(p1, p2) {
+    const R = 6371000;
+    const dLat = (p2[0] - p1[0]) * Math.PI / 180;
+    const dLon = (p2[1] - p1[1]) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(p1[0] * Math.PI / 180) * Math.cos(p2[0] * Math.PI / 180) *
+              Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+}
+
+function setMapLocation(center, zoom, azimuth, duration = 400) {
+    if (!APP.map) return;
+    const params = {
+        center: [center[1], center[0]],
+        pitch: APP.lastTilt
+    };
+    if (zoom !== undefined) params.zoom = Math.min(zoom, 20);
+    if (azimuth !== undefined) params.bearing = ((azimuth % 360) + 360) % 360;
+    if (duration > 0) {
+        APP.map.easeTo({ ...params, duration, easing: t => t });
+    } else {
+        APP.map.jumpTo(params);
+    }
+}
+
+// Общая часть остановки и паузы: гасим кадры, анимацию карты, аудио и подсветку.
+// Также увеличиваем счётчик запусков — по нему отменяются отложенные колбэки
+// (озвучка точки могла ещё не закончиться, когда симуляцию уже выключили).
+function haltDrive() {
+    APP._driveActive = false;
+    APP._simSeq++;
+    if (APP._driveRaf) { cancelAnimationFrame(APP._driveRaf); APP._driveRaf = null; }
+    if (APP.map) APP.map.stop();
+    APP.navAudio.pause();
+    APP._commentAudio.pause();
+    APP.navAudio.onended = null;
+    APP._commentAudio.onended = null;
+    document.querySelectorAll('.playing').forEach(e => e.classList.remove('playing'));
+    $('telSpeed').textContent = Math.round(APP.currentSpeed);
+}
+
+function stopDrive() {
+    haltDrive();
+    setPlayBtnState('idle');
+    APP._driveShowFrom = -1;
+    APP._driveState = null;
+    APP._driveResume = null;
+    if (APP._driveMarker) { APP._driveMarker.element.style.display = 'none'; }
+}
+
+function pauseDrive() {
+    if (!APP._driveActive) return;
+    const state = APP._driveState ? { ...APP._driveState } : null;
+    haltDrive();
+    APP._driveResume = state;
+    APP._driveState = null;
+    setPlayBtnState('paused');
+    // Маркер и _simCurPos не сбрасываем: на паузе расстояние в панели
+    // продолжает считаться от маркера, а не от реального GPS.
+}
+
+function endSimulation() {
+    stopDrive();
+    APP._simMode = false;
+    updateTiltState();
+    // stopDrive() сбрасывает _driveShowFrom, но сам по себе не перерисовывает
+    // маршрут: без этого после финиша остаются скрытыми пройденные точки.
+    renderRoutePoints();
+}
+
+// Новая текущая цель симуляции: панель, зелёное кольцо и список точек.
+// renderRoutePoints() в конце сам вызывает updateHud().
+function setSimTarget(idx) {
+    APP.navCurrentIndex = idx;
+    APP._driveShowFrom = idx;
+    renderRoutePoints();
+    updatePointsListActive();
+}
+
+// Последняя точка маршрута: следующей точки нет, но собственный путь точки —
+// это финишный хвост маршрута. Доезжаем его и только потом завершаем
+// симуляцию, иначе анимация обрывается, не доходя до конца линии.
+function driveLastPointPath(idx) {
+    const p = APP.navPoints[idx];
+    if (!p || !p.pts || p.pts.length < 2) {
+        endSimulation();
+        return;
+    }
+    setSimTarget(idx);
+    driveAlongPath(idx);
+}
+
+function driveAlongPath(fromIdx) {
+    const p = APP.navPoints[fromIdx];
+    if (!p || !p.pts || p.pts.length < 2) return;
+
+    const resume = APP._driveResume && APP._driveResume.idx === fromIdx ? APP._driveResume : null;
+
+    const path = p.pts;
+    if (!p._dists) {
+        p._dists = [0];
+        for (let i = 1; i < path.length; i++) {
+            p._dists[i] = p._dists[i - 1] + getGeoDistance(path[i - 1], path[i]);
+        }
+    }
+    const dists = p._dists;
+    const totalDist = dists[path.length - 1];
+    if (totalDist < 0.1) {
+        showToast('Путь точки слишком короткий для симуляции', 'info');
+        endSimulation();
+        return;
+    }
+
+    stopDrive();
+    APP._driveActive = true;
+    APP._driveShowFrom = Math.min(fromIdx + 1, APP.navPoints.length - 1);
+
+    let simulatedDist = resume ? resume.dist : 0;
+    let currentSeg = resume ? resume.seg : 0;
+    let currentAz = resume ? resume.az : calcAzimuth(path[0], path[1]);
+    let lastFrameTime = performance.now();
+    let _lastSeg = resume ? resume.lastSeg : 0;
+    let _lastZoom = APP.map.getZoom();
+    let _zoomChangedAt = 0;
+    let _zoomRecenterPending = false;
+    APP._driveState = { idx: fromIdx, dist: simulatedDist, seg: currentSeg, az: currentAz, lastSeg: _lastSeg };
+
+    // Зум не ставит симуляцию на паузу. После окончания жеста мягко
+    // возвращаем камеру к текущей точке, сохраняя выбранный пользователем зум.
+
+    mapRemoveChild(APP._driveMarker);
+    mapAddChild(APP._driveMarker);
+    APP._driveMarker.update({ coordinates: [path[0][1], path[0][0]] });
+    APP._driveMarker.element.style.display = '';
+    APP._simCurPos = [path[0][0], path[0][1]];
+
+    if (resume) {
+        const mp = getPos(simulatedDist);
+        currentSeg = mp.seg;
+        APP._driveMarker.update({ coordinates: [mp.lon, mp.lat] });
+        APP._simCurPos = [mp.lat, mp.lon];
+
+        // Сначала совмещаем камеру с маркером, затем ведём её к следующей
+        // вершине за оставшееся время сегмента — иначе маркер уезжает
+        // от центра и камера догоняет его только на следующем сегменте.
+        setMapLocation([mp.lat, mp.lon], undefined, currentAz, 0);
+        const nextIdx = mp.seg + 1;
+        if (nextIdx < path.length) {
+            const remaining = Math.max(dists[nextIdx] - simulatedDist, 0);
+            const remainingMs = remaining / (APP._driveSpeed / 3.6) * 1000;
+            setMapLocation([path[nextIdx][0], path[nextIdx][1]], undefined, currentAz, Math.max(remainingMs, 300));
+        }
+    } else {
+        const firstDur = (dists[1] - dists[0]) / (APP._driveSpeed / 3.6) * 1000;
+        const zoom = APP._simForceZoom ? 19 : undefined;
+        APP._simForceZoom = false;
+        setMapLocation([path[1][0], path[1][1]], zoom, currentAz, Math.max(firstDur, 500));
+    }
+
+    function getPos(dist) {
+        if (dist >= totalDist) {
+            const last = path[path.length - 1];
+            return { lat: last[0], lon: last[1], seg: path.length - 2 };
+        }
+        while (_lastSeg < dists.length - 1 && dists[_lastSeg + 1] < dist) _lastSeg++;
+        const t = dists[_lastSeg + 1] > dists[_lastSeg] ? (dist - dists[_lastSeg]) / (dists[_lastSeg + 1] - dists[_lastSeg]) : 0;
+        return {
+            lat: path[_lastSeg][0] + (path[_lastSeg + 1][0] - path[_lastSeg][0]) * t,
+            lon: path[_lastSeg][1] + (path[_lastSeg + 1][1] - path[_lastSeg][1]) * t,
+            seg: _lastSeg
+        };
+    }
+
+    function frame(time) {
+        if (!APP._driveActive) return;
+        // Ограничиваем шаг: после сворачивания вкладки rAF может вернуть
+        // большой dt, и машина иначе прыгнет далеко вперёд.
+        const dt = Math.min((time - lastFrameTime) / 1000, 0.1);
+        lastFrameTime = time;
+        simulatedDist += (APP._driveSpeed / 3.6) * dt;
+
+        if (simulatedDist >= totalDist) {
+            const lastPt = path[path.length - 1];
+            const prevPt = path[path.length - 2];
+            currentAz = calcAzimuth(prevPt, lastPt);
+            APP._driveMarker.update({ coordinates: [lastPt[1], lastPt[0]] });
+            stopDrive();
+            APP._simCurPos = [lastPt[0], lastPt[1]];
+            // stopDrive() прячет маркер; на время озвучки команды возвращаем
+            // его на место, иначе он пропадает до старта следующего отрезка.
+            mapAddChild(APP._driveMarker);
+            APP._driveMarker.element.style.display = '';
+
+            const nextIdx = fromIdx + 1;
+            if (nextIdx >= APP.navPoints.length) {
+                endSimulation();
+                return;
+            }
+
+            // Приехали в точку nextIdx: она становится текущей целью и
+            // озвучивается — как при срабатывании триггера в навигации.
+            setSimTarget(nextIdx);
+            setPlayBtnState('running');
+
+            // stopDrive() выше уже увеличил _simSeq — запоминаем его, чтобы
+            // отменённая симуляция не продолжилась после озвучки.
+            const simSeq = APP._simSeq;
+            playPointAudio(APP.navPoints[nextIdx], () => {
+                if (simSeq !== APP._simSeq || APP._driveActive) return;
+                const targetIdx = nextIdx + 1;
+                if (targetIdx >= APP.navPoints.length) {
+                    // Приехали в последнюю точку: следующей нет, но её путь —
+                    // финишный хвост маршрута, его тоже проезжаем.
+                    driveLastPointPath(nextIdx);
+                    return;
+                }
+                const target = APP.navPoints[targetIdx];
+                if (!target || !target.pts || target.pts.length < 2) {
+                    endSimulation();
+                    return;
+                }
+                // После озвучки командой текущей цели становится следующая точка.
+                setSimTarget(targetIdx);
+                driveAlongPath(nextIdx);
+            });
+            return;
+        }
+
+        const mp = getPos(simulatedDist);
+
+        const curZoom = APP.map.getZoom();
+        if (curZoom !== _lastZoom) {
+            _lastZoom = curZoom;
+            _zoomChangedAt = time;
+            _zoomRecenterPending = true;
+        }
+
+        if (mp.seg !== currentSeg) {
+            currentSeg = mp.seg;
+            const nextIdx = mp.seg + 1;
+            if (nextIdx < path.length) {
+                const d = (dists[nextIdx] - dists[mp.seg]) / (APP._driveSpeed / 3.6) * 1000;
+                currentAz = calcAzimuth(path[mp.seg], path[nextIdx]);
+                if (!_zoomRecenterPending) {
+                    setMapLocation([path[nextIdx][0], path[nextIdx][1]], undefined, currentAz, Math.max(d, 500));
+                }
+            }
+        }
+
+        if (_zoomRecenterPending && time - _zoomChangedAt >= 180) {
+            _zoomRecenterPending = false;
+            setMapLocation([mp.lat, mp.lon], undefined, currentAz, 300);
+        }
+
+        if (APP._driveState) {
+            APP._driveState.dist = simulatedDist;
+            APP._driveState.seg = currentSeg;
+            APP._driveState.az = currentAz;
+            APP._driveState.lastSeg = _lastSeg;
+        }
+        APP._driveMarker.update({ coordinates: [mp.lon, mp.lat] });
+        APP._simCurPos = [mp.lat, mp.lon];
+        // На кадре меняется только расстояние — полный updateHud() здесь
+        // пересобирал бы SVG, innerHTML и обработчики 60 раз в секунду.
+        updateHudPos(APP._simCurPos);
+        APP._driveRaf = requestAnimationFrame(frame);
+    }
+
+    $('telSpeed').textContent = Math.round(APP._driveSpeed);
+    APP._driveRaf = requestAnimationFrame(frame);
+    setPlayBtnState('running');
+}
+
+
+function initGeolocation() {
+    if (!navigator.geolocation) {
+        showToast('Браузер не поддерживает геолокацию', 'error', 5000);
+        return;
+    }
+    if (APP._geoWatchId !== null) return;
+    APP._geoWatchId = navigator.geolocation.watchPosition(onGeoPosition, onGeoError, {
+        enableHighAccuracy: true,
+        maximumAge: 1000,
+        timeout: 20000
+    });
+}
+
+function onGeoPosition(pos) {
+    if (!pos || !pos.coords) return;
+    const lat = pos.coords.latitude;
+    const lon = pos.coords.longitude;
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+
+    const coords = [lat, lon];
+    const now = Date.now();
+    const accuracy = Number.isFinite(pos.coords.accuracy) ? pos.coords.accuracy : null;
+
+    // Грубый фикс (сотни метров) не применяем, пока есть свежий точный:
+    // иначе стрелка прыгает через дома. Если точного давно нет — берём что есть.
+    if (accuracy !== null && accuracy > APP.navConfig.ACCURACY_LIMIT) {
+        if (APP._lastGoodFixAt && now - APP._lastGoodFixAt < APP.navConfig.WEAK_FIX_GRACE) return;
+        if (now - APP._weakToastAt > 60000) {
+            APP._weakToastAt = now;
+            showToast('Слабый сигнал GPS — ведём приблизительно', 'info', 4000);
+        }
+    } else {
+        APP._lastGoodFixAt = now;
+    }
+
+    const dt = APP.lastFixTime ? Math.min((now - APP.lastFixTime) / 1000, 10) : 0;
+    const moved = APP.lastPos ? getGeoDistance(APP.lastPos, coords) : 0;
+    const speed = estimateSpeed(pos.coords.speed, moved, dt);
+    const heading = estimateHeading(coords, speed, pos.coords.heading);
+
+    APP.lastFixTime = now;
+    APP.lastPos = coords;
+    APP.currentSpeed = speed;
+    checkSpeedAlert(speed);
+
+    if (heading !== null) {
+        APP.lastAz = heading;
+        APP.rawAz = heading;
+        APP.hasHeading = true;
+    }
+
+    const duration = Math.max(500, Math.min(1500, (dt ? dt * 1000 : 1000) + 200));
+    animateUserMarker(lat, lon, APP.hasHeading ? APP.lastAz : null, duration);
+    if (APP.autoCenter) followCamera(lat, lon, duration);
+    $('telSpeed').textContent = Math.round(APP._driveActive ? APP._driveSpeed : APP.currentSpeed);
+
+    if (APP.navCurrentIndex >= 0) navCheckTriggers();
+}
+
+// В iOS Safari coords.speed часто null, поэтому считаем скорость по
+// перемещению и сглаживаем: иначе шум GPS дёргает стрелку и спидометр.
+function estimateSpeed(reported, moved, dt) {
+    if (Number.isFinite(reported) && reported >= 0) {
+        APP._speedFallback = null;
+        return reported * 3.6;
+    }
+    if (dt < 0.8) return APP._speedFallback || 0;
+    const measured = Math.min((moved / dt) * 3.6, 250);
+    APP._speedFallback = APP._speedFallback === null
+        ? measured
+        : APP._speedFallback * 0.6 + measured * 0.4;
+    return APP._speedFallback;
+}
+
+function estimateHeading(coords, speedKmh, reported) {
+    if (speedKmh < APP.navConfig.SPEED_THRESHOLD) {
+        // Стоим: курс не обновляем, чтобы стрелка не крутилась на месте.
+        APP._azBasePos = null;
+        return null;
+    }
+
+    if (Number.isFinite(reported) && reported >= 0 && reported <= 360) {
+        APP._azBasePos = null;
+        return reported % 360;
+    }
+
+    // Фолбэк: азимут по перемещению от базовой точки. База сдвигается только
+    // после заметного смещения, поэтому отдельный шумный фикс не даёт скачка.
+    if (!APP._azBasePos) APP._azBasePos = APP.lastPos;
+    if (!APP._azBasePos) return null;
+    if (getGeoDistance(APP._azBasePos, coords) < APP.navConfig.HEADING_MIN_DIST) return null;
+    const azimuth = calcAzimuth(APP._azBasePos, coords);
+    APP._azBasePos = coords;
+    return azimuth;
+}
+
+function onGeoError(error) {
+    const code = error && error.code;
+    const now = Date.now();
+    if (code === 1) {
+        if (APP._geoDenied) return;
+        APP._geoDenied = true;
+        showToast('Геолокация выключена — разрешите доступ', 'error', 6000);
+        return;
+    }
+    // Разовый сбой сразу после нормального фикса не показываем: это шум.
+    if (APP.lastFixTime && now - APP.lastFixTime < 15000) return;
+    if (now - APP._geoErrorAt < 15000) return;
+    APP._geoErrorAt = now;
+    showToast(code === 3 ? 'GPS не отвечает — ждём сигнал' : 'Не удалось определить местоположение', 'info', 4000);
+}
+
+function disableAutoCenter() {
+    if (APP._autoCenterTimer) {
+        clearTimeout(APP._autoCenterTimer);
+        APP._autoCenterTimer = null;
+    }
+    APP.autoCenter = false;
+    APP._followPausedUntil = 0;
+    $('locateBtn').classList.remove('active');
+    resetFollowPadding();
+    updateTiltState();
+}
+
+function tempDisableAutoCenter(duration) {
+    if (!APP.autoCenter) return;
+    disableAutoCenter();
+    APP._autoCenterTimer = setTimeout(() => {
+        APP.autoCenter = true;
+        $('locateBtn').classList.add('active');
+        updateTiltState();
+        if (APP.lastPos) followCamera(APP.lastPos[0], APP.lastPos[1], 600);
+        APP._autoCenterTimer = null;
+    }, duration || 5000);
+}
+
+function toggleAutoCenter() {
+    if (APP._autoCenterTimer) {
+        clearTimeout(APP._autoCenterTimer);
+        APP._autoCenterTimer = null;
+    }
+    // После жеста кнопка возвращает камеру, а не выключает привязку.
+    if (APP.autoCenter && APP._followPausedUntil > Date.now()) {
+        APP._followPausedUntil = 0;
+        if (APP.lastPos) followCamera(APP.lastPos[0], APP.lastPos[1], 500);
+        showToast('Слежение возобновлено', 'info', 1500);
+        return;
+    }
+    APP.autoCenter = !APP.autoCenter;
+    $('locateBtn').classList.toggle('active', APP.autoCenter);
+    if (APP.autoCenter) {
+        stopDrive();
+        APP._simMode = false;
+        APP._followPausedUntil = 0;
+    } else {
+        resetFollowPadding();
+    }
+    updateTiltState();
+    if (APP.autoCenter && APP.lastPos) {
+        followCamera(APP.lastPos[0], APP.lastPos[1], 600);
+    }
+    showToast(APP.autoCenter ? 'Привязка включена' : 'Привязка отключена');
+}
+
+function updateShockDisplay() {
+    const val = parseFloat($('triggerShock').value);
+    $('triggerShockVal').textContent = val + 'g';
+}
+
+function applyShockConfig() {
+    const on = $('triggerShockToggle').checked;
+    if (on && !APP._motionPermissionGranted) {
+        ensureMotionTracking().then(granted => {
+            if (!granted) {
+                $('triggerShockToggle').checked = false;
+                $('triggerShockVal').textContent = 'Выкл';
+                return;
+            }
+            const val = parseFloat($('triggerShock').value);
+            APP.navConfig.SHOCK_THRESHOLD = val;
+            APP.navConfig.SHOCK_PHRASE = 'Сильный удар';
+            updateShockBarVisibility();
+            $('triggerShockVal').textContent = val + 'g';
+        });
+        return;
+    }
+    const val = on ? parseFloat($('triggerShock').value) : 0;
+    APP.navConfig.SHOCK_THRESHOLD = val;
+    APP.navConfig.SHOCK_PHRASE = 'Сильный удар';
+    updateShockBarVisibility();
+    $('triggerShockVal').textContent = val + 'g';
+}
+function applySpeedConfig() {
+    const on = $('triggerSpeedAlertToggle').checked;
+    const val = on ? parseInt($('triggerSpeedAlert').value) || 58 : 0;
+    APP.navConfig.SPEED_ALERT_THRESHOLD = val;
+    APP.navConfig.SPEED_ALERT_PHRASE = 'Превышение скорости';
+}
+function applyCommentConfig() {
+    APP._commentEnabled = $('commentToggle').checked;
+    if (!APP._commentEnabled) APP._commentAudio.pause();
+    const ct = $('commentText');
+    ct.style.display = APP._commentEnabled && ct.textContent.trim() ? 'block' : 'none';
+    syncFollowPadding();
+}
+
+async function requestMotionPermission() {
+    if (typeof DeviceMotionEvent !== 'undefined' && DeviceMotionEvent.requestPermission) {
+        try {
+            const state = await DeviceMotionEvent.requestPermission();
+            return state === 'granted';
+        } catch (e) {
+            return false;
+        }
+    }
+    return true;
+}
+
+function ensureMotionTracking() {
+    if (APP._motionTracked) return Promise.resolve(true);
+    return requestMotionPermission().then(granted => {
+        APP._motionPermissionGranted = granted;
+        if (granted) {
+            APP._motionTracked = true;
+            window.addEventListener('devicemotion', onMotion);
+        }
+        updateShockBarVisibility();
+        return granted;
+    });
+}
+
+function updateShockBarVisibility() {
+    const bar = $('shockBar');
+    const show = APP.navConfig.SHOCK_THRESHOLD > 0;
+    if (bar) bar.style.display = show ? 'block' : 'none';
+}
+
+const SHOCK_DEBOUNCE = 3000;
+
+function isAudioPlaying() {
+    return APP._audioPending > 0 ||
+           (!APP.navAudio.paused && APP.navAudio.currentTime > 0) ||
+           (!APP._commentAudio.paused && APP._commentAudio.currentTime > 0);
+}
+
+/* Оповещение об ударе считается по отклонению модуля ускорения от 1g.
+   Величина не зависит от ориентации телефона. */
+function motionImpactG(acc) {
+    const total = Math.sqrt(acc.x * acc.x + acc.y * acc.y + acc.z * acc.z);
+    return Math.abs(total - 9.8) / 9.8;
+}
+
+function onMotion(event) {
+    const acc = event.accelerationIncludingGravity;
+    if (!acc) return;
+
+    const impactG = motionImpactG(acc);
+    const shockThreshold = APP.navConfig.SHOCK_THRESHOLD;
+
+    /* Шок-бар показывает, что видит датчик. */
+    if (shockThreshold > 0) updateShockBar(impactG);
+
+    const now = Date.now();
+
+    /* Сильный удар — одиночный всплеск выше порога. */
+    if (shockThreshold > 0 && !isAudioPlaying() && impactG > shockThreshold) {
+        if (now - APP._lastShockTime >= SHOCK_DEBOUNCE) {
+            APP._lastShockTime = now;
+            playCommand(APP.navConfig.SHOCK_PHRASE || 'Сильный удар').catch(() => {});
+        }
+    }
+
+}
+
+let _shockFill = null;
+let _shockLabel = null;
+let _shockPeak = null;
+let _shockLastG = -1;
+let _shockLastColor = '';
+let _shockPeakLastG = -1;
+let _shockPeakShown = false;
+const _shockSamples = [];
+
+const SHOCK_BAR_MAX_G = 3;
+const SHOCK_STEP_G = 0.05;
+const SHOCK_BAR_MIN_G = 0.25;
+const SHOCK_PEAK_HOLD_MS = 1000;
+const SHOCK_PEAK_MIN_DROP = SHOCK_STEP_G / 2;
+
+/* Показываем только кратные 0.05 g: меньше перерисовок бара,
+   а мелкий шум датчика в покое вообще не двигает заливку. */
+function quantizeShockG(g) {
+    return Math.round(Math.max(0, g) / SHOCK_STEP_G) * SHOCK_STEP_G;
+}
+
+/* Максимум за последние SHOCK_PEAK_HOLD_MS: точка стоит на самом сильном
+   значении окна и не дёргается от каждого следующего отсчёта. */
+function shockPeakG(now, value) {
+    _shockSamples.push([now, value]);
+    while (_shockSamples.length && now - _shockSamples[0][0] > SHOCK_PEAK_HOLD_MS) {
+        _shockSamples.shift();
+    }
+    let peak = 0;
+    for (let i = 0; i < _shockSamples.length; i++) {
+        if (_shockSamples[i][1] > peak) peak = _shockSamples[i][1];
+    }
+    return peak;
+}
+
+function shockBarPercent(g) {
+    return Math.max(0, Math.min(100, (g / SHOCK_BAR_MAX_G) * 100));
+}
+
+function shockBarColor(g) {
+    if (g < 0.5) return '#16A34A';
+    if (g < 1.5) return '#FFD700';
+    if (g < 2.5) return '#FF9500';
+    return '#FF3B30';
+}
+
+/* Заливка показывает ускорение в реальном времени, отдельная точка — пик:
+   она стоит на максимуме SHOCK_PEAK_HOLD_MS, затем плавно гаснет (CSS),
+   чтобы можно было увидеть, насколько сильным был удар или клевок. */
+function updateShockBar(g) {
+    if (!_shockFill) _shockFill = $('shockBarFill');
+    if (!_shockLabel) _shockLabel = $('shockBarValue');
+    if (!_shockPeak) _shockPeak = $('shockBarPeak');
+    if (!_shockFill) return;
+
+    const value = quantizeShockG(g);
+    const now = Date.now();
+
+    if (value !== _shockLastG) {
+        _shockLastG = value;
+        const showBar = value >= SHOCK_BAR_MIN_G;
+        _shockFill.style.width = showBar ? shockBarPercent(value) + '%' : '0%';
+        if (showBar) {
+            const color = shockBarColor(value);
+            if (color !== _shockLastColor) {
+                _shockLastColor = color;
+                _shockFill.style.background = color;
+            }
+        }
+        if (_shockLabel) _shockLabel.textContent = showBar ? value.toFixed(2) : '';
+    }
+
+    const peak = quantizeShockG(shockPeakG(now, value));
+    /* Точку видно, только когда текущее значение уже упало ниже пика:
+       иначе она сливается с концом заливки и ничего не добавляет. */
+    const showPeak = peak >= SHOCK_BAR_MIN_G && peak - value > SHOCK_PEAK_MIN_DROP;
+    if (peak !== _shockPeakLastG) {
+        _shockPeakLastG = peak;
+        const pct = shockBarPercent(peak);
+        /* У краёв экрана сдвигаем точку внутрь, чтобы она не обрезалась. */
+        _shockPeak.style.left = `clamp(20px, ${pct}%, calc(100% - 20px))`;
+        _shockPeak.style.background = shockBarColor(peak);
+        _shockPeak.textContent = peak > 0 ? peak.toFixed(2) : '';
+    }
+    if (showPeak !== _shockPeakShown) {
+        _shockPeakShown = showPeak;
+        _shockPeak.style.opacity = showPeak ? '1' : '0';
+    }
+}
+
+const SPEED_ALERT_DEBOUNCE = 5000;
+
+function checkSpeedAlert(speed) {
+    const threshold = APP.navConfig.SPEED_ALERT_THRESHOLD;
+    if (threshold <= 0) return;
+    if (isAudioPlaying()) return;
+    if (speed > threshold) {
+        const now = Date.now();
+        if (now - APP._lastSpeedAlertTime < SPEED_ALERT_DEBOUNCE) return;
+        APP._lastSpeedAlertTime = now;
+        playCommand(APP.navConfig.SPEED_ALERT_PHRASE || 'Превышение скорости').catch(() => {});
+    }
+}
+
+window.getNavigatorMapStyle = () => mapStyleDefinition(APP._mapStyle);
+window.getNavigatorMapStyleKey = () => APP._mapStyle;
+
+/* ---------- Яндекс.Спутник: пересчёт проекции EPSG:3395 -> Web Mercator ----------
+   Keyless-тайлы Яндекса отдаются в эллипсоидном Меркаторе, а MapLibre рисует
+   сферический Web Mercator: по долготе всё совпадает, а по широте нужен сдвиг.
+   Схему 'yandexsat://' перехватывает протокол: он по строке web-тайла считает
+   точную строку в сетке Яндекса, берёт её и субпиксельно сдвигает.
+   Для Нижнего Новгорода сдвиг ≈19.7 км (проверено замером по снимкам). */
+const YANDEX_MERC_E = 0.0818191908426;
+let _yandexProtoRegistered = false;
+
+function webRowToLat(R, worldPx) {
+    return Math.atan(Math.sinh(Math.PI * (1 - 2 * R / worldPx))) * 180 / Math.PI;
+}
+
+function latToYandexRow(lat, worldPx) {
+    const b = lat * Math.PI / 180;
+    const phi = (1 - YANDEX_MERC_E * Math.sin(b)) / (1 + YANDEX_MERC_E * Math.sin(b));
+    const theta = Math.tan(Math.PI / 4 + b / 2) * Math.pow(phi, YANDEX_MERC_E / 2);
+    return worldPx * (1 - Math.log(theta) / Math.PI) / 2;
+}
+
+function makeCanvas(w, h) {
+    if (typeof OffscreenCanvas !== 'undefined') {
+        const c = new OffscreenCanvas(w, h);
+        return { canvas: c, ctx: c.getContext('2d'), offscreen: true };
+    }
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    return { canvas: c, ctx: c.getContext('2d'), offscreen: false };
+}
+
+async function fetchTileBitmap(url, signal) {
+    const res = await fetch(url, { signal, mode: 'cors' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return await createImageBitmap(await res.blob());
+}
+
+async function buildYandexTile(params, abortController) {
+    const m = /yandexsat:\/\/sat\/(\d+)\/(\d+)\/(\d+)/.exec((params && params.url) || '');
+    if (!m) throw new Error('Некорректный URL тайла Яндекса');
+    const z = +m[1], x = +m[2], y = +m[3];
+    const n = Math.pow(2, z);
+    const worldPx = 256 * n;
+
+    const lat = webRowToLat(256 * y, worldPx);
+    const yRow = latToYandexRow(lat, worldPx);
+    let srcY = Math.floor(yRow / 256);
+    srcY = Math.max(0, Math.min(n - 1, srcY));
+    const shiftUp = Math.max(0, Math.min(255.999, yRow - 256 * srcY));
+
+    // Сдвиг округляем до целых пикселей: при дробном сдвиге drawImage
+    // пересэмплирует стык двух тайлов и на нём проступает видимая
+    // горизонтальная линия. Целочисленный сдвиг линию убирает, а ошибка
+    // при этом меньше пикселя.
+    const snap = Math.max(0, Math.min(255, Math.round(shiftUp)));
+
+    const base = 'https://core-sat.maps.yandex.net/tiles?l=sat&x=' + x + '&y=';
+    const signal = abortController && abortController.signal;
+    const secondY = Math.min(n - 1, srcY + 1);
+    const [imgA, imgB] = await Promise.all([
+        fetchTileBitmap(base + srcY + '&z=' + z, signal),
+        snap > 0
+            ? fetchTileBitmap(base + secondY + '&z=' + z, signal).catch(() => null)
+            : Promise.resolve(null)
+    ]);
+
+    const { canvas, ctx, offscreen } = makeCanvas(256, 256);
+    ctx.drawImage(imgA, 0, -snap);
+    if (imgB) ctx.drawImage(imgB, 0, 256 - snap);
+    if (imgA.close) imgA.close();
+    if (imgB && imgB.close) imgB.close();
+
+    const data = offscreen ? canvas.transferToImageBitmap() : await createImageBitmap(canvas);
+    return { data };
+}
+
+function registerYandexProtocol() {
+    if (_yandexProtoRegistered) return;
+    if (typeof maplibregl === 'undefined' || !maplibregl.addProtocol) return;
+    maplibregl.addProtocol('yandexsat', buildYandexTile);
+    if (typeof pmtiles !== 'undefined' && pmtiles.Protocol) {
+        try { maplibregl.addProtocol('pmtiles', new pmtiles.Protocol().tile); } catch (e) {}
+    }
+    _yandexProtoRegistered = true;
+}
+
+function saveMapPrefs() {
+    try {
+        localStorage.setItem(MAP_PREFS_KEY, JSON.stringify({ style: APP._mapStyle }));
+    } catch (e) {}
+}
+
+function renderMapSettings() {
+    const grid = $('mapStyleGrid');
+    if (grid) {
+        grid.innerHTML = '';
+        Object.keys(MAP_STYLES).forEach(key => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'map-style-btn' + (APP._mapStyle === key ? ' active' : '');
+            btn.dataset.style = key;
+            btn.textContent = MAP_STYLES[key].label;
+            btn.title = MAP_STYLES[key].label;
+            btn.addEventListener('click', () => setMapType(key));
+            grid.appendChild(btn);
+        });
+    }
+}
+
+function syncMapStyleButtons() {
+    document.querySelectorAll('.map-style-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.style === APP._mapStyle);
+    });
+}
+
+function setMapType(type) {
+    if (!MAP_STYLES[type] || !APP.map || APP._mapStyle === type) return;
+    APP._mapStyle = type;
+    saveMapPrefs();
+    syncMapStyleButtons();
+    APP._routeDataSource = null;
+    APP.map.setStyle(mapStyleDefinition(type));
+    if ((MAP_STYLES[type].omt || MAP_STYLES[type].pitch3d) && APP.map.getZoom() >= 14) {
+        APP.lastTilt = 55;
+        APP.map.easeTo({ pitch: 55, duration: 600 });
+    }
+    showToast(MAP_STYLES[type].label, 'info', 1500);
+}
+
+function setTilt(mode) {
+    const is3d = mode === '3d';
+    if (is3d === APP._is3D) return;
+    APP._is3D = is3d;
+    APP.lastTilt = is3d ? 60 : 0;
+    if (APP.map) APP.map.easeTo({ pitch: APP.lastTilt, duration: 300 });
+}
+
+function updateTiltState() {
+    setTilt(APP._simMode || APP.autoCenter ? '3d' : '2d');
+}
+
+function closeAllSheets() {
+    closePointsList();
+    closeSettings();
+    closeProfile();
+    closeInstruction();
+    closePremiumOffer();
+    if (typeof MenuModule !== 'undefined') MenuModule.hide();
+}
+
+function openProfile() {
+    if (!$('profileModal').classList.contains('hidden')) { closeProfile(); return; }
+    closeAllSheets();
+    if (window.AuthModule && typeof AuthModule.render === 'function') AuthModule.render();
+    renderPremiumUi();
+    loadPremiumStatus().catch(() => {});
+    $('profileModal').classList.remove('hidden');
+}
+
+function closeProfile() {
+    hideScreen('profileModal');
+}
+
+function openSettings() {
+    if (!$('navSettingsModal').classList.contains('hidden')) { closeSettings(); return; }
+    closeAllSheets();
+    renderMapSettings();
+    $('themeToggle').checked = document.documentElement.getAttribute('data-theme') === 'dark';
+    $('themeValue').textContent = document.documentElement.getAttribute('data-theme') === 'dark' ? 'Вкл' : 'Выкл';
+    $('commentToggle').checked = APP._commentEnabled;
+    const signsToggle = $('signsToggle');
+    if (signsToggle) signsToggle.checked = APP._signsEnabled;
+    const shockOn = APP.navConfig.SHOCK_THRESHOLD > 0 && APP._motionPermissionGranted;
+    $('triggerShockToggle').checked = shockOn;
+    $('triggerShock').value = shockOn ? APP.navConfig.SHOCK_THRESHOLD : 1;
+    $('triggerShockVal').textContent = shockOn ? APP.navConfig.SHOCK_THRESHOLD + 'g' : 'Выкл';
+    const speedOn = APP.navConfig.SPEED_ALERT_THRESHOLD > 0;
+    $('triggerSpeedAlertToggle').checked = speedOn;
+    $('triggerSpeedAlert').value = speedOn ? APP.navConfig.SPEED_ALERT_THRESHOLD : 58;
+    $('navSettingsModal').classList.remove('hidden');
+}
+
+function hideScreen(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) modal.classList.add('hidden');
+}
+
+function closeSettings() {
+    hideScreen('navSettingsModal');
+}
+
+/* ---------- Премиум-подписка ---------- */
+
+function formatPremiumDate(value) {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleDateString('ru-RU', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+    });
+}
+
+function updatePremiumBadge(active) {
+    const badge = document.getElementById('profilePremiumBadge');
+    if (badge) badge.hidden = !active;
+
+    const accountBadge = document.getElementById('accountPremiumBadge');
+    if (accountBadge) accountBadge.hidden = !active;
+
+    const accountGroup = document.getElementById('accountUserGroup');
+    if (accountGroup) accountGroup.classList.toggle('is-premium', !!active);
+}
+
+function renderPremiumUi() {
+    const status = APP.premiumStatus || {};
+    const logged = !!(status.logged_in || (window.AuthModule && AuthModule.user));
+    const active = !!status.active;
+    const providers = Array.isArray(status.providers) && status.providers.length
+        ? status.providers
+        : (status.payments_available ? ['robokassa'] : []);
+    const available = providers.length > 0;
+    const primaryProvider = providers[0] || '';
+    const price = status.price || '299';
+    const days = status.days || 30;
+    const until = formatPremiumDate(status.until);
+    const providerNames = { robokassa: 'Робокасса' };
+    const providerName = id => providerNames[id] || id;
+
+    let text = '';
+    let button = 'Купить';
+    let disabled = false;
+
+    if (!logged) {
+        text = 'Войдите, чтобы оформить подписку';
+        button = 'Войти с Яндексом';
+    } else if (active) {
+        text = until ? `Активен до ${until}` : 'Премиум активен';
+        button = `Продлить на ${days} дней`;
+        disabled = !available;
+    } else {
+        text = `Доступ к премиум-маршрутам на ${days} дней`;
+        button = `Купить за ${price} ₽`;
+        disabled = !available;
+    }
+    if (primaryProvider) {
+        button += ` · ${providerName(primaryProvider)}`;
+    }
+    if (logged && !available) {
+        text = 'Оплата временно недоступна';
+    }
+    updatePremiumBadge(active && logged);
+
+    const title = $('premiumTitle');
+    if (title) title.textContent = active ? 'Премиум активен' : 'Премиум-подписка';
+    const statusEl = $('premiumStatus');
+    if (statusEl) statusEl.textContent = text;
+    const buyBtn = $('premiumBuyBtn');
+    if (buyBtn) {
+        buyBtn.textContent = button;
+        buyBtn.disabled = disabled;
+    }
+
+    const offerTitle = $('premiumOfferTitle');
+    if (offerTitle) offerTitle.textContent = 'Премиум-маршрут';
+    const offerText = $('premiumOfferText');
+    if (offerText) {
+        offerText.textContent = logged
+            ? `Оформите премиум на ${days} дней за ${price} ₽ и откроется доступ ко всем премиум-маршрутам.`
+            : 'Войдите через Яндекс, чтобы оформить премиум и открыть этот маршрут.';
+    }
+    const offerBtn = $('premiumOfferBtn');
+    if (offerBtn) {
+        offerBtn.textContent = !logged ? 'Войти с Яндексом' : button;
+        offerBtn.disabled = logged ? disabled : false;
+    }
+
+}
+
+async function loadPremiumStatus() {
+    try {
+        const response = await fetch('/api/premium/status', {
+            credentials: 'same-origin',
+            headers: { Accept: 'application/json' },
+            cache: 'no-store'
+        });
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        APP.premiumStatus = await response.json();
+    } catch (error) {
+        APP.premiumStatus = APP.premiumStatus || {
+            active: !!(window.AuthModule && AuthModule.user && AuthModule.user.premium_active),
+            price: '299',
+            days: 30,
+            payments_available: false,
+            logged_in: !!(window.AuthModule && AuthModule.user)
+        };
+    }
+    renderPremiumUi();
+    return APP.premiumStatus;
+}
+
+function openPremiumOffer() {
+    closeAllSheets();
+    renderPremiumUi();
+    const modal = $('premiumModal');
+    if (modal) modal.classList.remove('hidden');
+    loadPremiumStatus().catch(() => {});
+}
+
+function closePremiumOffer() {
+    hideScreen('premiumModal');
+}
+
+async function startPremiumCheckout() {
+    const loggedIn = !!((window.AuthModule && AuthModule.user) ||
+        (APP.premiumStatus && APP.premiumStatus.logged_in));
+    if (!loggedIn) {
+        if (window.AuthModule) AuthModule.login(true);
+        return;
+    }
+    const buttons = [$('premiumBuyBtn'), $('premiumOfferBtn')].filter(Boolean);
+    const original = buttons.map(button => button.textContent);
+    buttons.forEach(button => {
+        button.disabled = true;
+        button.textContent = 'Переходим к оплате…';
+    });
+    try {
+        const response = await fetch('/api/premium/checkout', {
+            credentials: 'same-origin',
+            headers: { Accept: 'application/json' },
+            cache: 'no-store'
+        });
+        const data = await response.json().catch(() => ({}));
+        if (response.status === 401) {
+            AuthModule.login(true);
+            return;
+        }
+        if (!response.ok || !data.payment_url) {
+            throw new Error(data.error || 'Не удалось создать платёж');
+        }
+        window.location.href = data.payment_url;
+    } catch (error) {
+        buttons.forEach((button, index) => {
+            button.disabled = false;
+            button.textContent = original[index];
+        });
+        renderPremiumUi();
+        if (typeof showToast === 'function') {
+            showToast(
+                error && error.message === 'payments_not_configured'
+                    ? 'Оплата временно недоступна'
+                    : 'Не удалось перейти к оплате',
+                'error',
+                4000
+            );
+        }
+    }
+}
+
+async function handlePremiumReturn() {
+    const params = new URLSearchParams(window.location.search);
+    const payment = params.get('payment');
+    if (!payment) return;
+    params.delete('payment');
+    const query = params.toString();
+    const cleanUrl = window.location.pathname + (query ? '?' + query : '') + window.location.hash;
+
+    if (payment === 'fail') {
+        if (typeof showToast === 'function') {
+            showToast('Оплата не завершена', 'error', 4000);
+        }
+        window.history.replaceState(null, '', cleanUrl);
+        return;
+    }
+    if (payment !== 'success') return;
+
+    if (typeof showToast === 'function') {
+        showToast('Проверяем оплату…', 'info', 3000);
+    }
+    for (let attempt = 0; attempt < 15; attempt++) {
+        try {
+            const status = await loadPremiumStatus();
+            if (status && status.active) {
+                if (typeof showToast === 'function') {
+                    showToast('Премиум активирован', 'success', 4000);
+                }
+                window.history.replaceState(null, '', cleanUrl);
+                setTimeout(() => window.location.reload(), 600);
+                return;
+            }
+        } catch (error) {}
+        await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+    if (typeof showToast === 'function') {
+        showToast('Платёж обрабатывается. Проверьте статус в настройках.', 'info', 5000);
+    }
+    window.history.replaceState(null, '', cleanUrl);
+}
+
+function getNavIconSvg(col, txt, isCurr = false, hasComm = false) {
+    return getNavIconSvgSized(col, txt, isCurr, hasComm);
+}
+
+function getNavIconSvgSized(col, txt, isCurr = false, hasComm = false, sizeOverride = null) {
+    const s = sizeOverride != null ? sizeOverride : 40;
+    const c = s / 2;
+    const r = Math.round(s * 9 / 40);
+    const safeCol = /^#[0-9a-f]{6}$/i.test(col) ? col : '#007AFF';
+    const safeTxt = escapeHtml(String(txt ?? ''));
+    const fontSize = Math.max(8, Math.round(s * 9 / 40));
+    const commR = Math.max(3.5, (s * 5.5) / 40);
+    const commCx = s - s * 0.25;
+    const commCy = s * 0.25;
+    // Значок комментария: белый пузырь с тремя точками.
+    const commTail = `M ${commCx - commR * 0.55} ${commCy + commR * 0.5} `
+        + `L ${commCx - commR * 0.25} ${commCy + commR * 1.35} `
+        + `L ${commCx + commR * 0.2} ${commCy + commR * 0.7} Z`;
+    const commDotR = commR * 0.17;
+    const commDotGap = commR * 0.48;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${s}" height="${s}">
+        <rect width="${s}" height="${s}" fill="transparent"/>
+        ${isCurr ? `<circle cx="${c}" cy="${c}" r="${r + 3}" fill="none" stroke="#00FF00" stroke-width="1.5" opacity="0.9"/>` : ''}
+        <circle cx="${c}" cy="${c}" r="${r}" fill="rgba(0,0,0,0.7)"/>
+        <circle cx="${c}" cy="${c}" r="${r}" fill="${safeCol}" opacity="0.3"/>
+        <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${safeCol}" stroke-width="1.5"/>
+        <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+        <circle cx="${c}" cy="${c}" r="${r + 0.9}" fill="none" stroke="#000000" stroke-width="0.9"/>
+        <text x="${c}" y="${c + 0.5}" font-size="${fontSize}" font-family="Arial" font-weight="900" text-anchor="middle" dominant-baseline="middle" fill="#ffffff" stroke="#000000" stroke-width="2" paint-order="stroke fill">${safeTxt}</text>
+        ${hasComm ? `<path d="${commTail}" fill="#FFFFFF" stroke="#000000" stroke-width="1" stroke-linejoin="round"/><rect x="${commCx - commR}" y="${commCy - commR}" width="${commR * 2}" height="${commR * 2}" rx="${commR * 0.5}" fill="#FFFFFF" stroke="#000000" stroke-width="1"/><circle cx="${commCx - commDotGap}" cy="${commCy}" r="${commDotR}" fill="#000000"/><circle cx="${commCx}" cy="${commCy}" r="${commDotR}" fill="#000000"/><circle cx="${commCx + commDotGap}" cy="${commCy}" r="${commDotR}" fill="#000000"/>` : ''}
+    </svg>`;
+    return 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
+}
+
+function getPointBadgeSvg(hex, txt, size = 44) {
+    const safeCol = /^#[0-9a-f]{6}$/i.test(hex) ? hex : '#007AFF';
+    return `<svg width="${size}" height="${size}" viewBox="0 0 20 20"><circle cx="10" cy="10" r="9" fill="#121A28"/><circle cx="10" cy="10" r="9" fill="${safeCol}" opacity="0.3"/><circle cx="10" cy="10" r="9" fill="none" stroke="${safeCol}" stroke-width="1.5"/><circle cx="10" cy="10" r="9.5" fill="none" stroke="#000000" stroke-width="0.8"/><text x="10" y="10.5" font-size="8" font-family="Arial" font-weight="900" text-anchor="middle" dominant-baseline="middle" fill="#ffffff">${escapeHtml(String(txt ?? ''))}</text></svg>`;
+}
+
+window.getNavigatorPointIcon = getNavIconSvg;
+
+const ROUTE_SOURCE_ID = 'nav-routes';
+
+function ensureRouteArrowImage() {
+    if (!APP.map || APP.map.hasImage('nav-route-arrow')) return;
+
+    const size = 32;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Острая чёрная стрелка, смотрит вправо: при symbol-placement='line'
+    // ось X иконки совмещается с направлением линии.
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 3.5;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(9, 9);
+    ctx.lineTo(25, 16);
+    ctx.lineTo(9, 23);
+    ctx.stroke();
+
+    APP.map.addImage(
+        'nav-route-arrow',
+        ctx.getImageData(0, 0, size, size),
+        { pixelRatio: 2 }
+    );
+}
+
+function ensureRouteLayers() {
+    if (!APP.map) return;
+    try {
+        if (!APP.map.getSource(ROUTE_SOURCE_ID)) {
+            APP.map.addSource(ROUTE_SOURCE_ID, {
+                type: 'geojson',
+                data: { type: 'FeatureCollection', features: [] }
+            });
+        }
+        // Контур и линия каждого сегмента лежат в одном слое и чередуются
+        // по sortKey: сначала контур сегмента, затем его линия. Поэтому на
+        // пересечении контур верхней линии виден, а не уходит под нижнюю.
+        if (!APP.map.getLayer('nav-routes-main')) {
+            APP.map.addLayer({
+                id: 'nav-routes-main',
+                type: 'line',
+                source: ROUTE_SOURCE_ID,
+                layout: {
+                    'line-join': 'round',
+                    'line-cap': 'round',
+                    'line-sort-key': ['get', 'sortKey']
+                },
+                paint: {
+                    'line-color': ['get', 'color'],
+                    'line-width': ['case',
+                        ['==', ['get', 'kind'], 'casing'], 1,
+                        ['get', 'width']
+                    ],
+                    'line-gap-width': ['case',
+                        ['==', ['get', 'kind'], 'casing'], ['get', 'width'],
+                        0
+                    ]
+                }
+            });
+        }
+        // По пути текущей цели — маленькие чёрные точки. Круглый line-cap
+        // превращает почти нулевой штрих в точку.
+        if (!APP.map.getLayer('nav-routes-current-dots')) {
+            APP.map.addLayer({
+                id: 'nav-routes-current-dots',
+                type: 'line',
+                source: ROUTE_SOURCE_ID,
+                filter: ['all', ['==', ['get', 'kind'], 'main'], ['==', ['get', 'current'], true]],
+                layout: { 'line-join': 'round', 'line-cap': 'round' },
+                paint: {
+                    'line-color': '#000000',
+                    'line-width': 1.5,
+                    'line-dasharray': [0.1, 6.5667]
+                }
+            });
+        }
+        // Поверх линии предыдущего отрезка — чёрные стрелки по направлению
+        // движения. Линия под ними остаётся обычной сплошной.
+        ensureRouteArrowImage();
+        if (!APP.map.getLayer('nav-routes-previous-arrows')) {
+            APP.map.addLayer({
+                id: 'nav-routes-previous-arrows',
+                type: 'symbol',
+                source: ROUTE_SOURCE_ID,
+                filter: ['all', ['==', ['get', 'kind'], 'main'], ['==', ['get', 'previous'], true]],
+                layout: {
+                    'symbol-placement': 'line',
+                    'symbol-spacing': 32,
+                    'icon-image': 'nav-route-arrow',
+                    'icon-size': 0.8,
+                    'icon-rotation-alignment': 'map',
+                    'icon-keep-upright': false,
+                    'icon-allow-overlap': true,
+                    'icon-ignore-placement': true
+                }
+            });
+        }
+    } catch (e) {
+        // Стиль ещё не догрузился — повторно попробуем на styledata
+    }
+}
+
+function updateRouteLines(features) {
+    if (features) {
+        APP._routeFeatures = features;
+        APP._routeDataDirty = true;
+    }
+    if (!APP.map) return;
+    const source = APP.map.getSource(ROUTE_SOURCE_ID);
+    if (!source) return;
+    // После смены стиля источник создаётся заново — данные нужно применить ещё раз.
+    if (APP._routeDataSource !== source) {
+        APP._routeDataSource = source;
+        APP._routeDataDirty = true;
+    }
+    if (!APP._routeDataDirty) return;
+    source.setData({ type: 'FeatureCollection', features: APP._routeFeatures || [] });
+    APP._routeDataDirty = false;
+}
+
+// После setStyle MapLibre удаляет все source/layer. Восстанавливаем маршрутные слои,
+// как только стиль догрузился (события styledata/idle; style.load при setStyle не приходит).
+function restoreRouteLayers() {
+    if (!APP.map) return;
+    ensureRouteLayers();
+    updateRouteLines();
+    ensureSignLayers();
+}
+
+/* ---------- Слой дорожных знаков из сцены PAD ---------- */
+
+function signCatalogItem(code) {
+    return APP._signCatalog.get(String(code || '')) || null;
+}
+
+function signItemFor(code, file) {
+    const item = signCatalogItem(code);
+    if (item && item.file) {
+        return { code: String(code || ''), file: item.file, w: Number(item.w) || 0, h: Number(item.h) || 0 };
+    }
+    if (file) {
+        return { code: String(code || ''), file: String(file), w: 0, h: 0 };
+    }
+    return null;
+}
+
+function signComboKey(sign) {
+    return [sign.code, (sign.plates || []).join('+'), sign.leg ? '1' : '0'].join('|');
+}
+
+function loadSignImage(file) {
+    const key = String(file || '');
+    if (APP._signImageCache.has(key)) return APP._signImageCache.get(key);
+    const promise = new Promise((resolve, reject) => {
+        const img = new Image();
+        img.decoding = 'async';
+        img.onload = () => resolve(img);
+        img.onerror = () => {
+            APP._signImageCache.delete(key);
+            reject(new Error('Не загрузился знак: ' + key));
+        };
+        img.src = 'signs/' + key;
+    });
+    APP._signImageCache.set(key, promise);
+    return promise;
+}
+
+function buildSignComposite(combo, images) {
+    const mainImage = images.get(combo.main.file);
+    if (!mainImage) return null;
+
+    const ref = SIGNS_REF_PX;
+    const dsf = SIGNS_DSF;
+
+    const mainW0 = combo.main.w || mainImage.naturalWidth || 1;
+    const mainH0 = combo.main.h || mainImage.naturalHeight || 1;
+    const mainAspect = mainW0 / mainH0;
+    let mainW, mainH;
+    if (mainAspect >= 1) {
+        mainW = ref;
+        mainH = ref / mainAspect;
+    } else {
+        mainH = ref;
+        mainW = ref * mainAspect;
+    }
+
+    const plates = [];
+    for (const item of combo.plates) {
+        const image = images.get(item.file);
+        if (!image) continue;
+        const w0 = item.w || image.naturalWidth || 1;
+        const h0 = item.h || image.naturalHeight || 1;
+        const aspect = w0 / h0;
+        let w, h;
+        if (aspect >= 1) {
+            w = ref;
+            h = ref / aspect;
+        } else {
+            h = ref;
+            w = ref * aspect;
+        }
+        plates.push({ image, w, h });
+    }
+
+    const gap = 2;
+    const stackH = mainH + plates.reduce((sum, plate) => sum + plate.h + gap, 0);
+    const legW = ref * 0.09;
+    const poleBottom = combo.leg ? stackH + ref * 0.6 : stackH;
+    const contentTop = mainH / 2;
+    const contentBottom = Math.max(mainH / 2, poleBottom - mainH / 2);
+    const maxPlateW = plates.reduce((max, plate) => Math.max(max, plate.w), 0);
+    const contentHalfW = Math.max(mainW, maxPlateW, legW * 1.56) / 2;
+    const pad = 2;
+    const halfW = contentHalfW + pad;
+    const halfH = Math.max(contentTop, contentBottom) + pad;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.ceil(halfW * 2 * dsf));
+    canvas.height = Math.max(1, Math.ceil(halfH * 2 * dsf));
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+
+    const cx = canvas.width / 2;
+    const cy = canvas.height / 2;
+
+    if (combo.leg) {
+        const topY = cy;
+        const bottomY = cy + (poleBottom - mainH / 2) * dsf;
+        const poleH = Math.max(1, bottomY - topY);
+        const totalW = legW * 1.56 * dsf;
+        const poleW = legW * dsf;
+
+        ctx.fillStyle = '#ffffff';
+        if (ctx.roundRect) {
+            ctx.beginPath();
+            ctx.roundRect(cx - totalW / 2, topY, totalW, poleH, totalW / 2);
+            ctx.fill();
+        } else {
+            ctx.fillRect(cx - totalW / 2, topY, totalW, poleH);
+        }
+
+        const gradient = ctx.createLinearGradient(cx - poleW / 2, 0, cx + poleW / 2, 0);
+        gradient.addColorStop(0, '#6F7378');
+        gradient.addColorStop(0.35, '#B8BCC2');
+        gradient.addColorStop(0.6, '#8E9298');
+        gradient.addColorStop(1, '#6F7378');
+        ctx.fillStyle = gradient;
+        if (ctx.roundRect) {
+            ctx.beginPath();
+            ctx.roundRect(cx - poleW / 2, topY, poleW, poleH, poleW / 2);
+            ctx.fill();
+        } else {
+            ctx.fillRect(cx - poleW / 2, topY, poleW, poleH);
+        }
+    }
+
+    const mainTop = cy - mainH * dsf / 2;
+    ctx.drawImage(mainImage, cx - mainW * dsf / 2, mainTop, mainW * dsf, mainH * dsf);
+
+    let y = mainTop + mainH * dsf;
+    for (const plate of plates) {
+        y += gap * dsf;
+        ctx.drawImage(plate.image, cx - plate.w * dsf / 2, y, plate.w * dsf, plate.h * dsf);
+        y += plate.h * dsf;
+    }
+
+    return canvas;
+}
+
+async function buildSignIcons(signs) {
+    signs = Array.isArray(signs) ? signs : [];
+    if (!signs.length) {
+        return { defs: [], features: [] };
+    }
+
+    const combos = new Map();
+    for (const sign of signs) {
+        if (!sign || !sign.code) continue;
+        const main = signItemFor(sign.code, sign.file);
+        if (!main) continue;
+        const plateItems = (sign.plates || [])
+            .map(code => signItemFor(code, ''))
+            .filter(Boolean);
+        const key = signComboKey(sign);
+        if (!combos.has(key)) {
+            combos.set(key, { key, main, plates: plateItems, leg: !!sign.leg });
+        }
+    }
+
+    const files = new Set();
+    for (const combo of combos.values()) {
+        files.add(combo.main.file);
+        combo.plates.forEach(plate => files.add(plate.file));
+    }
+    const images = new Map();
+    await Promise.all(Array.from(files).map(async file => {
+        try {
+            images.set(file, await loadSignImage(file));
+        } catch (e) {
+            console.warn(e);
+        }
+    }));
+
+    const defs = [];
+    const iconByCombo = new Map();
+    const generation = ++APP._signIconGen;
+    let index = 0;
+    for (const combo of combos.values()) {
+        const canvas = buildSignComposite(combo, images);
+        if (!canvas) continue;
+        // Уникальный ID на каждую сборку: у разных владельцев могут быть
+        // одинаковые номера комбинаций, и старые картинки не должны
+        // подменять новые.
+        const iconId = 'pad-sign-' + generation + '-' + index++;
+        defs.push({ iconId, canvas });
+        iconByCombo.set(combo.key, iconId);
+    }
+
+    const features = [];
+    for (const sign of signs) {
+        if (!sign || !sign.code) continue;
+        const icon = iconByCombo.get(signComboKey(sign));
+        if (!icon) continue;
+        features.push({
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: [Number(sign.lon), Number(sign.lat)] },
+            properties: {
+                icon,
+                heading: Number(sign.heading) || 0
+            }
+        });
+    }
+
+    return { defs, features };
+}
+
+function updateSignsVisibility() {
+    if (!APP.map) return;
+    try {
+        if (APP.map.getLayer(SIGNS_LAYER_ID)) {
+            APP.map.setLayoutProperty(SIGNS_LAYER_ID, 'visibility', APP._signsEnabled ? 'visible' : 'none');
+        }
+    } catch (e) {}
+}
+
+function applySignsConfig() {
+    const toggle = $('signsToggle');
+    APP._signsEnabled = !!(toggle && toggle.checked);
+    try {
+        localStorage.setItem(SIGNS_ENABLED_KEY, APP._signsEnabled ? '1' : '0');
+    } catch (e) {}
+    updateSignsVisibility();
+}
+
+function ensureSignLayers() {
+    const map = APP.map;
+    if (!map || !APP._signFeatures) return;
+    try {
+        // Не ждём isStyleLoaded(): в стиле могут быть медленные/недоступные
+        // источники, из-за которых флаг остаётся false. Пробуем добавить слой
+        // на каждом styledata/idle; если стиль ещё не готов — повторим позже.
+        const collection = { type: 'FeatureCollection', features: APP._signFeatures };
+        const source = map.getSource(SIGNS_SOURCE_ID);
+        if (!source) {
+            map.addSource(SIGNS_SOURCE_ID, { type: 'geojson', data: collection });
+            APP._signSourceData = APP._signFeatures;
+        } else if (APP._signSourceData !== APP._signFeatures) {
+            source.setData(collection);
+            APP._signSourceData = APP._signFeatures;
+        }
+
+        for (const def of APP._signIconDefs) {
+            if (map.hasImage(def.iconId)) continue;
+            const ctx = def.canvas.getContext('2d');
+            if (!ctx) continue;
+            const imageData = ctx.getImageData(0, 0, def.canvas.width, def.canvas.height);
+            map.addImage(def.iconId, imageData, { pixelRatio: SIGNS_DSF });
+        }
+
+        if (!map.getLayer(SIGNS_LAYER_ID)) {
+            map.addLayer({
+                id: SIGNS_LAYER_ID,
+                type: 'symbol',
+                source: SIGNS_SOURCE_ID,
+                minzoom: SIGNS_MIN_ZOOM,
+                layout: {
+                    'icon-image': ['get', 'icon'],
+                    'icon-rotate': ['get', 'heading'],
+                    'icon-rotation-alignment': 'map',
+                    'icon-pitch-alignment': 'map',
+                    'icon-keep-upright': false,
+                    'icon-anchor': 'center',
+                    'icon-allow-overlap': true,
+                    'icon-ignore-placement': true,
+                    // Как в PAD: 3 метра по большей стороне, минимум 15 px.
+                    // MapLibre использует 512-пиксельные тайлы, поэтому
+                    // масштаб соответствует PAD-формуле 2^(zoom + 1).
+                    'icon-size': ['interpolate', ['exponential', 2], ['zoom'],
+                        0, 15 / SIGNS_REF_PX,
+                        17, 15 / SIGNS_REF_PX,
+                        18, 18.1 / SIGNS_REF_PX,
+                        19, 36.2 / SIGNS_REF_PX,
+                        20, 72.4 / SIGNS_REF_PX,
+                        21, 144.8 / SIGNS_REF_PX
+                    ],
+                    'visibility': APP._signsEnabled ? 'visible' : 'none'
+                }
+            });
+        } else {
+            map.moveLayer(SIGNS_LAYER_ID);
+            updateSignsVisibility();
+        }
+    } catch (e) {
+        console.warn('Не удалось добавить слой знаков:', e);
+    }
+}
+
+async function ensureSignCatalog() {
+    if (APP._signCatalogLoaded) return APP._signCatalog;
+    if (!APP._signCatalogPromise) {
+        APP._signCatalogPromise = fetch('signs/catalog.json', { cache: 'force-cache' })
+            .then(response => (response.ok ? response.json() : []))
+            .then(catalog => {
+                APP._signCatalog = new Map(
+                    (Array.isArray(catalog) ? catalog : [])
+                        .filter(item => item && item.code)
+                        .map(item => [String(item.code), item])
+                );
+                APP._signCatalogLoaded = true;
+                return APP._signCatalog;
+            })
+            .catch(e => {
+                console.warn('Не удалось загрузить каталог знаков:', e);
+                APP._signCatalog = new Map();
+                return APP._signCatalog;
+            });
+    }
+    return APP._signCatalogPromise;
+}
+
+function clearSigns() {
+    APP._signsSeq += 1;
+    APP._signsData = { signs: [] };
+    APP._signFeatures = [];
+    if (APP.map && APP.map.getSource(SIGNS_SOURCE_ID)) {
+        try {
+            APP.map.getSource(SIGNS_SOURCE_ID).setData({ type: 'FeatureCollection', features: [] });
+            APP._signSourceData = APP._signFeatures;
+        } catch (e) {}
+    }
+}
+
+function buildSignsCached(signs) {
+    if (APP._signIconCacheBySigns.has(signs)) {
+        return Promise.resolve(APP._signIconCacheBySigns.get(signs));
+    }
+    if (APP._signBuildPromises.has(signs)) {
+        return APP._signBuildPromises.get(signs);
+    }
+    const promise = (async () => {
+        await ensureSignCatalog();
+        const built = await buildSignIcons(signs);
+        APP._signIconCacheBySigns.set(signs, built);
+        return built;
+    })().finally(() => {
+        APP._signBuildPromises.delete(signs);
+    });
+    APP._signBuildPromises.set(signs, promise);
+    return promise;
+}
+
+function preloadOwnerSigns(signs) {
+    if (!Array.isArray(signs) || !signs.length) return;
+    buildSignsCached(signs).catch(e => console.warn('Не удалось подготовить знаки:', e));
+}
+window.preloadOwnerSigns = preloadOwnerSigns;
+
+async function loadSignsForCurrentRoute() {
+    const routeM = (typeof MenuModule !== 'undefined' && MenuModule.currentRoute) ? MenuModule.currentRoute : '';
+    if (!routeM) {
+        clearSigns();
+        return;
+    }
+    const signs = (typeof MenuModule.getSignsForRoute === 'function')
+        ? MenuModule.getSignsForRoute(routeM)
+        : [];
+    if (!Array.isArray(signs) || !signs.length) {
+        clearSigns();
+        return;
+    }
+
+    const seq = ++APP._signsSeq;
+    let built;
+    try {
+        built = await buildSignsCached(signs);
+    } catch (e) {
+        console.warn('Не удалось подготовить знаки:', e);
+        return;
+    }
+    if (seq !== APP._signsSeq) return;
+    APP._signsData = { signs };
+    APP._signIconDefs = built.defs;
+    APP._signFeatures = built.features;
+    ensureSignLayers();
+}
+
+function removeRouteObjects() {
+    APP.navPoints.forEach(p => {
+        if (p.placemark) mapRemoveChild(p.placemark);
+        p.placemark = null;
+    });
+    updateRouteLines([]);
+}
+
+function updateRouteNameDisplay() {
+    const el = $('routeNameDisplay');
+    if (!el) return;
+    let name = '';
+    try {
+        if (typeof MenuModule !== 'undefined') {
+            const cr = MenuModule.currentRoute;
+            if (cr && MenuModule.routesDescriptions && MenuModule.routesDescriptions[cr]) {
+                name = (MenuModule.routesDescriptions[cr].name || '').trim();
+            }
+            if (!name && cr) {
+                name = cr;
+            }
+        }
+    } catch (e) {}
+    if (APP._routeTotalDistance > 0 && name) {
+        const d = APP._routeTotalDistance;
+        const distText = d >= 1000 ? `${(d / 1000).toFixed(1)} км` : `${Math.round(d)} м`;
+        name = `${name} (${distText})`;
+    }
+    el.textContent = name;
+    el.style.display = name ? 'block' : 'none';
+}
+
+function clearRoute() {
+    endSimulation();
+    removeRouteObjects();
+    clearSigns();
+    APP.navPoints = [];
+    APP.navCurrentIndex = 0;
+    APP._routeTotalDistance = 0;
+    $('hud').classList.remove('active');
+    resetFollowPadding();
+    updateRouteNameDisplay();
+}
+
+function renderRoutePoints() {
+    const features = [];
+
+    APP.navPoints.forEach((p, i) => {
+        const isCurrent = (i === APP.navCurrentIndex);
+        const isPassed = (i < APP.navCurrentIndex);
+        const isPrevious = (i === APP.navCurrentIndex - 1);
+        const isNext = (i === APP.navCurrentIndex + 1);
+        const hasComm = p.comm && p.comm.trim() !== '';
+
+        const showPoint = APP._driveShowFrom >= 0 ? (i >= Math.max(APP._driveShowFrom - 1, 0)) : (!isPassed || isCurrent || isPrevious);
+        const showPath = APP._driveShowFrom >= 0 ? (i >= Math.max(APP._driveShowFrom - 1, 0)) : (!isPassed || isPrevious);
+
+        if (!p.placemark) {
+            const el = document.createElement('div');
+            el.style.cssText = 'width:40px;height:40px;cursor:pointer;';
+            el.dataset.idx = i;
+            el.addEventListener('click', e => {
+                e.stopPropagation();
+                const idx = parseInt(el.dataset.idx);
+                setTarget(idx);
+            });
+            p.placemark = new MapMarker({ coordinates: [p.lon, p.lat] }, el);
+        }
+
+        const el = p.placemark.element;
+        el.dataset.idx = i;
+
+        const isKeyPoint = isCurrent || isPrevious || isNext;
+        const shouldShow = isKeyPoint || !isPassed;
+        const markerSize = 40;
+
+        const markerZIndex = 1000 - i;
+
+        if (shouldShow) {
+            el.style.display = '';
+            el.style.opacity = '';
+            el.style.width = markerSize + 'px';
+            el.style.height = markerSize + 'px';
+            el.style.zIndex = markerZIndex;
+            el.innerHTML = `<img src="${getNavIconSvgSized(p.hex, p.id, isCurrent, hasComm, markerSize)}" width="${markerSize}" height="${markerSize}" class="marker-img" />`;
+            p.placemark.update({ coordinates: [p.lon, p.lat] });
+        } else {
+            el.style.display = 'none';
+        }
+
+        if (showPath && p.pts && p.pts.length >= 2) {
+            const coords = p.pts.map(pt => [pt[1], pt[0]]);
+            const mainKey = 2 * (APP.navPoints.length - i) + 1;
+            features.push({
+                type: 'Feature',
+                geometry: { type: 'LineString', coordinates: coords },
+                properties: {
+                    kind: 'main',
+                    color: p.hex,
+                    width: 5,
+                    sortKey: mainKey,
+                    index: i,
+                    previous: isPrevious,
+                    current: isCurrent
+                }
+            });
+            features.push({
+                type: 'Feature',
+                geometry: { type: 'LineString', coordinates: coords },
+                properties: {
+                    kind: 'casing',
+                    color: '#121A28',
+                    width: 5,
+                    sortKey: mainKey - 1
+                }
+            });
+        }
+    });
+
+    if (APP.map) {
+        // Сначала все видимые, кроме текущей — потом текущая последней, чтобы была поверх.
+        for (let ci = APP.navPoints.length - 1; ci >= 0; ci--) {
+            if (ci === APP.navCurrentIndex) continue;
+            const pt = APP.navPoints[ci];
+            if (!pt.placemark) continue;
+            const isPassed = ci < APP.navCurrentIndex;
+            const isPrev = ci === APP.navCurrentIndex - 1;
+            const isNext = ci === APP.navCurrentIndex + 1;
+            const isKeyPoint = isPrev || isNext;
+            const show = APP._driveShowFrom >= 0 ? (ci >= Math.max(APP._driveShowFrom - 1, 0)) : (isKeyPoint || !isPassed);
+            if (!show) { mapRemoveChild(pt.placemark); continue; }
+            if (pt.placemark.element) {
+                pt.placemark.element.style.opacity = '';
+            }
+            mapAddChild(pt.placemark);
+        }
+        const curr = APP.navPoints[APP.navCurrentIndex];
+        if (curr && curr.placemark) {
+            if (curr.placemark.element) curr.placemark.element.style.opacity = '';
+            mapAddChild(curr.placemark);
+        }
+        ensureRouteLayers();
+        updateRouteLines(features);
+    }
+    updateHud();
+}
+
+
+function updateHud() {
+    let idx = APP.navCurrentIndex;
+    if (idx >= APP.navPoints.length) idx = APP.navPoints.length - 1;
+    const t = APP.navPoints[idx];
+    if (!t) return;
+
+    $('hudCmdNum').innerHTML = getPointBadgeSvg(t.hex, t.id);
+    $('hudCmdTextInner').textContent = t.cmd;
+    $('hudCmdTextInner').style.opacity = NavigatorTTS.has(t.cmd, 'command') ? '1' : '0.35';
+    $('hudCmdNum').onclick = (e) => {
+        e.stopPropagation();
+        const el = $('hudCmdNum');
+        if (el.classList.contains('playing')) {
+            el.classList.remove('playing');
+            APP.navAudio.pause();
+            APP._commentAudio.pause();
+            APP.navAudio.onended = null;
+            APP._commentAudio.onended = null;
+            stopDrive();
+            return;
+        }
+        document.querySelectorAll('.playing').forEach(e => e.classList.remove('playing'));
+        APP._commentAudio.onended = null;
+        el.classList.add('playing');
+        playPointAudio(t, () => el.classList.remove('playing'));
+    };
+    $('hudCmd').onclick = openPointsList;
+
+    updateHudPos((APP._driveShowFrom >= 0 && APP._simCurPos) ? APP._simCurPos : APP.lastPos);
+
+    const prevBtn = $('prevBtn'), nextBtn = $('nextBtn');
+    prevBtn.disabled = (idx <= 0);
+    nextBtn.disabled = (idx >= APP.navPoints.length - 1);
+    prevBtn.onclick = () => { endSimulation(); idx > 0 && setTarget(idx - 1); tempDisableAutoCenter(5000); };
+
+    nextBtn.onclick = () => { if (idx < APP.navPoints.length - 1) { endSimulation(); setTarget(idx + 1); tempDisableAutoCenter(5000); } };
+
+    const playBtn = $('playBtn');
+    if (playBtn) {
+        const hasPath = t && t.pts && t.pts.length >= 2;
+        playBtn.disabled = !hasPath;
+    }
+
+    $('commentText').textContent = t.comm || '';
+    const hasComm = t.comm && t.comm.trim() !== '';
+    $('commentText').style.display = hasComm && APP._commentEnabled ? 'block' : 'none';
+    $('commentText').style.opacity = (t.comm && NavigatorTTS.has(t.comm, 'comment')) ? '1' : '0.35';
+
+    // Панель предыдущей команды — та же вёрстка над основной, полупрозрачная
+    const prevHeader = $('hudPrevHeader');
+    const prev = idx > 0 ? APP.navPoints[idx - 1] : null;
+    if (prevHeader) {
+        if (!prev) {
+            prevHeader.style.display = 'none';
+        } else {
+            prevHeader.style.display = '';
+            $('hudPrevCmdNum').innerHTML = getPointBadgeSvg(prev.hex, prev.id);
+            $('hudPrevCmdTextInner').textContent = prev.cmd;
+            $('hudPrevCmdTextInner').style.opacity = NavigatorTTS.has(prev.cmd, 'command') ? '1' : '0.35';
+            $('hudPrevCmdNum').onclick = (e) => {
+                e.stopPropagation();
+                const el = $('hudPrevCmdNum');
+                if (el.classList.contains('playing')) {
+                    el.classList.remove('playing');
+                    APP.navAudio.pause();
+                    APP._commentAudio.pause();
+                    APP.navAudio.onended = null;
+                    APP._commentAudio.onended = null;
+                    stopDrive();
+                    return;
+                }
+                document.querySelectorAll('.playing').forEach(e => e.classList.remove('playing'));
+                APP._commentAudio.onended = null;
+                el.classList.add('playing');
+                playPointAudio(prev, () => el.classList.remove('playing'));
+            };
+            $('hudPrevCmd').onclick = openPointsList;
+        }
+    }
+
+    // Высота панели могла измениться — держим отступ камеры актуальным.
+    syncFollowPadding();
+}
+
+function formatDistance(d) {
+    if (d >= 1000) {
+        const v = (d / 1000).toFixed(1);
+        return `${v}<span class="dist-unit">км</span>`;
+    }
+    return `${Math.round(d)}<span class="dist-unit">м</span>`;
+}
+
+function escapeHtml(str) {
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+}
+
+function pointDistanceHtml(p) {
+    const pos = (APP._driveShowFrom >= 0 && APP._simCurPos) ? APP._simCurPos : APP.lastPos;
+    if (!pos || !p || !p.pts || !p.pts[0]) return '---';
+    return formatDistance(getGeoDistance(pos, [p.pts[0][0], p.pts[0][1]]));
+}
+
+function openPointsList() {
+    if (!$('pointsListModal').classList.contains('hidden')) { closePointsList(); return; }
+    closeAllSheets();
+    const wrap = $('pointsListWrap');
+    if (!wrap || APP.navPoints.length === 0) return;
+    wrap.innerHTML = APP.navPoints.map((p, i) => {
+        const isCurrent = i === APP.navCurrentIndex;
+        const isPrev = i < APP.navCurrentIndex;
+        const dist = isCurrent ? pointDistanceHtml(p) : '';
+        const cls = `pl-item${isCurrent ? ' pl-active' : ''}${isPrev ? ' pl-prev' : ''}`;
+        return `<div class="${cls}" data-idx="${i}">
+            <div class="pl-item-row">
+                <div class="pl-item-row-main">
+                    <div class="pl-item-icon" data-play="${i}">${getPointBadgeSvg(p.hex, p.id)}</div>
+                    <div class="pl-item-text">${escapeHtml(p.cmd)}</div>
+                    ${dist ? `<div class="pl-item-dist">${dist}</div>` : ''}
+                </div>
+                ${p.comm && p.comm.trim() ? `<div class="pl-comment">${escapeHtml(p.comm)}</div>` : ''}
+            </div>
+        </div>`;
+    }).join('');
+    $('pointsListModal').classList.remove('hidden');
+    requestAnimationFrame(() => {
+        const active = wrap.querySelector('.pl-active');
+        if (active) active.scrollIntoView({ block: 'center', behavior: 'auto' });
+    });
+}
+
+function closePointsList() {
+    hideScreen('pointsListModal');
+}
+
+function updateHudDist(d, ad) {
+    $('hudCmdDist').innerHTML = formatDistance(d);
+    $('hudCmdDist').classList.toggle('in-range', d < 50 && ad <= APP.navConfig.AZ_TOLERANCE);
+    updatePointsListDist();
+}
+
+// Обновляет только расстояние до текущей цели (и расстояние в списке точек) —
+// этого достаточно на каждом кадре симуляции.
+function updateHudPos(pos) {
+    const idx = Math.min(APP.navCurrentIndex, APP.navPoints.length - 1);
+    const t = APP.navPoints[idx];
+    if (!t) return;
+    if (!pos) {
+        $('hudCmdDist').innerHTML = '---';
+        $('hudCmdDist').classList.remove('in-range');
+        return;
+    }
+    const d = getGeoDistance(pos, [t.lat, t.lon]);
+    let ad = APP.hasHeading ? Math.abs(APP.lastAz - t.az) % 360 : 180;
+    if (ad > 180) ad = 360 - ad;
+    updateHudDist(d, ad);
+}
+
+function updatePointsListDist() {
+    const modal = $('pointsListModal');
+    if (!modal || modal.classList.contains('hidden')) return;
+    const activeItem = modal.querySelector('.pl-active');
+    if (!activeItem) return;
+    const t = APP.navPoints[APP.navCurrentIndex];
+    const distEl = activeItem.querySelector('.pl-item-dist');
+    if (distEl && t) distEl.innerHTML = pointDistanceHtml(t);
+}
+
+
+
+function setTarget(i) {
+    APP.navCurrentIndex = i;
+    APP._simCurPos = null;
+    renderRoutePoints();
+    updateHud();
+    fitMapToCurrentTarget();
+    updatePointsListActive();
+}
+
+function updatePointsListActive() {
+    const modal = $('pointsListModal');
+    if (!modal || modal.classList.contains('hidden')) return;
+    modal.querySelectorAll('.pl-item').forEach(el => {
+        const idx = parseInt(el.dataset.idx, 10);
+        const isCurrent = idx === APP.navCurrentIndex;
+        el.classList.toggle('pl-active', isCurrent);
+        el.classList.toggle('pl-prev', idx < APP.navCurrentIndex);
+
+        const pt = APP.navPoints[idx];
+        let distEl = el.querySelector('.pl-item-dist');
+        if (isCurrent) {
+            const distText = pointDistanceHtml(pt);
+            if (distEl) {
+                distEl.innerHTML = distText;
+            } else {
+                const main = el.querySelector('.pl-item-row-main');
+                if (main) {
+                    distEl = document.createElement('div');
+                    distEl.className = 'pl-item-dist';
+                    distEl.innerHTML = distText;
+                    main.appendChild(distEl);
+                }
+            }
+        } else if (distEl) {
+            distEl.remove();
+        }
+    });
+    const active = modal.querySelector('.pl-active');
+    if (active) active.scrollIntoView({ block: 'center', behavior: 'smooth' });
+}
+
+function fitMapToCurrentTarget() {
+    const p = APP.navPoints[APP.navCurrentIndex];
+    if (!p || !p.pts || p.pts.length < 1 || !APP.map) return;
+    
+    const coords = p.pts;
+    if (coords.length === 1) {
+        const [lat, lng] = coords[0];
+        if (Number.isFinite(lat) && Number.isFinite(lng)) {
+            setMapLocation([lat, lng], undefined, undefined, 400);
+        }
+        return;
+    }
+    
+    let minLat = coords[0][0], maxLat = coords[0][0];
+    let minLng = coords[0][1], maxLng = coords[0][1];
+    for (let i = 1; i < coords.length; i++) {
+        const [lat, lng] = coords[i];
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+        if (lat < minLat) minLat = lat;
+        if (lat > maxLat) maxLat = lat;
+        if (lng < minLng) minLng = lng;
+        if (lng > maxLng) maxLng = lng;
+    }
+    
+    if (minLat === maxLat || minLng === maxLng) {
+        const [lat, lng] = coords[0];
+        setMapLocation([lat, lng], undefined, undefined, 400);
+        return;
+    }
+    
+    const bounds = [
+        [minLng, minLat],
+        [maxLng, maxLat]
+    ];
+
+    const follow = followPadding();
+    const bottomPadding = Math.max(180, (follow.bottom || 0) + 24);
+    APP.map.fitBounds(bounds, {
+        padding: { top: 120, bottom: bottomPadding, left: 24, right: 24 },
+        maxZoom: 18,
+        duration: 400
+    });
+}
+
+
+async function playCommand(text) {
+    if (!text || !text.trim()) return;
+    APP._commentAudio.pause();
+    APP.navAudio.onended = null;
+    APP.navAudio.pause();
+    await playTTS(text);
+}
+
+async function playTTS(text, voice_type = 'command') {
+    APP._audioPending++;
+    try {
+        APP.navAudio.pause();
+        const key = ttsCacheKey(text, voice_type);
+        const url = APP._audioCache.get(key) || await NavigatorTTS.getAudioUrl(text, voice_type);
+        if (!url) return;
+        APP._audioCache.set(key, url);
+        updateHud();
+        APP.navAudio.src = url;
+        await APP.navAudio.play().catch(() => {});
+    } catch (e) {
+        console.warn('TTS error:', e);
+    } finally {
+        APP._audioPending--;
+    }
+}
+
+async function playComment(text) {
+    if (!text || !text.trim()) return;
+    if (!APP._commentEnabled) return;
+    APP.navAudio.pause();
+    APP._commentAudio.pause();
+    const saved = APP.navAudio;
+    APP.navAudio = APP._commentAudio;
+    try {
+        await playTTS(text, 'comment');
+    } finally {
+        APP.navAudio = saved;
+    }
+}
+
+function playPointAudio(point, onDone) {
+    if (!point) { if (onDone) onDone(); return; }
+    let finished = false;
+    const finish = () => { if (finished) return; finished = true; if (onDone) onDone(); };
+
+    playCommand(point.cmd).then(() => {
+        APP._commentAudio.onended = null;
+
+        const afterCommand = () => {
+            APP.navAudio.onended = null;
+            if (point.comm && point.comm.trim() && APP._commentEnabled) {
+                APP._commentAudio.onended = () => {
+                    APP._commentAudio.onended = null;
+                    finish();
+                };
+                playComment(point.comm).then(() => {
+                    // Если комментарий не зазвучал — не ждём onended
+                    if (APP._commentAudio.paused || !APP._commentAudio.src) {
+                        APP._commentAudio.onended = null;
+                        finish();
+                    }
+                }).catch(finish);
+            } else {
+                finish();
+            }
+        };
+
+        // Если команда не зазвучала (нет TTS / автоплей заблокирован) —
+        // не ждём onended, иначе симуляция/подсветка зависнут навсегда.
+        if (APP.navAudio.paused || !APP.navAudio.src) afterCommand();
+        else APP.navAudio.onended = afterCommand;
+    }).catch(finish);
+}
+
+function navCheckTriggers() {
+    // В режиме симуляции дистанцию и переход к следующей точке считает
+    // только маркер: иначе реальный GPS перебивает показания в панели.
+    if (APP._simMode) return;
+    if (APP.navCurrentIndex < 0 || !APP.lastPos || !APP.navPoints[APP.navCurrentIndex]) return;
+    const t = APP.navPoints[APP.navCurrentIndex];
+    const d = getGeoDistance(APP.lastPos, [t.lat, t.lon]);
+    let ad = APP.hasHeading ? Math.abs(APP.rawAz - t.az) % 360 : 180;
+    if (ad > 180) ad = 360 - ad;
+    updateHudDist(d, ad);
+
+    if (d <= APP.navConfig.TRIGGER_DIST && ad <= APP.navConfig.AZ_TOLERANCE) {
+        const mySeq = ++APP._navSeq;
+        playCommand(t.cmd).then(() => {
+            if (mySeq !== APP._navSeq) return;
+            if (t.comm && t.comm.trim()) {
+                APP.navAudio.onended = () => {
+                    APP.navAudio.onended = null;
+                    if (mySeq !== APP._navSeq) return;
+                    playComment(t.comm);
+                };
+            }
+        });
+        APP.navCurrentIndex++;
+        if (APP.navCurrentIndex < APP.navPoints.length) {
+            renderRoutePoints();
+            updateHud();
+            updatePointsListActive();
+        } else {
+            showToast('Маршрут завершён!', 'success');
+            updateHud();
+        }
+    }
+}
+
+async function loadRouteFromJSON(data) {
+    await processRouteData(data);
+    recordRouteView();
+    // Знаки владельца загружены вместе с пакетом маршрутов и показываются
+    // только после успешного открытия маршрута.
+    loadSignsForCurrentRoute().catch(e => console.warn('Не удалось показать знаки:', e));
+}
+
+// Отмечает маршрут как загруженный. GET, потому что CDN на apex
+// пропускает только GET; ошибку игнорируем, загрузка уже состоялась.
+function recordRouteView() {
+    if (typeof MenuModule === 'undefined' || !MenuModule.currentRoute) return;
+    const m = MenuModule.currentRoute;
+    fetch('/api/route/view?m=' + encodeURIComponent(m), {
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json' },
+        cache: 'no-store'
+    }).then(response => {
+        if (!response.ok) return;
+        if (typeof MenuModule.markRouteViewed === 'function') {
+            MenuModule.markRouteViewed(m);
+        }
+    }).catch(() => {});
+}
+
+async function processRouteData(data) {
+    if (!data || !Array.isArray(data)) throw new Error('Неверный формат данных: ожидается массив');
+    if (data.length === 0) throw new Error('Маршрут пуст');
+
+    const navPoints = data.map((d, i) => {
+        const pts = d.pts || [];
+        if (!pts || pts.length === 0) return null;
+        return {
+            id: d.id || (i + 1), lat: pts[0]?.[0], lon: pts[0]?.[1],
+            hex: COLORS[d.color]?.hex || '#007AFF',
+            cmd: (d.cmd || d.comm || `Т${i + 1}`).trim(),
+            comm: d.comm || '', pts: pts,
+            az: pts.length >= 2 ? calcAzimuth(pts[0], pts[1]) : 0
+        };
+    }).filter(p => p !== null);
+
+    if (navPoints.length === 0) throw new Error('Нет валидных точек в маршруте');
+
+    APP.navPoints = navPoints;
+
+    startWakeLock();
+    APP._simFirstRun = true;
+
+    let totalDist = 0;
+    for (const p of APP.navPoints) {
+        if (p.pts && p.pts.length >= 2) {
+            for (let i = 1; i < p.pts.length; i++) {
+                totalDist += getGeoDistance(p.pts[i-1], p.pts[i]);
+            }
+        }
+    }
+    APP._routeTotalDistance = totalDist;
+
+    APP.navCurrentIndex = 0;
+
+    $('hud').classList.add('active');
+    const jsonModal = $('jsonModal');
+    if (jsonModal) jsonModal.classList.add('hidden');
+    $('loading').classList.add('hidden');
+
+    renderRoutePoints();
+    updateHud();
+
+    if (APP.navPoints.length > 0 && APP.map) {
+        setTimeout(() => {
+            let minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
+            for (const p of APP.navPoints) {
+                if (!p.pts) continue;
+                for (const pt of p.pts) {
+                    const lat = pt[0], lon = pt[1];
+                    if (lat < minLat) minLat = lat;
+                    if (lat > maxLat) maxLat = lat;
+                    if (lon < minLon) minLon = lon;
+                    if (lon > maxLon) maxLon = lon;
+                }
+            }
+            if (minLat !== Infinity) {
+                APP.map.fitBounds([[minLon, minLat], [maxLon, maxLat]], { padding: 40, maxZoom: 19, duration: 400 });
+            }
+        }, 100);
+    }
+    updateRouteNameDisplay();
+    precacheRouteAudio(data).catch(e => console.warn('Background audio caching failed:', e));
+}
+
+async function precacheRouteAudio(data) {
+    const cmdTexts = [...new Set(data.map((d, i) => d.cmd || d.comm || `Т${i + 1}`).filter(t => t && t.trim()))];
+    const commTexts = [...new Set(data.map(d => d.comm).filter(t => t && t.trim()))];
+    const shockPhrase = APP.navConfig.SHOCK_PHRASE || 'Сильный удар';
+    const speedPhrase = APP.navConfig.SPEED_ALERT_PHRASE || 'Превышение скорости';
+    cmdTexts.push(shockPhrase, speedPhrase);
+    try {
+        await NavigatorTTS.preload([
+            { voice_type: 'command', texts: cmdTexts },
+            { voice_type: 'comment', texts: commTexts },
+        ]);
+        for (const text of cmdTexts) {
+            const url = await NavigatorTTS.getAudioUrl(text, 'command');
+            if (url) APP._audioCache.set(ttsCacheKey(text, 'command'), url);
+        }
+        for (const text of commTexts) {
+            const url = await NavigatorTTS.getAudioUrl(text, 'comment');
+            if (url) APP._audioCache.set(ttsCacheKey(text, 'comment'), url);
+        }
+        updateHud();
+    } catch (e) {
+        console.error('Precache error:', e);
+        throw new Error('Не удалось подготовить аудио маршрута: ' + e.message);
+    }
+}
+
+let _wakeLock = null, wakeLockInterval = null, wakeCanvas = null, wakeCanvasStream = null;
+const wakeVideo = document.getElementById('wakeLockVideo');
+
+async function requestWakeLock() {
+    if (!navigator.wakeLock || !navigator.wakeLock.request) return;
+    try {
+        const lock = await navigator.wakeLock.request('screen');
+        lock.addEventListener('release', () => {
+            _wakeLock = null;
+            if (document.visibilityState === 'visible') startWakeLock();
+        });
+        _wakeLock = lock;
+        stopCanvasWakeLock();
+    } catch (e) {
+        startCanvasWakeLock();
+    }
+}
+
+function startCanvasWakeLock() {
+    if (_wakeLock) return;
+    if (!wakeCanvas) {
+        wakeCanvas = document.createElement('canvas');
+        wakeCanvas.width = 1; wakeCanvas.height = 1;
+        const ctx = wakeCanvas.getContext('2d');
+        ctx.fillStyle = '#000'; ctx.fillRect(0, 0, 1, 1);
+        if (wakeCanvas.captureStream) wakeCanvasStream = wakeCanvas.captureStream(30);
+        else if (wakeCanvas.mozCaptureStream) wakeCanvasStream = wakeCanvas.mozCaptureStream(30);
+    }
+    if (wakeVideo && wakeCanvasStream) {
+        wakeVideo.srcObject = wakeCanvasStream;
+        wakeVideo.play().catch(() => {});
+    }
+    if (wakeLockInterval) clearInterval(wakeLockInterval);
+    wakeLockInterval = setInterval(() => {
+        if (wakeVideo && wakeVideo.paused) wakeVideo.play().catch(() => {});
+        if (wakeCanvas) {
+            const ctx = wakeCanvas.getContext('2d');
+            ctx.fillStyle = '#' + Math.floor(Math.random()*16777215).toString(16);
+            ctx.fillRect(0, 0, 1, 1);
+        }
+    }, 15000);
+}
+
+function stopCanvasWakeLock() {
+    if (wakeLockInterval) {
+        clearInterval(wakeLockInterval);
+        wakeLockInterval = null;
+    }
+    if (wakeVideo) {
+        wakeVideo.pause();
+        wakeVideo.srcObject = null;
+    }
+}
+
+function startWakeLock() {
+    requestWakeLock();
+}
+
+// iOS — запрос по первому клику (требуется жест пользователя)
+document.addEventListener('click', async () => {
+    if (!_wakeLock) await requestWakeLock();
+}, { once: true });
+
+// Перезахват после выключения/включения экрана
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && !_wakeLock) requestWakeLock();
+});
+
+function openInstruction() {
+    closePointsList();
+    closeSettings();
+    if (typeof MenuModule !== 'undefined') MenuModule.hide();
+    const modal = $('instructionModal');
+    const body = $('instructionBody');
+    if (!modal || !body) return;
+    modal.classList.remove('hidden');
+    if (!body.dataset.loaded) {
+        const embeddedInstruction = $('embeddedInstruction');
+        if (embeddedInstruction) {
+            body.innerHTML = embeddedInstruction.innerHTML;
+            body.dataset.loaded = '1';
+            return;
+        }
+        fetch('instr.html', { cache: 'no-cache' })
+            .then(r => r.text())
+            .then(html => {
+                const doc = new DOMParser().parseFromString(html, 'text/html');
+                body.innerHTML = doc.body.innerHTML;
+                body.dataset.loaded = '1';
+            })
+            .catch(() => { body.innerHTML = '<div style="text-align:center;padding:40px;color:rgba(255,100,100,0.8);">Ошибка загрузки инструкции</div>'; });
+    }
+}
+
+function closeInstruction() {
+    hideScreen('instructionModal');
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    applyThemePreference(loadThemePreference(), false);
+    setTimeout(startWakeLock, 500);
+});
+
+if (typeof maplibregl === 'undefined') {
+    showToast('Ошибка загрузки карты (MapLibre)', 'error', 8000);
+    $('loading').classList.add('hidden');
+} else {
+(async () => {
+    let initCenter = [43.9968, 56.3269];
+    if (navigator.geolocation) {
+        try {
+            const pos = await new Promise((resolve, reject) => {
+                navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 });
+            });
+            initCenter = [pos.coords.longitude, pos.coords.latitude];
+        } catch (e) {}
+    }
+
+    registerYandexProtocol();
+    APP.map = new maplibregl.Map({
+        container: 'map',
+        style: mapStyleDefinition(APP._mapStyle),
+        center: [initCenter[0], initCenter[1]],
+        zoom: 17,
+        minZoom: 3,
+        maxZoom: 20,
+        attributionControl: { compact: true },
+        dragRotate: true,
+        pitchWithRotate: true,
+        touchPitch: true
+    });
+
+
+    // Копирайт держим свёрнутым (кнопка ⓘ), пока пользователь сам его не откроет.
+    let attributionTouched = false;
+    const bindAttributionTouch = () => {
+        const control = document.querySelector('.maplibregl-ctrl-attrib');
+        if (!control || control.dataset.touchBound) return;
+        control.dataset.touchBound = '1';
+        const touch = () => { attributionTouched = true; };
+        control.addEventListener('pointerdown', touch);
+        control.addEventListener('click', touch);
+    };
+    const collapseAttribution = () => {
+        bindAttributionTouch();
+        if (attributionTouched) return;
+        document.querySelectorAll('.maplibregl-ctrl-attrib.maplibregl-compact-show')
+            .forEach(el => el.classList.remove('maplibregl-compact-show'));
+    };
+    collapseAttribution();
+    APP.map.once('load', collapseAttribution);
+    APP.map.on('styledata', collapseAttribution);
+    APP.map.on('idle', collapseAttribution);
+    setTimeout(collapseAttribution, 500);
+    setTimeout(collapseAttribution, 1500);
+
+    APP.map.once('load', restoreRouteLayers);
+    APP.map.on('styledata', restoreRouteLayers);
+    APP.map.on('idle', restoreRouteLayers);
+
+    const shownMapErrors = new Set();
+    APP.map.on('error', (e) => {
+        const error = e && e.error;
+        const message = error ? String(error.message || '') : '';
+        const url = error && error.url ? String(error.url) : String((e && e.url) || '');
+        if (!/key|401|403|failed to fetch|load/i.test(message + ' ' + url)) return;
+
+        const sourceId = e && e.sourceId;
+        const isYandexError = sourceId === 'osm-yandex-base'
+            || /yandexsat:|core-sat\.maps\.yandex\.net/i.test(url);
+        const isVersaError = sourceId === 'versa' || /versatiles\.org/i.test(url);
+        const errorType = isYandexError ? 'yandex' : isVersaError ? 'versa' : null;
+        if (!errorType || shownMapErrors.has(errorType)) return;
+        shownMapErrors.add(errorType);
+
+        showToast(errorType === 'yandex'
+            ? 'Ошибка загрузки тайлов Яндекса'
+            : 'Ошибка загрузки карты VersaTiles', 'error', 6000);
+    });
+
+    // Стрелка текущего положения. Геометрия и поведение:
+    // маркер с rotationAlignment/pitchAlignment "map", поэтому MapLibre сам
+    // наклоняет его вместе с картой и поворачивает вместе с bearing.
+    const userEl = document.createElement('div');
+    userEl.className = 'user-location-marker';
+    userEl.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5 20 20.5 12 16.3 4 20.5 12 2.5z" fill="#FF3B30" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"/></svg>';
+    APP.userMarker = new MapMarker({
+        coordinates: [0, 0],
+        rotationAlignment: 'map',
+        pitchAlignment: 'map'
+    }, userEl);
+    mapAddChild(APP.userMarker);
+    APP.map.on('zoom', updateArrowScale);
+    updateArrowScale();
+
+    // Ручной жест временно отпускает камеру. Программные move/zoom
+    // (easeTo) не считаются жестом: у них нет originalEvent.
+    ['dragstart', 'zoomstart', 'rotatestart', 'pitchstart'].forEach(type => {
+        APP.map.on(type, event => {
+            if (type !== 'dragstart' && !(event && event.originalEvent)) return;
+            pauseFollow();
+        });
+    });
+    ['dragend', 'zoomend', 'rotateend', 'pitchend'].forEach(type => {
+        APP.map.on(type, () => {
+            if (APP._followPausedUntil > Date.now()) {
+                APP._followPausedUntil = Date.now() + 5000;
+            }
+        });
+    });
+
+    // Ручной наклон запоминается как текущий: иначе каждый следующий фикс
+    // возвращал бы угол из режима 2D/3D, и карта дёргалась бы на каждом шаге.
+    // События от easeTo приходят без originalEvent и угол не трогают.
+    APP.map.on('pitch', event => {
+        if (event && event.originalEvent) APP.lastTilt = APP.map.getPitch();
+    });
+
+    // Ручной зум запоминается, чтобы при возобновлении слежения камера не
+    // сбрасывала его на значение по умолчанию (не ниже 16). События от
+    // программных easeTo приходят без originalEvent и зум не трогают.
+    APP.map.on('zoom', event => {
+        if (event && event.originalEvent) APP.lastZoom = APP.map.getZoom();
+    });
+
+    const driveEl = document.createElement('div');
+    driveEl.innerHTML = '<svg width="18" height="18" viewBox="0 0 18 18"><circle cx="9" cy="9" r="7" fill="#FF3B30" stroke="#fff" stroke-width="2.5"/></svg>';
+    // Явные размеры обязательны: MapLibre центрирует маркер через
+    // translate(-50%,-50%) от размера элемента. Без width/height div
+    // растягивался на всю ширину карты, и точка уезжала в левый край.
+    driveEl.style.cssText = 'display:none;position:absolute;width:18px;height:18px;z-index:9999;';
+    APP._driveMarker = new MapMarker({ coordinates: [0, 0] }, driveEl);
+    mapAddChild(APP._driveMarker);
+
+    initGeolocation();
+
+    APP._is3D = false;
+
+    const speedometer = $('telemetryPanel');
+    speedometer.addEventListener('contextmenu', (event) => event.preventDefault());
+    let speedometerPressTimer = null;
+    let speedometerPointerId = null;
+    let speedometerPressX = 0;
+    let speedometerPressY = 0;
+    const cancelSpeedometerPress = () => {
+        window.clearTimeout(speedometerPressTimer);
+        speedometerPressTimer = null;
+        speedometerPointerId = null;
+    };
+    speedometer.addEventListener('pointerdown', (event) => {
+        if (!event.isPrimary || event.button !== 0) return;
+        cancelSpeedometerPress();
+        event.preventDefault();
+        event.stopPropagation();
+        speedometerPointerId = event.pointerId;
+        speedometerPressX = event.clientX;
+        speedometerPressY = event.clientY;
+        speedometer.setPointerCapture(event.pointerId);
+        speedometerPressTimer = window.setTimeout(() => {
+            window.location.assign(EDITOR_URL);
+        }, 700);
+    });
+    speedometer.addEventListener('pointermove', (event) => {
+        if (event.pointerId !== speedometerPointerId) return;
+        if (Math.hypot(event.clientX - speedometerPressX, event.clientY - speedometerPressY) > 12) {
+            cancelSpeedometerPress();
+        }
+    });
+    speedometer.addEventListener('pointerup', (event) => {
+        if (event.pointerId === speedometerPointerId) cancelSpeedometerPress();
+    });
+    speedometer.addEventListener('pointercancel', cancelSpeedometerPress);
+    $('locateBtn').addEventListener('click', toggleAutoCenter);
+
+    $('playBtn').addEventListener('click', () => {
+        if (APP._driveActive) {
+            pauseDrive();
+            return;
+        }
+        if ((!APP.navAudio.paused && APP.navAudio.currentTime > 0) ||
+            (!APP._commentAudio.paused && APP._commentAudio.currentTime > 0)) {
+            endSimulation();
+            return;
+        }
+        const idx = APP.navCurrentIndex;
+        // Цель в панели — точка idx, едем по пути предыдущей точки (idx - 1).
+        // На паузе посреди хвоста последней точки путь и цель совпадают.
+        const resumeIdx = APP._driveResume ? APP._driveResume.idx : -1;
+        const isLastTarget = idx >= APP.navPoints.length - 1;
+        if (APP._driveResume && (resumeIdx === idx - 1 || (isLastTarget && resumeIdx === idx))) {
+            disableAutoCenter();
+            APP._simMode = true;
+            APP._simForceZoom = false;
+            updateTiltState();
+            setSimTarget(idx);
+            driveAlongPath(resumeIdx);
+            return;
+        }
+        const p = APP.navPoints[idx];
+        if (!p || !p.pts || p.pts.length < 2) {
+            showToast('У текущей точки нет пути для симуляции', 'info');
+            return;
+        }
+        disableAutoCenter();
+        APP._simMode = true;
+        updateTiltState();
+        APP._simForceZoom = APP._simFirstRun;
+        if (APP._simFirstRun) {
+            APP._simFirstRun = false;
+            const from = p.pts[0], to = p.pts[1];
+            const dLon = (to[1] - from[1]) * Math.PI / 180;
+            const y = Math.sin(dLon) * Math.cos(to[0] * Math.PI / 180);
+            const x = Math.cos(from[0] * Math.PI / 180) * Math.sin(to[0] * Math.PI / 180) -
+                      Math.sin(from[0] * Math.PI / 180) * Math.cos(to[0] * Math.PI / 180) * Math.cos(dLon);
+            const bearing = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+            setMapLocation(from, 19, bearing, 2000);
+        }
+        APP._simCurPos = [p.pts[0][0], p.pts[0][1]];
+        setSimTarget(idx);
+        setPlayBtnState('running');
+        // Озвучка идёт асинхронно: запоминаем запуск, чтобы отмена (стоп,
+        // клик по карте) не воскресила симуляцию после окончания аудио.
+        const simSeq = APP._simSeq;
+        const startSimAfterAudio = () => {
+            if (simSeq !== APP._simSeq || APP._driveActive) return;
+            const nextIdx = idx + 1;
+            if (nextIdx >= APP.navPoints.length) {
+                // Последняя точка: следующей нет, поэтому едем её собственный
+                // путь до конца маршрута.
+                driveLastPointPath(idx);
+                return;
+            }
+            // После озвучки командой текущей цели становится следующая точка,
+            // а движение идёт по пути озвученной точки (pts[0] === её координаты).
+            setSimTarget(nextIdx);
+            driveAlongPath(idx);
+        };
+        const doPlay = () => {
+            if (simSeq !== APP._simSeq) return;
+            playPointAudio(p, startSimAfterAudio);
+        };
+        APP._simForceZoom ? setTimeout(doPlay, 2000) : doPlay();
+    });
+
+    document.getElementById('map').addEventListener('click', () => {
+        endSimulation();
+    });
+
+    $('pointsListWrap').addEventListener('click', (e) => {
+        const icon = e.target.closest('.pl-item-icon');
+        if (icon) {
+            const idx = +icon.dataset.play;
+            if (!isNaN(idx) && APP.navPoints[idx]) {
+                const p = APP.navPoints[idx];
+                if (icon.classList.contains('playing')) {
+                    icon.classList.remove('playing');
+                    APP.navAudio.pause();
+                    APP._commentAudio.pause();
+                    APP.navAudio.onended = null;
+                    APP._commentAudio.onended = null;
+                    stopDrive();
+                    return;
+                }
+                document.querySelectorAll('.playing').forEach(e => e.classList.remove('playing'));
+                APP._commentAudio.onended = null;
+                icon.classList.add('playing');
+                playPointAudio(p, () => icon.classList.remove('playing'));
+            }
+            return;
+        }
+        const item = e.target.closest('.pl-item');
+        if (!item) return;
+        const idx = +item.dataset.idx;
+        if (!isNaN(idx) && idx >= 0 && idx < APP.navPoints.length) {
+            closePointsList();
+            endSimulation();
+            setTarget(idx);
+            tempDisableAutoCenter(5000);
+        }
+    });
+
+    // Скрываем оверлей сразу, не дожидаясь загрузки карты
+    $('loading').classList.add('hidden');
+    MenuModule.init(loadRouteFromJSON);
+
+    document.addEventListener('click', function activateAudio() {
+        APP.navAudio.muted = true;
+        APP.navAudio.play().catch(() => {});
+        APP.navAudio.pause();
+        APP.navAudio.muted = false;
+    }, { once: true });
+})().catch(e => {
+    showToast('Ошибка загрузки карты: ' + e.message, 'error', 5000);
+    $('loading').classList.add('hidden');
+});
+}
+</script>
+
+<div id="pointsListModal" class="hidden screen-modal">
+    <div class="screen-panel" id="pointsListScreen">
+        <header class="screen-head">
+            <h1 class="screen-title">Точки маршрута</h1>
+            <button type="button" class="screen-close" onclick="closePointsList()" aria-label="Закрыть">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+            </button>
+        </header>
+        <div id="pointsListWrap"></div>
+    </div>
+</div>
+
+<div id="profileModal" class="hidden screen-modal">
+    <div class="screen-panel" id="profileScreen">
+        <header class="screen-head">
+            <h1 class="screen-title">Профиль</h1>
+            <button type="button" class="screen-close" onclick="closeProfile()" aria-label="Закрыть">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+            </button>
+        </header>
+        <div class="settings-body">
+            <div class="settings-group" id="accountLoginGroup" hidden>
+                <div class="settings-label">Аккаунт</div>
+                <div class="auth-account-row">
+                    <div class="auth-account-text">
+                        Войдите через Яндекс, чтобы аккаунт запоминался на этом устройстве.
+                    </div>
+                    <button type="button" class="auth-account-btn" id="accountLogin">
+                        Войти с Яндексом
+                    </button>
+                </div>
+            </div>
+
+            <div class="settings-group" id="accountUserGroup" hidden>
+                <div class="settings-label">Аккаунт</div>
+                <div class="auth-account-row">
+                    <div class="auth-account-text">
+                        <div class="auth-account-name-row">
+                            <span class="auth-account-name" id="accountName"></span>
+                            <span class="account-premium-badge" id="accountPremiumBadge" hidden>★ Премиум</span>
+                        </div>
+                        <div class="auth-account-email" id="accountEmail"></div>
+                    </div>
+                    <button type="button" class="auth-account-btn" id="accountLogout">
+                        Выйти
+                    </button>
+                </div>
+            </div>
+
+            <div class="settings-group">
+                <div class="settings-label">Премиум</div>
+                <div class="premium-card">
+                    <div class="premium-card-head">
+                        <span class="premium-star" aria-hidden="true">★</span>
+                        <div class="premium-card-text">
+                            <div class="premium-title" id="premiumTitle">Премиум-подписка</div>
+                            <div class="premium-status" id="premiumStatus">Проверяем…</div>
+                        </div>
+                    </div>
+                    <button type="button" class="premium-buy-btn" id="premiumBuyBtn" disabled>
+                        Купить
+                    </button>
+                    <a class="premium-legal-link" href="/legal.html" target="_blank" rel="noopener">Публичная оферта · Политика конфиденциальности · Контакты и реквизиты</a>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<div id="navSettingsModal" class="hidden screen-modal">
+    <div class="screen-panel" id="navSettingsScreen">
+        <header class="screen-head">
+            <h1 class="screen-title">Настройки</h1>
+            <button type="button" class="screen-close" onclick="closeSettings()" aria-label="Закрыть">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+            </button>
+        </header>
+        <div class="settings-body">
+            <div class="settings-group">
+                <div class="settings-label">Оповещения</div>
+                <div class="trigger-setting-row">
+                    <div class="trigger-setting-header">
+                        <div class="trigger-switch-group">
+                            <label class="toggle-switch">
+                                <input type="checkbox" class="toggle-input" id="triggerShockToggle" onchange="updateShockDisplay();applyShockConfig()">
+                                <span class="toggle-slider"></span>
+                            </label>
+                            <div class="trigger-pad">
+                                <button type="button" class="trigger-phrase-btn" onclick="playCommand('Сильный удар')" aria-label="Озвучить: Сильный удар">Сильный удар</button>
+                            </div>
+                        </div>
+                        <span class="value" id="triggerShockVal">Выкл</span>
+                    </div>
+                    <div>
+                        <input type="range" id="triggerShock" min="0.5" max="3" value="1" step="0.25" oninput="updateShockDisplay();applyShockConfig()">
+                    </div>
+                </div>
+                <div class="trigger-desc">Оповещает о резком ударе или яме, если удар превышает заданный порог.</div>
+
+                <div style="height:1px;background:var(--line);margin:2px 4px;"></div>
+
+                <div class="trigger-setting-row">
+                    <div class="trigger-setting-header">
+                        <div class="trigger-switch-group">
+                            <label class="toggle-switch">
+                                <input type="checkbox" class="toggle-input" id="triggerSpeedAlertToggle" onchange="applySpeedConfig()">
+                                <span class="toggle-slider"></span>
+                            </label>
+                            <div class="trigger-pad">
+                                <button type="button" class="trigger-phrase-btn" onclick="playCommand('Превышение скорости')" aria-label="Озвучить: Превышение скорости">Превышение скорости</button>
+                            </div>
+                        </div>
+                        <input type="text" inputmode="numeric" pattern="[0-9]*" id="triggerSpeedAlert" value="58" class="trigger-input-num speed-input-inline" oninput="this.value=this.value.replace(/[^0-9]/g,'');applySpeedConfig()">
+                    </div>
+                </div>
+                <div class="trigger-desc">Оповещает, если превышена установленная максимальная скорость движения.</div>
+            </div>
+
+            <div class="settings-group">
+                <div class="settings-label">Оформление</div>
+                <div class="trigger-setting-row">
+                    <div class="trigger-setting-header">
+                        <label class="toggle-switch">
+                            <input type="checkbox" class="toggle-input" id="themeToggle" onchange="applyThemePreference(this.checked)">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span class="label">Тёмная тема</span>
+                        <span class="value" id="themeValue">Выкл</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-group">
+                <div class="settings-label">Вид карты</div>
+                <div id="mapStyleGrid" class="map-style-grid"></div>
+            </div>
+
+            <div class="settings-group">
+                <div class="settings-label">Знаки</div>
+                <div class="trigger-setting-row">
+                    <div class="trigger-setting-header">
+                        <label class="toggle-switch">
+                            <input type="checkbox" class="toggle-input" id="signsToggle" checked onchange="applySignsConfig()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span class="label">Показывать дорожные знаки</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-group">
+                <div class="settings-label">Комментарии</div>
+                <div class="trigger-setting-row">
+                    <div class="trigger-setting-header">
+                        <label class="toggle-switch">
+                            <input type="checkbox" class="toggle-input" id="commentToggle" checked onchange="applyCommentConfig()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span class="label">Включить отображение и озвучивание</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-group">
+                <a class="premium-legal-link" href="/legal.html" target="_blank" rel="noopener">Правовая информация, оферта и реквизиты</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="premiumModal" class="hidden screen-modal">
+    <div class="screen-panel" id="premiumScreen">
+        <header class="screen-head">
+            <h1 class="screen-title">Премиум</h1>
+            <button type="button" class="screen-close" onclick="closePremiumOffer()" aria-label="Закрыть">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+            </button>
+        </header>
+        <div class="settings-body">
+            <div class="premium-offer">
+                <div class="premium-offer-star" aria-hidden="true">★</div>
+                <div class="premium-offer-title" id="premiumOfferTitle">Премиум-маршрут</div>
+                <div class="premium-offer-text" id="premiumOfferText">
+                    Этот маршрут доступен по премиум-подписке.
+                </div>
+                <button type="button" class="premium-buy-btn" id="premiumOfferBtn" disabled>
+                    Оформить
+                </button>
+                <a class="premium-legal-link" href="/legal.html#payment" target="_blank" rel="noopener">
+                    Условия оплаты
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+<script>
+/* Нижняя навигация: панель вкладок */
+(function () {
+    const nav = document.getElementById('topActions');
+    if (!nav) return;
+
+    const tabs = Array.from(nav.querySelectorAll('.top-nav-btn'));
+    const order = tabs.map(tab => tab.dataset.tab);
+
+    const isOpen = id => {
+        const el = document.getElementById(id);
+        return !!el && !el.classList.contains('hidden');
+    };
+
+    const setActive = name => {
+        tabs.forEach(tab => {
+            const active = tab.dataset.tab === name;
+            tab.classList.toggle('active', active);
+            if (active) tab.setAttribute('aria-current', 'page');
+            else tab.removeAttribute('aria-current');
+        });
+    };
+
+    const sync = () => {
+        if (isOpen('jsonModal')) setActive('routes');
+        else if (isOpen('profileModal')) setActive('profile');
+        else if (isOpen('navSettingsModal')) setActive('settings');
+        else if (isOpen('instructionModal')) setActive('instruction');
+        else tabs.forEach(tab => {
+            tab.classList.remove('active');
+            tab.removeAttribute('aria-current');
+        });
+    };
+
+    const closeInstructionScreen = () => {
+        if (isOpen('instructionModal') && typeof closeInstruction === 'function') {
+            closeInstruction();
+        }
+    };
+
+    nav.addEventListener('click', e => {
+        const tab = e.target.closest('.top-nav-btn');
+        if (!tab || !nav.contains(tab)) return;
+
+        const name = tab.dataset.tab;
+        if (name !== 'instruction') closeInstructionScreen();
+
+        if (name === 'routes') {
+            if (typeof MenuModule === 'undefined') return;
+            if (isOpen('jsonModal')) MenuModule.hide();
+            else MenuModule.show();
+        } else if (name === 'instruction') {
+            if (typeof openInstruction !== 'function') return;
+            if (isOpen('instructionModal')) closeInstruction();
+            else { closeAllSheets(); openInstruction(); }
+        } else if (name === 'profile') {
+            if (typeof openProfile === 'function') openProfile();
+        } else if (name === 'settings') {
+            if (typeof openSettings === 'function') openSettings();
+        } else if (typeof closeAllSheets === 'function') {
+            closeAllSheets();
+        }
+        sync();
+        if (navigator.vibrate) {
+            try { navigator.vibrate(8); } catch (e) {}
+        }
+    });
+
+    const observe = id => {
+        const el = document.getElementById(id);
+        if (!el) return false;
+        new MutationObserver(sync).observe(el, { attributes: true, attributeFilter: ['class'] });
+        return true;
+    };
+
+    observe('profileModal');
+    observe('navSettingsModal');
+    observe('instructionModal');
+    if (!observe('jsonModal')) {
+        const wait = new MutationObserver(() => {
+            if (observe('jsonModal')) {
+                wait.disconnect();
+                sync();
+            }
+        });
+        wait.observe(document.body, { childList: true, subtree: true });
+    }
+    sync();
+})();
+</script>
+<script>
+(function () {
+    const bind = () => {
+        const buy = document.getElementById('premiumBuyBtn');
+        if (buy) buy.addEventListener('click', startPremiumCheckout);
+        const offer = document.getElementById('premiumOfferBtn');
+        if (offer) offer.addEventListener('click', startPremiumCheckout);
+    };
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', bind);
+    } else {
+        bind();
+    }
+    window.addEventListener('load', () => {
+        setTimeout(() => {
+            if (typeof handlePremiumReturn === 'function') handlePremiumReturn();
+        }, 600);
+    });
+    window.openPremiumOffer = openPremiumOffer;
+    window.closePremiumOffer = closePremiumOffer;
+    window.startPremiumCheckout = startPremiumCheckout;
+    window.loadPremiumStatus = loadPremiumStatus;
+})();
+</script>
+</body>
+</html>
